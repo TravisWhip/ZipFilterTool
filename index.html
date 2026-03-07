@@ -282,6 +282,23 @@
 
         input[type="text"]::placeholder { color: var(--blush); }
 
+        /* ── Clear button ── */
+        .clear-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-family: 'Lato', sans-serif;
+            cursor: pointer;
+            padding: 0.35rem 0.75rem;
+            margin-top: -0.5rem;
+            margin-bottom: 0.9rem;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .clear-btn:not(:disabled):hover { color: var(--rose-deep); border-color: var(--rose); }
+        .clear-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
         #custom-row { display: none; margin-bottom: 1rem; }
         #custom-row.visible { display: block; }
 
@@ -456,6 +473,8 @@
             <p class="drop-text drop-hint"><strong>Drop your ZIP(s) here</strong><br>or click to browse</p>
             <span class="file-pill" id="fileName"></span>
         </div>
+
+        <button class="clear-btn" id="clearBtn" disabled>✕ Clear files</button>
 
         <!-- Format picker -->
         <div class="field">
@@ -678,6 +697,16 @@
         updateBtn();
     });
 
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        selectedFiles = [];
+        dropZone.classList.remove('has-file');
+        fileNameEl.textContent = '';
+        fileInput.value = '';
+        statsEl.classList.remove('visible');
+        clearStatus();
+        updateBtn();
+    });
+
     customExt.addEventListener('input', updateBtn);
 
     function getExts() {
@@ -692,6 +721,7 @@
     }
 
     function updateBtn() {
+        document.getElementById('clearBtn').disabled = selectedFiles.length === 0;
         const exts = getExts();
         if (selectedFiles.length > 0 && exts.length > 0) {
             runBtn.disabled = false;
