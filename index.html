@@ -197,6 +197,12 @@
 
         select { padding-right: 2.4rem; cursor: pointer; }
 
+        select[multiple] {
+            padding-right: 0.9rem;
+            height: 168px;
+            cursor: default;
+        }
+
         select:focus, input[type="text"]:focus {
             border-color: var(--rose);
             box-shadow: 0 0 0 3px rgba(201,125,110,0.12);
@@ -212,6 +218,14 @@
             border-right: 4px solid transparent;
             border-top: 5px solid var(--blush);
             pointer-events: none;
+        }
+
+        .select-wrap:has(select[multiple])::after { display: none; }
+
+        .select-hint {
+            margin-top: 0.35rem;
+            font-size: 0.67rem;
+            color: var(--blush);
         }
 
         input[type="text"]::placeholder { color: var(--blush); }
@@ -393,9 +407,9 @@
 
         <!-- Format picker -->
         <div class="field">
-            <label for="formatSelect">File type to keep</label>
+            <label for="formatSelect">File types to keep</label>
             <div class="select-wrap">
-                <select id="formatSelect">
+                <select id="formatSelect" multiple>
                     <optgroup label="✦ Embroidery">
                         <option value=".jef" selected>.jef — Janome</option>
                         <option value=".dst">.dst — Tajima</option>
@@ -409,7 +423,7 @@
                     </optgroup>
                     <optgroup label="Images">
                         <option value=".jpg">.jpg</option>
-                        <option value=".png">.png</option>
+                        <option value=".png" selected>.png</option>
                         <option value=".svg">.svg</option>
                         <option value=".gif">.gif</option>
                         <option value=".webp">.webp</option>
@@ -429,6 +443,7 @@
                     </optgroup>
                 </select>
             </div>
+            <p class="select-hint">Hold Ctrl / Cmd to select multiple types</p>
         </div>
 
         <!-- Custom ext -->
@@ -508,25 +523,28 @@
     }
 
     formatSelect.addEventListener('change', () => {
-        customRow.classList.toggle('visible', formatSelect.value === 'custom');
-        if (formatSelect.value === 'custom') customExt.focus();
+        const selected = Array.from(formatSelect.selectedOptions).map(o => o.value);
+        customRow.classList.toggle('visible', selected.includes('custom'));
+        if (selected.includes('custom')) customExt.focus();
         updateBtn();
     });
 
     customExt.addEventListener('input', updateBtn);
 
-    function getExt() {
-        if (formatSelect.value === 'custom') {
+    function getExts() {
+        const selected = Array.from(formatSelect.selectedOptions).map(o => o.value);
+        const exts = selected.filter(v => v !== 'custom');
+        if (selected.includes('custom')) {
             let v = customExt.value.trim().toLowerCase();
             if (v && !v.startsWith('.')) v = '.' + v;
-            return v;
+            if (v) exts.push(v);
         }
-        return formatSelect.value;
+        return exts;
     }
 
     function updateBtn() {
-        const ext = getExt();
-        if (selectedFile && ext) {
+        const exts = getExts();
+        if (selectedFile && exts.length > 0) {
             runBtn.disabled = false;
             runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate filtered ZIP`;
         } else if (!selectedFile) {
@@ -534,13 +552,13 @@
             runBtn.textContent = 'Choose a file to begin';
         } else {
             runBtn.disabled = true;
-            runBtn.textContent = 'Enter a file extension';
+            runBtn.textContent = 'Select at least one file type';
         }
     }
 
     runBtn.addEventListener('click', async () => {
-        const ext = getExt();
-        if (!selectedFile || !ext) return;
+        const exts = getExts();
+        if (!selectedFile || exts.length === 0) return;
 
         runBtn.disabled = true;
         runBtn.innerHTML = '<span class="spinner"></span> Processing…';
@@ -551,10 +569,10 @@
             const zip = await JSZip.loadAsync(selectedFile);
             const newZip = new JSZip();
             const allFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
-            const kept = allFiles.filter(([name]) => name.toLowerCase().endsWith(ext));
+            const kept = allFiles.filter(([name]) => exts.some(ext => name.toLowerCase().endsWith(ext)));
 
             if (kept.length === 0) {
-                showStatus('No ' + ext + ' files found in this archive.', 'error');
+                showStatus('No matching files (' + exts.join(', ') + ') found in this archive.', 'error');
                 runBtn.disabled = false;
                 updateBtn();
                 return;
@@ -574,11 +592,12 @@
 
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = selectedFile.name.replace(/\.zip$/i, '') + '_' + ext.slice(1) + '-only.zip';
+            const extSuffix = exts.length === 1 ? exts[0].slice(1) + '-only' : 'filtered';
+            a.download = selectedFile.name.replace(/\.zip$/i, '') + '_' + extSuffix + '.zip';
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 
-            showStatus('✓  ' + kept.length + ' ' + ext + ' file' + (kept.length !== 1 ? 's' : '') + ' saved — download started!', 'success');
+            showStatus('✓  ' + kept.length + ' file' + (kept.length !== 1 ? 's' : '') + ' (' + exts.join(', ') + ') saved — download started!', 'success');
         } catch (err) {
             showStatus('Something went wrong: ' + err.message, 'error');
         }
