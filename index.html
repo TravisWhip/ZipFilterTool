@@ -446,14 +446,14 @@
 
         <!-- Drop zone -->
         <div class="drop-zone" id="dropZone">
-            <input type="file" id="fileInput" accept=".zip">
+            <input type="file" id="fileInput" accept=".zip" multiple>
             <!-- Needle + thread SVG icon -->
             <svg class="needle-icon" width="38" height="38" viewBox="0 0 38 38" fill="none">
                 <path d="M28 6 L10 32" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
                 <ellipse cx="28.5" cy="5.5" rx="3.5" ry="2" transform="rotate(-35 28.5 5.5)" stroke="#c97d6e" stroke-width="1.5" fill="none"/>
                 <path d="M26 8 Q20 14 10 32 Q13 28 15 32" stroke="#8fa68a" stroke-width="1.5" stroke-linecap="round" fill="none" stroke-dasharray="3 2"/>
             </svg>
-            <p class="drop-text drop-hint"><strong>Drop your ZIP here</strong><br>or click to browse</p>
+            <p class="drop-text drop-hint"><strong>Drop your ZIP(s) here</strong><br>or click to browse</p>
             <span class="file-pill" id="fileName"></span>
         </div>
 
@@ -640,24 +640,32 @@
     const statusEl     = document.getElementById('status');
     const statsEl      = document.getElementById('stats');
 
-    let selectedFile = null;
+    let selectedFiles = [];
 
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        const f = e.dataTransfer.files[0];
-        if (f && f.name.toLowerCase().endsWith('.zip')) setFile(f);
-        else showStatus('Please drop a .zip file.', 'error');
+        const zips = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.zip'));
+        if (zips.length > 0) setFiles(zips);
+        else showStatus('Please drop .zip file(s).', 'error');
     });
 
-    fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+    fileInput.addEventListener('change', () => {
+        const zips = Array.from(fileInput.files).filter(f => f.name.toLowerCase().endsWith('.zip'));
+        if (zips.length > 0) setFiles(zips);
+    });
 
-    function setFile(f) {
-        selectedFile = f;
+    function setFiles(files) {
+        selectedFiles = files;
         dropZone.classList.add('has-file');
-        fileNameEl.textContent = f.name + '  ·  ' + fmtSize(f.size);
+        if (files.length === 1) {
+            fileNameEl.textContent = files[0].name + '  ·  ' + fmtSize(files[0].size);
+        } else {
+            const total = files.reduce((sum, f) => sum + f.size, 0);
+            fileNameEl.textContent = files.length + ' ZIP files  ·  ' + fmtSize(total);
+        }
         statsEl.classList.remove('visible');
         clearStatus();
         updateBtn();
@@ -685,10 +693,10 @@
 
     function updateBtn() {
         const exts = getExts();
-        if (selectedFile && exts.length > 0) {
+        if (selectedFiles.length > 0 && exts.length > 0) {
             runBtn.disabled = false;
             runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate filtered ZIP`;
-        } else if (!selectedFile) {
+        } else if (selectedFiles.length === 0) {
             runBtn.disabled = true;
             runBtn.textContent = 'Choose a file to begin';
         } else {
@@ -699,7 +707,7 @@
 
     runBtn.addEventListener('click', async () => {
         const exts = getExts();
-        if (!selectedFile || exts.length === 0) return;
+        if (selectedFiles.length === 0 || exts.length === 0) return;
 
         runBtn.disabled = true;
         runBtn.innerHTML = '<span class="spinner"></span> Processing…';
@@ -707,13 +715,21 @@
         statsEl.classList.remove('visible');
 
         try {
-            const zip = await JSZip.loadAsync(selectedFile);
             const newZip = new JSZip();
-            const allFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
-            const kept = allFiles.filter(([name]) => exts.some(ext => name.toLowerCase().endsWith(ext)));
+            let totalCount = 0;
+            const kept = [];
+
+            for (const zipFile of selectedFiles) {
+                const zip = await JSZip.loadAsync(zipFile);
+                const entries = Object.entries(zip.files).filter(([, f]) => !f.dir);
+                totalCount += entries.length;
+                for (const entry of entries) {
+                    if (exts.some(ext => entry[0].toLowerCase().endsWith(ext))) kept.push(entry);
+                }
+            }
 
             if (kept.length === 0) {
-                showStatus('No matching files (' + exts.join(', ') + ') found in this archive.', 'error');
+                showStatus('No matching files (' + exts.join(', ') + ') found in the uploaded archive(s).', 'error');
                 runBtn.disabled = false;
                 updateBtn();
                 return;
@@ -725,16 +741,17 @@
 
             const blob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
 
-            document.getElementById('statTotal').textContent   = allFiles.length;
+            document.getElementById('statTotal').textContent   = totalCount;
             document.getElementById('statKept').textContent    = kept.length;
-            document.getElementById('statRemoved').textContent = allFiles.length - kept.length;
+            document.getElementById('statRemoved').textContent = totalCount - kept.length;
             document.getElementById('statSize').textContent    = fmtSize(blob.size);
             statsEl.classList.add('visible');
 
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
             const extSuffix = exts.length === 1 ? exts[0].slice(1) + '-only' : 'filtered';
-            a.download = selectedFile.name.replace(/\.zip$/i, '') + '_' + extSuffix + '.zip';
+            const baseName = selectedFiles.length === 1 ? selectedFiles[0].name.replace(/\.zip$/i, '') : 'combined';
+            a.download = baseName + '_' + extSuffix + '.zip';
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 
