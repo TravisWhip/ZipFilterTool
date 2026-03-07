@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stitch & Sort — ZIP Filter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --cream:   #fdf6ee;
+            --parchment: #f5e9d8;
+            --blush:   #e8c4b8;
+            --rose:    #c97d6e;
+            --rose-deep: #a85f52;
+            --sage:    #8fa68a;
+            --sage-light: #d4e0d2;
+            --text:    #3d2c28;
+            --muted:   #9c8278;
+            --border:  #ddd0c4;
+            --shadow:  rgba(90,50,40,0.10);
+        }
+
+        body {
+            background: var(--cream);
+            background-image:
+                    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,196,184,0.35) 0%, transparent 65%),
+                    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23c97d6e' stroke-opacity='0.06' stroke-width='1'%3E%3Cpath d='M0 20 Q10 10 20 20 Q30 30 40 20'/%3E%3Cpath d='M0 0 Q10 10 20 0 Q30 -10 40 0'/%3E%3Cpath d='M0 40 Q10 30 20 40 Q30 50 40 40'/%3E%3C/g%3E%3C/svg%3E");
+            color: var(--text);
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 4px 28px var(--shadow), 0 1px 4px rgba(90,50,40,0.06);
+            width: 100%;
+            max-width: 440px;
+            overflow: hidden;
+        }
+
+        /* ── Header band ── */
+        .card-header {
+            background: var(--parchment);
+            border-bottom: 1px solid var(--border);
+            padding: 1.75rem 2rem 1.5rem;
+            position: relative;
+            text-align: center;
+        }
+
+        .hoop-deco {
+            position: absolute;
+            opacity: 0.18;
+        }
+        .hoop-deco.left  { left: -18px; top: 10px; }
+        .hoop-deco.right { right: -18px; bottom: 10px; transform: rotate(180deg); }
+
+        .tag-line {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 0.72rem;
+            color: var(--rose);
+            letter-spacing: 0.06em;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tag-line::before,
+        .tag-line::after {
+            content: '';
+            display: inline-block;
+            width: 28px;
+            height: 1px;
+            background: var(--blush);
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin-top: 0.4rem;
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.55;
+            font-weight: 300;
+        }
+
+        /* ── Body ── */
+        .card-body { padding: 1.75rem 2rem 2rem; }
+
+        /* ── Drop zone ── */
+        .drop-zone {
+            position: relative;
+            border: 1.5px dashed var(--blush);
+            border-radius: 12px;
+            padding: 1.75rem 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            background: var(--cream);
+            margin-bottom: 1.1rem;
+        }
+
+        .drop-zone:hover        { border-color: var(--rose); background: #fdf0eb; }
+        .drop-zone.dragover     { border-color: var(--rose); background: #fde8e1; border-style: solid; }
+        .drop-zone.has-file     { border-color: var(--sage); border-style: solid; background: #f3f8f2; }
+
+        input[type="file"] {
+            position: absolute; inset: 0;
+            opacity: 0; cursor: pointer;
+            width: 100%; height: 100%;
+        }
+
+        .needle-icon {
+            display: block;
+            margin: 0 auto 0.6rem;
+            opacity: 0.35;
+            transition: opacity 0.2s, transform 0.3s;
+        }
+
+        .drop-zone:hover .needle-icon,
+        .drop-zone.has-file .needle-icon { opacity: 0.75; transform: rotate(-8deg); }
+
+        .drop-text {
+            font-size: 0.82rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .drop-text strong { color: var(--text); font-weight: 400; }
+
+        .file-pill {
+            display: none;
+            margin-top: 0.6rem;
+            background: var(--sage-light);
+            color: var(--sage);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.85rem;
+            font-weight: 400;
+            word-break: break-all;
+        }
+
+        .drop-zone.has-file .file-pill { display: inline-block; }
+        .drop-zone.has-file .drop-hint { display: none; }
+
+        /* ── Field ── */
+        .field { margin-bottom: 1rem; }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.45rem;
+            font-weight: 400;
+        }
+
+        .select-wrap { position: relative; }
+
+        select, input[type="text"] {
+            width: 100%;
+            appearance: none;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            font-size: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(201,125,110,0.12);
+        }
+
+        /* ── Format grid ── */
+        .format-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.35rem;
+        }
+
+        .format-item {
+            border: 1.5px solid var(--border);
+            border-radius: 7px;
+            padding: 0.42rem 0.55rem;
+            cursor: pointer;
+            user-select: none;
+            transition: border-color 0.15s, background 0.15s;
+            display: grid;
+            grid-template-columns: 15px 1fr;
+            column-gap: 0.4rem;
+            align-items: center;
+            background: #fff;
+        }
+
+        .format-item:hover { border-color: var(--blush); background: var(--cream); }
+        .format-item:has(input:checked) { border-color: var(--rose); background: #fdf0eb; }
+
+        .format-item input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+
+        .check-icon {
+            grid-column: 1;
+            grid-row: 1 / 3;
+            align-self: center;
+            width: 15px;
+            height: 15px;
+            border: 1.5px solid var(--border);
+            border-radius: 3px;
+            background: var(--cream);
+            transition: background 0.12s, border-color 0.12s;
+            position: relative;
+        }
+
+        .check-icon::after {
+            content: '';
+            position: absolute;
+            left: 3px; top: 0;
+            width: 4px; height: 8px;
+            border-right: 2px solid #fff;
+            border-bottom: 2px solid #fff;
+            transform: rotate(45deg);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .format-item input:checked + .check-icon { background: var(--rose); border-color: var(--rose); }
+        .format-item input:checked + .check-icon::after { opacity: 1; }
+
+        .format-name {
+            grid-column: 2;
+            grid-row: 1;
+            font-size: 0.8rem;
+            color: var(--text);
+            font-weight: 400;
+            line-height: 1.2;
+        }
+
+        .format-desc {
+            grid-column: 2;
+            grid-row: 2;
+            font-size: 0.6rem;
+            color: var(--muted);
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        input[type="text"]::placeholder { color: var(--blush); }
+
+        /* ── Clear button ── */
+        .clear-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-family: 'Lato', sans-serif;
+            cursor: pointer;
+            padding: 0.35rem 0.75rem;
+            margin-top: -0.5rem;
+            margin-bottom: 0.9rem;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .clear-btn:not(:disabled):hover { color: var(--rose-deep); border-color: var(--rose); }
+        .clear-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* ── File browser ── */
+        .file-browser {
+            display: none;
+            margin-bottom: 1.1rem;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .file-browser.visible { display: block; }
+
+        .browser-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.9rem;
+            background: var(--parchment);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.73rem;
+            color: var(--muted);
+            cursor: pointer;
+            user-select: none;
+        }
+        .browser-chevron { transition: transform 0.2s; display: inline-block; }
+        .file-browser.collapsed .browser-chevron { transform: rotate(-90deg); }
+        .file-browser.collapsed .browser-body { display: none; }
+
+        .browser-body { max-height: 200px; overflow-y: auto; }
+
+        .file-entry {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.4rem 0.9rem;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .file-entry:last-child { border-bottom: none; }
+        .file-entry:hover { background: var(--cream); }
+        .file-entry.no-preview { cursor: default; }
+        .file-entry.no-preview:hover { background: transparent; }
+
+        .entry-badge {
+            font-size: 0.6rem;
+            padding: 0.13rem 0.32rem;
+            border-radius: 3px;
+            flex-shrink: 0;
+            font-family: monospace;
+        }
+        .badge-img  { background: #e8f0fe; color: #3355cc; }
+        .badge-emb  { background: #fde8e8; color: #b03030; }
+        .badge-doc  { background: #e8f5e9; color: #2e7d32; }
+        .badge-other { background: var(--sage-light); color: var(--sage); }
+
+        .entry-name { flex: 1; font-size: 0.78rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .entry-size { font-size: 0.68rem; color: var(--muted); flex-shrink: 0; }
+
+        /* ── Preview modal ── */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .modal.visible { display: flex; }
+
+        .modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(61, 44, 40, 0.6);
+        }
+        .modal-box {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 40px rgba(90,50,40,0.25);
+            width: 100%;
+            max-width: 560px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.85rem 1.1rem;
+            background: var(--parchment);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .modal-title { font-size: 0.82rem; color: var(--text); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; padding: 0; margin-left: 0.75rem; line-height: 1; flex-shrink: 0; transition: color 0.15s; }
+        .modal-close:hover { color: var(--rose); }
+        .modal-body { flex: 1; overflow: auto; padding: 1rem; display: flex; align-items: center; justify-content: center; min-height: 120px; }
+        .modal-body img { max-width: 100%; max-height: 65vh; border-radius: 4px; }
+        .modal-body canvas { max-width: 100%; border-radius: 4px; }
+        .modal-note { font-size: 0.78rem; color: var(--muted); text-align: center; }
+
+        #custom-row { display: none; margin-bottom: 1rem; }
+        #custom-row.visible { display: block; }
+
+        /* ── Button ── */
+        .btn {
+            width: 100%;
+            background: var(--rose);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Lato', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 400;
+            letter-spacing: 0.04em;
+            padding: 0.78rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+            box-shadow: 0 2px 10px rgba(168,95,82,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--rose-deep);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(168,95,82,0.3);
+        }
+
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+        /* ── Stats ── */
+        #stats {
+            display: none;
+            margin-top: 1rem;
+            background: var(--parchment);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #stats.visible { display: flex; }
+
+        .stat {
+            flex: 1;
+            text-align: center;
+            padding: 0.8rem 0.4rem;
+        }
+
+        .stat + .stat { border-left: 1px solid var(--border); }
+
+        .stat-val {
+            display: block;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .stat-val.rose { color: var(--rose-deep); }
+
+        .stat-lbl {
+            display: block;
+            font-size: 0.63rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--muted);
+            margin-top: 0.2rem;
+        }
+
+        /* ── Status ── */
+        #status {
+            display: none;
+            font-size: 0.78rem;
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            border-radius: 8px;
+            line-height: 1.5;
+        }
+
+        #status.success { display: block; background: #eef6ec; color: #3a7d44; border: 1px solid #c3dfc5; }
+        #status.error   { display: block; background: #fdf1f0; color: #b94040; border: 1px solid #f0ceca; }
+
+        /* ── Divider ── */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1.1rem 0;
+            color: var(--blush);
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Footer ── */
+        .card-footer {
+            border-top: 1px solid var(--border);
+            padding: 0.85rem 2rem;
+            background: var(--parchment);
+            text-align: center;
+            font-size: 0.68rem;
+            color: var(--muted);
+        }
+
+        .card-footer span { color: var(--rose); }
+
+        /* ── Spinner ── */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 13px; height: 13px;
+            border: 1.5px solid rgba(255,255,255,0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+            flex-shrink: 0;
+        }
+
+        /* ── Fade in ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .card { animation: fadeUp 0.45s ease both; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+
+    <!-- Header -->
+    <div class="card-header">
+        <!-- Hoop decorations -->
+        <svg class="hoop-deco left" width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="#c97d6e" stroke-width="3"/>
+            <circle cx="32" cy="32" r="22" stroke="#c97d6e" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <line x1="32" y1="4" x2="32" y2="12" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="32" y1="52" x2="32" y2="60" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <svg class="hoop-deco right" width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="#c97d6e" stroke-width="3"/>
+            <circle cx="32" cy="32" r="22" stroke="#c97d6e" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <line x1="32" y1="4" x2="32" y2="12" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="32" y1="52" x2="32" y2="60" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+
+        <p class="tag-line">for embroidery lovers</p>
+        <h1>Stitch &amp; Sort</h1>
+        <p class="subtitle">Upload your ZIP and keep only the file types you need.</p>
+    </div>
+
+    <!-- Body -->
+    <div class="card-body">
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".zip" multiple>
+            <!-- Needle + thread SVG icon -->
+            <svg class="needle-icon" width="38" height="38" viewBox="0 0 38 38" fill="none">
+                <path d="M28 6 L10 32" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+                <ellipse cx="28.5" cy="5.5" rx="3.5" ry="2" transform="rotate(-35 28.5 5.5)" stroke="#c97d6e" stroke-width="1.5" fill="none"/>
+                <path d="M26 8 Q20 14 10 32 Q13 28 15 32" stroke="#8fa68a" stroke-width="1.5" stroke-linecap="round" fill="none" stroke-dasharray="3 2"/>
+            </svg>
+            <p class="drop-text drop-hint"><strong>Drop your ZIP(s) here</strong><br>or click to browse</p>
+            <span class="file-pill" id="fileName"></span>
+        </div>
+
+        <button class="clear-btn" id="clearBtn" disabled>✕ Clear files</button>
+
+        <!-- File browser -->
+        <div class="file-browser" id="fileBrowser">
+            <div class="browser-header" id="browserHeader">
+                <span id="browserCount">0 files</span>
+                <span class="browser-chevron">▾</span>
+            </div>
+            <div class="browser-body" id="browserBody"></div>
+        </div>
+
+        <!-- Format picker -->
+        <div class="field">
+            <label>File types to keep</label>
+            <div class="format-list" id="formatList">
+                <label class="format-item">
+                    <input type="checkbox" value=".jef" checked>
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jef</span>
+                    <span class="format-desc">Janome</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".png" checked>
+                    <span class="check-icon"></span>
+                    <span class="format-name">.png</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".csv">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.csv</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".docx">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.docx</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".dst">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.dst</span>
+                    <span class="format-desc">Tajima</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".exp">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.exp</span>
+                    <span class="format-desc">Melco</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".gif">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.gif</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".hus">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.hus</span>
+                    <span class="format-desc">Husqvarna</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".jef+">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jef+</span>
+                    <span class="format-desc">Janome Plus</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".jpg">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jpg</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".json">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.json</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".mp3">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.mp3</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".mp4">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.mp4</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".pdf">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.pdf</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".pes">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.pes</span>
+                    <span class="format-desc">Brother</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".sew">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.sew</span>
+                    <span class="format-desc">Janome</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".svg">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.svg</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".txt">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.txt</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".vp3">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.vp3</span>
+                    <span class="format-desc">Pfaff / Husqvarna</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".webp">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.webp</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".xml">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.xml</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".xxx">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.xxx</span>
+                    <span class="format-desc">Singer</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value="custom">
+                    <span class="check-icon"></span>
+                    <span class="format-name">Custom…</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Custom ext -->
+        <div id="custom-row">
+            <label for="customExt">Custom extension</label>
+            <input type="text" id="customExt" placeholder=".xyz" maxlength="20">
+        </div>
+
+        <div class="divider">ready to sort</div>
+
+        <button class="btn" id="runBtn" disabled>
+            Choose a file to begin
+        </button>
+
+        <!-- Stats -->
+        <div id="stats">
+            <div class="stat">
+                <span class="stat-val" id="statTotal">—</span>
+                <span class="stat-lbl">total</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val rose" id="statKept">—</span>
+                <span class="stat-lbl">kept</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val" id="statRemoved">—</span>
+                <span class="stat-lbl">removed</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val" id="statSize">—</span>
+                <span class="stat-lbl">size</span>
+            </div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card-footer">
+        Everything runs in your browser — <span>nothing is uploaded</span> anywhere.
+    </div>
+
+</div>
+
+<!-- Preview modal -->
+<div class="modal" id="previewModal">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title" id="previewTitle"></span>
+            <button class="modal-close" id="modalClose">✕</button>
+        </div>
+        <div class="modal-body" id="previewBody"></div>
+    </div>
+</div>
+
+<script>
+    const fileInput  = document.getElementById('fileInput');
+    const dropZone   = document.getElementById('dropZone');
+    const fileNameEl = document.getElementById('fileName');
+    const customRow  = document.getElementById('custom-row');
+    const customExt  = document.getElementById('customExt');
+    const runBtn       = document.getElementById('runBtn');
+    const statusEl     = document.getElementById('status');
+    const statsEl      = document.getElementById('stats');
+
+    let selectedFiles = [];
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const zips = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.zip'));
+        if (zips.length > 0) setFiles(zips);
+        else showStatus('Please drop .zip file(s).', 'error');
+    });
+
+    fileInput.addEventListener('change', () => {
+        const zips = Array.from(fileInput.files).filter(f => f.name.toLowerCase().endsWith('.zip'));
+        if (zips.length > 0) setFiles(zips);
+    });
+
+    function setFiles(files) {
+        selectedFiles = files;
+        dropZone.classList.add('has-file');
+        if (files.length === 1) {
+            fileNameEl.textContent = files[0].name + '  ·  ' + fmtSize(files[0].size);
+        } else {
+            const total = files.reduce((sum, f) => sum + f.size, 0);
+            fileNameEl.textContent = files.length + ' ZIP files  ·  ' + fmtSize(total);
+        }
+        statsEl.classList.remove('visible');
+        clearStatus();
+        updateBtn();
+        buildFileBrowser(files);
+    }
+
+    document.getElementById('formatList').addEventListener('change', e => {
+        const hasCustom = e.currentTarget.querySelector('input[value="custom"]').checked;
+        customRow.classList.toggle('visible', hasCustom);
+        if (hasCustom) customExt.focus();
+        updateBtn();
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+        selectedFiles = [];
+        dropZone.classList.remove('has-file');
+        fileNameEl.textContent = '';
+        fileInput.value = '';
+        statsEl.classList.remove('visible');
+        clearStatus();
+        updateBtn();
+        document.getElementById('fileBrowser').classList.remove('visible');
+        document.getElementById('browserBody').innerHTML = '';
+        closePreview();
+    });
+
+    customExt.addEventListener('input', updateBtn);
+
+    function getExts() {
+        const checked = Array.from(document.querySelectorAll('#formatList input:checked'));
+        const exts = checked.map(i => i.value).filter(v => v !== 'custom');
+        if (checked.some(i => i.value === 'custom')) {
+            let v = customExt.value.trim().toLowerCase();
+            if (v && !v.startsWith('.')) v = '.' + v;
+            if (v) exts.push(v);
+        }
+        return exts;
+    }
+
+    function updateBtn() {
+        document.getElementById('clearBtn').disabled = selectedFiles.length === 0;
+        const exts = getExts();
+        if (selectedFiles.length > 0 && exts.length > 0) {
+            runBtn.disabled = false;
+            runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate filtered ZIP`;
+        } else if (selectedFiles.length === 0) {
+            runBtn.disabled = true;
+            runBtn.textContent = 'Choose a file to begin';
+        } else {
+            runBtn.disabled = true;
+            runBtn.textContent = 'Select at least one file type';
+        }
+    }
+
+    runBtn.addEventListener('click', async () => {
+        const exts = getExts();
+        if (selectedFiles.length === 0 || exts.length === 0) return;
+
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<span class="spinner"></span> Processing…';
+        clearStatus();
+        statsEl.classList.remove('visible');
+
+        try {
+            const newZip = new JSZip();
+            let totalCount = 0;
+            const kept = [];
+
+            for (const zipFile of selectedFiles) {
+                const zip = await JSZip.loadAsync(zipFile);
+                const entries = Object.entries(zip.files).filter(([, f]) => !f.dir);
+                totalCount += entries.length;
+                for (const entry of entries) {
+                    if (exts.some(ext => entry[0].toLowerCase().endsWith(ext))) kept.push(entry);
+                }
+            }
+
+            if (kept.length === 0) {
+                showStatus('No matching files (' + exts.join(', ') + ') found in the uploaded archive(s).', 'error');
+                runBtn.disabled = false;
+                updateBtn();
+                return;
+            }
+
+            for (const [name, file] of kept) {
+                newZip.file(name, await file.async('arraybuffer'));
+            }
+
+            const blob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+
+            document.getElementById('statTotal').textContent   = totalCount;
+            document.getElementById('statKept').textContent    = kept.length;
+            document.getElementById('statRemoved').textContent = totalCount - kept.length;
+            document.getElementById('statSize').textContent    = fmtSize(blob.size);
+            statsEl.classList.add('visible');
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const extSuffix = exts.length === 1 ? exts[0].slice(1) + '-only' : 'filtered';
+            const baseName = selectedFiles.length === 1 ? selectedFiles[0].name.replace(/\.zip$/i, '') : 'combined';
+            a.download = baseName + '_' + extSuffix + '.zip';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+
+            showStatus('✓  ' + kept.length + ' file' + (kept.length !== 1 ? 's' : '') + ' (' + exts.join(', ') + ') saved — download started!', 'success');
+        } catch (err) {
+            showStatus('Something went wrong: ' + err.message, 'error');
+        }
+
+        runBtn.disabled = false;
+        updateBtn();
+    });
+
+    function showStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = type;
+    }
+
+    function clearStatus() {
+        statusEl.className = '';
+        statusEl.textContent = '';
+    }
+
+    function fmtSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    // ── File browser ──────────────────────────────────────────
+
+    const IMG_EXTS = new Set(['png','jpg','jpeg','gif','webp','svg']);
+    const EMB_EXTS = new Set(['jef','dst','pes','exp','vp3','hus','sew','xxx']);
+    const DOC_EXTS = new Set(['pdf','docx','txt','csv','json','xml']);
+
+    document.getElementById('browserHeader').addEventListener('click', () => {
+        document.getElementById('fileBrowser').classList.toggle('collapsed');
+    });
+    document.getElementById('modalBackdrop').addEventListener('click', closePreview);
+    document.getElementById('modalClose').addEventListener('click', closePreview);
+
+    function closePreview() {
+        document.getElementById('previewModal').classList.remove('visible');
+        document.getElementById('previewBody').innerHTML = '';
+    }
+
+    async function buildFileBrowser(rawFiles) {
+        const body    = document.getElementById('browserBody');
+        const browser = document.getElementById('fileBrowser');
+        const countEl = document.getElementById('browserCount');
+        body.innerHTML = '';
+
+        const frag = document.createDocumentFragment();
+        let total = 0;
+
+        for (const rawFile of rawFiles) {
+            const zip = await JSZip.loadAsync(rawFile);
+            for (const [fullName, entry] of Object.entries(zip.files)) {
+                if (entry.dir) continue;
+                total++;
+                const short = fullName.split('/').pop();
+                const ext   = short.includes('.') ? short.split('.').pop().toLowerCase() : '';
+                const isImg = IMG_EXTS.has(ext);
+                const isEmb = EMB_EXTS.has(ext);
+                const isDoc = DOC_EXTS.has(ext);
+                const canPreview = isImg || ext === 'jef';
+
+                const row = document.createElement('div');
+                row.className = 'file-entry' + (canPreview ? '' : ' no-preview');
+
+                const badge = document.createElement('span');
+                badge.className = 'entry-badge ' + (isImg ? 'badge-img' : isEmb ? 'badge-emb' : isDoc ? 'badge-doc' : 'badge-other');
+                badge.textContent = ext || '—';
+
+                const name = document.createElement('span');
+                name.className = 'entry-name';
+                name.textContent = short;
+                name.title = fullName;
+
+                const size = document.createElement('span');
+                size.className = 'entry-size';
+                size.textContent = fmtSize(entry._data?.uncompressedSize ?? 0);
+
+                row.append(badge, name, size);
+
+                if (canPreview) {
+                    row.addEventListener('click', async () => {
+                        const titleEl = document.getElementById('previewTitle');
+                        const bodyEl  = document.getElementById('previewBody');
+                        titleEl.textContent = short;
+                        bodyEl.innerHTML = '<span class="modal-note">Loading…</span>';
+                        document.getElementById('previewModal').classList.add('visible');
+
+                        const buf = await entry.async('arraybuffer');
+                        bodyEl.innerHTML = '';
+
+                        if (isImg) {
+                            const mime = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', webp:'image/webp', svg:'image/svg+xml' };
+                            const url  = URL.createObjectURL(new Blob([buf], { type: mime[ext] || 'image/*' }));
+                            const img  = document.createElement('img');
+                            img.src    = url;
+                            img.onload = () => URL.revokeObjectURL(url);
+                            bodyEl.appendChild(img);
+                        } else if (ext === 'jef') {
+                            const canvas = renderJEF(buf);
+                            bodyEl.appendChild(canvas || Object.assign(document.createElement('span'), { className: 'modal-note', textContent: 'Could not render this file.' }));
+                        }
+                    });
+                }
+                frag.appendChild(row);
+            }
+        }
+
+        body.appendChild(frag);
+        countEl.textContent = total + ' file' + (total !== 1 ? 's' : '');
+        browser.classList.add('visible');
+        browser.classList.remove('collapsed');
+    }
+
+    // ── JEF stitch renderer ───────────────────────────────────
+
+    function renderJEF(buffer) {
+        try {
+            const view = new DataView(buffer);
+            if (buffer.byteLength < 32) return null;
+
+            const stitchOffset = view.getUint32(0, true);
+            if (stitchOffset >= buffer.byteLength) return null;
+
+            const COLORS = ['#3d2c28','#c0392b','#27ae60','#2980b9','#e67e22',
+                             '#8e44ad','#16a085','#d35400','#e91e63','#f1c40f',
+                             '#1abc9c','#e74c3c','#3498db','#9b59b6','#2ecc71'];
+
+            const segments = [];
+            let pts = [], colorIdx = 0, isJump = false, x = 0, y = 0;
+
+            for (let i = stitchOffset; i + 1 < buffer.byteLength; i += 2) {
+                const b1 = view.getUint8(i), b2 = view.getUint8(i + 1);
+                if (b1 === 0x80) {
+                    if (b2 === 0x01 || b2 === 0x10) break;
+                    if (b2 === 0x02) {
+                        if (pts.length) segments.push({ color: COLORS[colorIdx % COLORS.length], pts });
+                        pts = []; colorIdx++;
+                    }
+                    if (b2 === 0x04) isJump = true;
+                    continue;
+                }
+                x += (b1 > 127 ? b1 - 256 : b1);
+                y += (b2 > 127 ? b2 - 256 : b2);
+                if (isJump) {
+                    if (pts.length) segments.push({ color: COLORS[colorIdx % COLORS.length], pts });
+                    pts = [{ x, y }]; isJump = false;
+                } else {
+                    pts.push({ x, y });
+                }
+            }
+            if (pts.length) segments.push({ color: COLORS[colorIdx % COLORS.length], pts });
+            if (!segments.length) return null;
+
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            for (const seg of segments)
+                for (const p of seg.pts) {
+                    if (p.x < x0) x0 = p.x; if (p.y < y0) y0 = p.y;
+                    if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y;
+                }
+
+            const SZ = 460, PAD = 24;
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = SZ;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fdf6ee';
+            ctx.fillRect(0, 0, SZ, SZ);
+
+            const scale = Math.min((SZ - PAD * 2) / (x1 - x0 || 1), (SZ - PAD * 2) / (y1 - y0 || 1));
+            const ox = (SZ - (x1 - x0) * scale) / 2 - x0 * scale;
+            const oy = (SZ - (y1 - y0) * scale) / 2 - y0 * scale;
+
+            ctx.lineWidth = 0.8;
+            ctx.lineCap = 'round';
+            for (const { color, pts: p } of segments) {
+                if (p.length < 2) continue;
+                ctx.strokeStyle = color;
+                ctx.beginPath();
+                ctx.moveTo(p[0].x * scale + ox, p[0].y * scale + oy);
+                for (let j = 1; j < p.length; j++) ctx.lineTo(p[j].x * scale + ox, p[j].y * scale + oy);
+                ctx.stroke();
+            }
+            return canvas;
+        } catch { return null; }
+    }
+</script>
+</body>
+</html>
