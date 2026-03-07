@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stitch & Sort — ZIP Filter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --cream:   #fdf6ee;
+            --parchment: #f5e9d8;
+            --blush:   #e8c4b8;
+            --rose:    #c97d6e;
+            --rose-deep: #a85f52;
+            --sage:    #8fa68a;
+            --sage-light: #d4e0d2;
+            --text:    #3d2c28;
+            --muted:   #9c8278;
+            --border:  #ddd0c4;
+            --shadow:  rgba(90,50,40,0.10);
+        }
+
+        body {
+            background: var(--cream);
+            background-image:
+                    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(232,196,184,0.35) 0%, transparent 65%),
+                    url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23c97d6e' stroke-opacity='0.06' stroke-width='1'%3E%3Cpath d='M0 20 Q10 10 20 20 Q30 30 40 20'/%3E%3Cpath d='M0 0 Q10 10 20 0 Q30 -10 40 0'/%3E%3Cpath d='M0 40 Q10 30 20 40 Q30 50 40 40'/%3E%3C/g%3E%3C/svg%3E");
+            color: var(--text);
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        /* ── Card ── */
+        .card {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 4px 28px var(--shadow), 0 1px 4px rgba(90,50,40,0.06);
+            width: 100%;
+            max-width: 440px;
+            overflow: hidden;
+        }
+
+        /* ── Header band ── */
+        .card-header {
+            background: var(--parchment);
+            border-bottom: 1px solid var(--border);
+            padding: 1.75rem 2rem 1.5rem;
+            position: relative;
+            text-align: center;
+        }
+
+        .hoop-deco {
+            position: absolute;
+            opacity: 0.18;
+        }
+        .hoop-deco.left  { left: -18px; top: 10px; }
+        .hoop-deco.right { right: -18px; bottom: 10px; transform: rotate(180deg); }
+
+        .tag-line {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 0.72rem;
+            color: var(--rose);
+            letter-spacing: 0.06em;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tag-line::before,
+        .tag-line::after {
+            content: '';
+            display: inline-block;
+            width: 28px;
+            height: 1px;
+            background: var(--blush);
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin-top: 0.4rem;
+            font-size: 0.78rem;
+            color: var(--muted);
+            line-height: 1.55;
+            font-weight: 300;
+        }
+
+        /* ── Body ── */
+        .card-body { padding: 1.75rem 2rem 2rem; }
+
+        /* ── Drop zone ── */
+        .drop-zone {
+            position: relative;
+            border: 1.5px dashed var(--blush);
+            border-radius: 12px;
+            padding: 1.75rem 1.25rem;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            background: var(--cream);
+            margin-bottom: 1.1rem;
+        }
+
+        .drop-zone:hover        { border-color: var(--rose); background: #fdf0eb; }
+        .drop-zone.dragover     { border-color: var(--rose); background: #fde8e1; border-style: solid; }
+        .drop-zone.has-file     { border-color: var(--sage); border-style: solid; background: #f3f8f2; }
+
+        input[type="file"] {
+            position: absolute; inset: 0;
+            opacity: 0; cursor: pointer;
+            width: 100%; height: 100%;
+        }
+
+        .needle-icon {
+            display: block;
+            margin: 0 auto 0.6rem;
+            opacity: 0.35;
+            transition: opacity 0.2s, transform 0.3s;
+        }
+
+        .drop-zone:hover .needle-icon,
+        .drop-zone.has-file .needle-icon { opacity: 0.75; transform: rotate(-8deg); }
+
+        .drop-text {
+            font-size: 0.82rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .drop-text strong { color: var(--text); font-weight: 400; }
+
+        .file-pill {
+            display: none;
+            margin-top: 0.6rem;
+            background: var(--sage-light);
+            color: var(--sage);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.85rem;
+            font-weight: 400;
+            word-break: break-all;
+        }
+
+        .drop-zone.has-file .file-pill { display: inline-block; }
+        .drop-zone.has-file .drop-hint { display: none; }
+
+        /* ── Field ── */
+        .field { margin-bottom: 1rem; }
+
+        label {
+            display: block;
+            font-size: 0.7rem;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 0.45rem;
+            font-weight: 400;
+        }
+
+        .select-wrap { position: relative; }
+
+        select, input[type="text"] {
+            width: 100%;
+            appearance: none;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            font-size: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        select { padding-right: 2.4rem; cursor: pointer; }
+
+        select:focus, input[type="text"]:focus {
+            border-color: var(--rose);
+            box-shadow: 0 0 0 3px rgba(201,125,110,0.12);
+        }
+
+        .select-wrap::after {
+            content: '';
+            position: absolute;
+            right: 0.9rem; top: 50%;
+            transform: translateY(-50%);
+            width: 0; height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 5px solid var(--blush);
+            pointer-events: none;
+        }
+
+        input[type="text"]::placeholder { color: var(--blush); }
+
+        #custom-row { display: none; margin-bottom: 1rem; }
+        #custom-row.visible { display: block; }
+
+        /* ── Button ── */
+        .btn {
+            width: 100%;
+            background: var(--rose);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Lato', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 400;
+            letter-spacing: 0.04em;
+            padding: 0.78rem 1rem;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+            box-shadow: 0 2px 10px rgba(168,95,82,0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--rose-deep);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(168,95,82,0.3);
+        }
+
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+        /* ── Stats ── */
+        #stats {
+            display: none;
+            margin-top: 1rem;
+            background: var(--parchment);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #stats.visible { display: flex; }
+
+        .stat {
+            flex: 1;
+            text-align: center;
+            padding: 0.8rem 0.4rem;
+        }
+
+        .stat + .stat { border-left: 1px solid var(--border); }
+
+        .stat-val {
+            display: block;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .stat-val.rose { color: var(--rose-deep); }
+
+        .stat-lbl {
+            display: block;
+            font-size: 0.63rem;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--muted);
+            margin-top: 0.2rem;
+        }
+
+        /* ── Status ── */
+        #status {
+            display: none;
+            font-size: 0.78rem;
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.9rem;
+            border-radius: 8px;
+            line-height: 1.5;
+        }
+
+        #status.success { display: block; background: #eef6ec; color: #3a7d44; border: 1px solid #c3dfc5; }
+        #status.error   { display: block; background: #fdf1f0; color: #b94040; border: 1px solid #f0ceca; }
+
+        /* ── Divider ── */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin: 1.1rem 0;
+            color: var(--blush);
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── Footer ── */
+        .card-footer {
+            border-top: 1px solid var(--border);
+            padding: 0.85rem 2rem;
+            background: var(--parchment);
+            text-align: center;
+            font-size: 0.68rem;
+            color: var(--muted);
+        }
+
+        .card-footer span { color: var(--rose); }
+
+        /* ── Spinner ── */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            width: 13px; height: 13px;
+            border: 1.5px solid rgba(255,255,255,0.35);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+            flex-shrink: 0;
+        }
+
+        /* ── Fade in ── */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .card { animation: fadeUp 0.45s ease both; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+
+    <!-- Header -->
+    <div class="card-header">
+        <!-- Hoop decorations -->
+        <svg class="hoop-deco left" width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="#c97d6e" stroke-width="3"/>
+            <circle cx="32" cy="32" r="22" stroke="#c97d6e" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <line x1="32" y1="4" x2="32" y2="12" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="32" y1="52" x2="32" y2="60" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <svg class="hoop-deco right" width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="28" stroke="#c97d6e" stroke-width="3"/>
+            <circle cx="32" cy="32" r="22" stroke="#c97d6e" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <line x1="32" y1="4" x2="32" y2="12" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="32" y1="52" x2="32" y2="60" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+
+        <p class="tag-line">for embroidery lovers</p>
+        <h1>Stitch &amp; Sort</h1>
+        <p class="subtitle">Upload your ZIP and keep only the file types you need.</p>
+    </div>
+
+    <!-- Body -->
+    <div class="card-body">
+
+        <!-- Drop zone -->
+        <div class="drop-zone" id="dropZone">
+            <input type="file" id="fileInput" accept=".zip">
+            <!-- Needle + thread SVG icon -->
+            <svg class="needle-icon" width="38" height="38" viewBox="0 0 38 38" fill="none">
+                <path d="M28 6 L10 32" stroke="#c97d6e" stroke-width="2.5" stroke-linecap="round"/>
+                <ellipse cx="28.5" cy="5.5" rx="3.5" ry="2" transform="rotate(-35 28.5 5.5)" stroke="#c97d6e" stroke-width="1.5" fill="none"/>
+                <path d="M26 8 Q20 14 10 32 Q13 28 15 32" stroke="#8fa68a" stroke-width="1.5" stroke-linecap="round" fill="none" stroke-dasharray="3 2"/>
+            </svg>
+            <p class="drop-text drop-hint"><strong>Drop your ZIP here</strong><br>or click to browse</p>
+            <span class="file-pill" id="fileName"></span>
+        </div>
+
+        <!-- Format picker -->
+        <div class="field">
+            <label for="formatSelect">File type to keep</label>
+            <div class="select-wrap">
+                <select id="formatSelect">
+                    <optgroup label="✦ Embroidery">
+                        <option value=".jef" selected>.jef — Janome</option>
+                        <option value=".dst">.dst — Tajima</option>
+                        <option value=".pes">.pes — Brother</option>
+                        <option value=".exp">.exp — Melco</option>
+                        <option value=".vp3">.vp3 — Pfaff / Husqvarna</option>
+                        <option value=".hus">.hus — Husqvarna</option>
+                        <option value=".jef+">.jef+ — Janome Plus</option>
+                        <option value=".sew">.sew — Janome</option>
+                        <option value=".xxx">.xxx — Singer</option>
+                    </optgroup>
+                    <optgroup label="Images">
+                        <option value=".jpg">.jpg</option>
+                        <option value=".png">.png</option>
+                        <option value=".svg">.svg</option>
+                        <option value=".gif">.gif</option>
+                        <option value=".webp">.webp</option>
+                    </optgroup>
+                    <optgroup label="Documents">
+                        <option value=".pdf">.pdf</option>
+                        <option value=".docx">.docx</option>
+                        <option value=".txt">.txt</option>
+                        <option value=".csv">.csv</option>
+                    </optgroup>
+                    <optgroup label="Other">
+                        <option value=".mp3">.mp3</option>
+                        <option value=".mp4">.mp4</option>
+                        <option value=".json">.json</option>
+                        <option value=".xml">.xml</option>
+                        <option value="custom">Custom extension…</option>
+                    </optgroup>
+                </select>
+            </div>
+        </div>
+
+        <!-- Custom ext -->
+        <div id="custom-row">
+            <label for="customExt">Custom extension</label>
+            <input type="text" id="customExt" placeholder=".xyz" maxlength="20">
+        </div>
+
+        <div class="divider">ready to sort</div>
+
+        <button class="btn" id="runBtn" disabled>
+            Choose a file to begin
+        </button>
+
+        <!-- Stats -->
+        <div id="stats">
+            <div class="stat">
+                <span class="stat-val" id="statTotal">—</span>
+                <span class="stat-lbl">total</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val rose" id="statKept">—</span>
+                <span class="stat-lbl">kept</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val" id="statRemoved">—</span>
+                <span class="stat-lbl">removed</span>
+            </div>
+            <div class="stat">
+                <span class="stat-val" id="statSize">—</span>
+                <span class="stat-lbl">size</span>
+            </div>
+        </div>
+
+        <div id="status"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card-footer">
+        Everything runs in your browser — <span>nothing is uploaded</span> anywhere.
+    </div>
+
+</div>
+
+<script>
+    const fileInput    = document.getElementById('fileInput');
+    const dropZone     = document.getElementById('dropZone');
+    const fileNameEl   = document.getElementById('fileName');
+    const formatSelect = document.getElementById('formatSelect');
+    const customRow    = document.getElementById('custom-row');
+    const customExt    = document.getElementById('customExt');
+    const runBtn       = document.getElementById('runBtn');
+    const statusEl     = document.getElementById('status');
+    const statsEl      = document.getElementById('stats');
+
+    let selectedFile = null;
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (f && f.name.toLowerCase().endsWith('.zip')) setFile(f);
+        else showStatus('Please drop a .zip file.', 'error');
+    });
+
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+
+    function setFile(f) {
+        selectedFile = f;
+        dropZone.classList.add('has-file');
+        fileNameEl.textContent = f.name + '  ·  ' + fmtSize(f.size);
+        statsEl.classList.remove('visible');
+        clearStatus();
+        updateBtn();
+    }
+
+    formatSelect.addEventListener('change', () => {
+        customRow.classList.toggle('visible', formatSelect.value === 'custom');
+        if (formatSelect.value === 'custom') customExt.focus();
+        updateBtn();
+    });
+
+    customExt.addEventListener('input', updateBtn);
+
+    function getExt() {
+        if (formatSelect.value === 'custom') {
+            let v = customExt.value.trim().toLowerCase();
+            if (v && !v.startsWith('.')) v = '.' + v;
+            return v;
+        }
+        return formatSelect.value;
+    }
+
+    function updateBtn() {
+        const ext = getExt();
+        if (selectedFile && ext) {
+            runBtn.disabled = false;
+            runBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate filtered ZIP`;
+        } else if (!selectedFile) {
+            runBtn.disabled = true;
+            runBtn.textContent = 'Choose a file to begin';
+        } else {
+            runBtn.disabled = true;
+            runBtn.textContent = 'Enter a file extension';
+        }
+    }
+
+    runBtn.addEventListener('click', async () => {
+        const ext = getExt();
+        if (!selectedFile || !ext) return;
+
+        runBtn.disabled = true;
+        runBtn.innerHTML = '<span class="spinner"></span> Processing…';
+        clearStatus();
+        statsEl.classList.remove('visible');
+
+        try {
+            const zip = await JSZip.loadAsync(selectedFile);
+            const newZip = new JSZip();
+            const allFiles = Object.entries(zip.files).filter(([, f]) => !f.dir);
+            const kept = allFiles.filter(([name]) => name.toLowerCase().endsWith(ext));
+
+            if (kept.length === 0) {
+                showStatus('No ' + ext + ' files found in this archive.', 'error');
+                runBtn.disabled = false;
+                updateBtn();
+                return;
+            }
+
+            for (const [name, file] of kept) {
+                newZip.file(name, await file.async('arraybuffer'));
+            }
+
+            const blob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+
+            document.getElementById('statTotal').textContent   = allFiles.length;
+            document.getElementById('statKept').textContent    = kept.length;
+            document.getElementById('statRemoved').textContent = allFiles.length - kept.length;
+            document.getElementById('statSize').textContent    = fmtSize(blob.size);
+            statsEl.classList.add('visible');
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = selectedFile.name.replace(/\.zip$/i, '') + '_' + ext.slice(1) + '-only.zip';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+
+            showStatus('✓  ' + kept.length + ' ' + ext + ' file' + (kept.length !== 1 ? 's' : '') + ' saved — download started!', 'success');
+        } catch (err) {
+            showStatus('Something went wrong: ' + err.message, 'error');
+        }
+
+        runBtn.disabled = false;
+        updateBtn();
+    });
+
+    function showStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = type;
+    }
+
+    function clearStatus() {
+        statusEl.className = '';
+        statusEl.textContent = '';
+    }
+
+    function fmtSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+</script>
+</body>
+</html>
