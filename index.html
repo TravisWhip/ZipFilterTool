@@ -195,38 +195,70 @@
             transition: border-color 0.15s, box-shadow 0.15s;
         }
 
-        select { padding-right: 2.4rem; cursor: pointer; }
-
-        select[multiple] {
-            padding-right: 0.9rem;
-            height: 168px;
-            cursor: default;
-        }
-
-        select:focus, input[type="text"]:focus {
+        input[type="text"]:focus {
             border-color: var(--rose);
             box-shadow: 0 0 0 3px rgba(201,125,110,0.12);
         }
 
-        .select-wrap::after {
-            content: '';
+        /* ── Format list ── */
+        .format-list {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow-y: auto;
+            max-height: 220px;
+            background: #fff;
+        }
+
+        .format-item {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.48rem 0.9rem;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.12s;
+        }
+
+        .format-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+        .format-item:hover { background: var(--cream); }
+        .format-item:has(input:checked) { background: #fdf0eb; }
+
+        .format-item input[type="checkbox"] {
             position: absolute;
-            right: 0.9rem; top: 50%;
-            transform: translateY(-50%);
-            width: 0; height: 0;
-            border-left: 4px solid transparent;
-            border-right: 4px solid transparent;
-            border-top: 5px solid var(--blush);
+            opacity: 0;
+            width: 0;
+            height: 0;
             pointer-events: none;
         }
 
-        .select-wrap:has(select[multiple])::after { display: none; }
-
-        .select-hint {
-            margin-top: 0.35rem;
-            font-size: 0.67rem;
-            color: var(--blush);
+        .check-icon {
+            width: 17px;
+            height: 17px;
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            flex-shrink: 0;
+            background: var(--cream);
+            transition: background 0.12s, border-color 0.12s;
+            position: relative;
         }
+
+        .check-icon::after {
+            content: '';
+            position: absolute;
+            left: 4px; top: 1px;
+            width: 5px; height: 9px;
+            border-right: 2px solid #fff;
+            border-bottom: 2px solid #fff;
+            transform: rotate(45deg);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .format-item input:checked + .check-icon { background: var(--rose); border-color: var(--rose); }
+        .format-item input:checked + .check-icon::after { opacity: 1; }
+
+        .format-name { font-size: 0.83rem; color: var(--text); font-weight: 400; }
+        .format-desc { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
 
         input[type="text"]::placeholder { color: var(--blush); }
 
@@ -407,43 +439,133 @@
 
         <!-- Format picker -->
         <div class="field">
-            <label for="formatSelect">File types to keep</label>
-            <div class="select-wrap">
-                <select id="formatSelect" multiple>
-                    <optgroup label="✦ Embroidery">
-                        <option value=".jef" selected>.jef — Janome</option>
-                        <option value=".dst">.dst — Tajima</option>
-                        <option value=".pes">.pes — Brother</option>
-                        <option value=".exp">.exp — Melco</option>
-                        <option value=".vp3">.vp3 — Pfaff / Husqvarna</option>
-                        <option value=".hus">.hus — Husqvarna</option>
-                        <option value=".jef+">.jef+ — Janome Plus</option>
-                        <option value=".sew">.sew — Janome</option>
-                        <option value=".xxx">.xxx — Singer</option>
-                    </optgroup>
-                    <optgroup label="Images">
-                        <option value=".jpg">.jpg</option>
-                        <option value=".png" selected>.png</option>
-                        <option value=".svg">.svg</option>
-                        <option value=".gif">.gif</option>
-                        <option value=".webp">.webp</option>
-                    </optgroup>
-                    <optgroup label="Documents">
-                        <option value=".pdf">.pdf</option>
-                        <option value=".docx">.docx</option>
-                        <option value=".txt">.txt</option>
-                        <option value=".csv">.csv</option>
-                    </optgroup>
-                    <optgroup label="Other">
-                        <option value=".mp3">.mp3</option>
-                        <option value=".mp4">.mp4</option>
-                        <option value=".json">.json</option>
-                        <option value=".xml">.xml</option>
-                        <option value="custom">Custom extension…</option>
-                    </optgroup>
-                </select>
+            <label>File types to keep</label>
+            <div class="format-list" id="formatList">
+                <label class="format-item">
+                    <input type="checkbox" value=".jef" checked>
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jef</span>
+                    <span class="format-desc">Janome</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".png" checked>
+                    <span class="check-icon"></span>
+                    <span class="format-name">.png</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".csv">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.csv</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".docx">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.docx</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".dst">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.dst</span>
+                    <span class="format-desc">Tajima</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".exp">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.exp</span>
+                    <span class="format-desc">Melco</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".gif">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.gif</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".hus">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.hus</span>
+                    <span class="format-desc">Husqvarna</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".jef+">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jef+</span>
+                    <span class="format-desc">Janome Plus</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".jpg">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.jpg</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".json">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.json</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".mp3">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.mp3</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".mp4">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.mp4</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".pdf">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.pdf</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".pes">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.pes</span>
+                    <span class="format-desc">Brother</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".sew">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.sew</span>
+                    <span class="format-desc">Janome</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".svg">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.svg</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".txt">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.txt</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".vp3">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.vp3</span>
+                    <span class="format-desc">Pfaff / Husqvarna</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".webp">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.webp</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".xml">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.xml</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value=".xxx">
+                    <span class="check-icon"></span>
+                    <span class="format-name">.xxx</span>
+                    <span class="format-desc">Singer</span>
+                </label>
+                <label class="format-item">
+                    <input type="checkbox" value="custom">
+                    <span class="check-icon"></span>
+                    <span class="format-name">Custom…</span>
+                </label>
             </div>
-            <p class="select-hint">Hold Ctrl / Cmd to select multiple types</p>
         </div>
 
         <!-- Custom ext -->
@@ -489,12 +611,11 @@
 </div>
 
 <script>
-    const fileInput    = document.getElementById('fileInput');
-    const dropZone     = document.getElementById('dropZone');
-    const fileNameEl   = document.getElementById('fileName');
-    const formatSelect = document.getElementById('formatSelect');
-    const customRow    = document.getElementById('custom-row');
-    const customExt    = document.getElementById('customExt');
+    const fileInput  = document.getElementById('fileInput');
+    const dropZone   = document.getElementById('dropZone');
+    const fileNameEl = document.getElementById('fileName');
+    const customRow  = document.getElementById('custom-row');
+    const customExt  = document.getElementById('customExt');
     const runBtn       = document.getElementById('runBtn');
     const statusEl     = document.getElementById('status');
     const statsEl      = document.getElementById('stats');
@@ -522,19 +643,19 @@
         updateBtn();
     }
 
-    formatSelect.addEventListener('change', () => {
-        const selected = Array.from(formatSelect.selectedOptions).map(o => o.value);
-        customRow.classList.toggle('visible', selected.includes('custom'));
-        if (selected.includes('custom')) customExt.focus();
+    document.getElementById('formatList').addEventListener('change', e => {
+        const hasCustom = e.currentTarget.querySelector('input[value="custom"]').checked;
+        customRow.classList.toggle('visible', hasCustom);
+        if (hasCustom) customExt.focus();
         updateBtn();
     });
 
     customExt.addEventListener('input', updateBtn);
 
     function getExts() {
-        const selected = Array.from(formatSelect.selectedOptions).map(o => o.value);
-        const exts = selected.filter(v => v !== 'custom');
-        if (selected.includes('custom')) {
+        const checked = Array.from(document.querySelectorAll('#formatList input:checked'));
+        const exts = checked.map(i => i.value).filter(v => v !== 'custom');
+        if (checked.some(i => i.value === 'custom')) {
             let v = customExt.value.trim().toLowerCase();
             if (v && !v.startsWith('.')) v = '.' + v;
             if (v) exts.push(v);
