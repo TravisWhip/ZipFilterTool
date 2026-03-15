@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Mortgage Calculator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&family=Instrument+Serif:ital@0;1&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0c0e13;
+            --surface: #14171e;
+            --surface2: #1b1f29;
+            --border: #2a2f3d;
+            --text: #e8e6e1;
+            --text-dim: #8a8d96;
+            --accent: #6ee7b7;
+            --accent-dim: rgba(110, 231, 183, 0.15);
+            --warm: #f6c177;
+            --warm-dim: rgba(246, 193, 119, 0.15);
+            --rose: #f2889b;
+            --rose-dim: rgba(242, 136, 155, 0.15);
+            --blue: #7dd3fc;
+            --blue-dim: rgba(125, 211, 252, 0.15);
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            cursor: grab;
+        }
+        #canvas-container:active { cursor: grabbing; }
+        #canvas-container canvas { display: block; width: 100%; height: 100%; }
+
+        .panel {
+            width: 480px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            padding: 28px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        .panel h1 {
+            font-family: 'Instrument Serif', serif;
+            font-size: 26px;
+            font-weight: 400;
+            letter-spacing: -0.5px;
+            line-height: 1.15;
+        }
+        .panel h1 em { color: var(--accent); font-style: italic; }
+
+        .panel p.subtitle {
+            font-size: 12.5px;
+            color: var(--text-dim);
+            line-height: 1.55;
+            margin-top: -8px;
+        }
+
+        .section-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+        }
+
+        .value-display {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .value-display.accent { color: var(--accent); }
+        .value-display.warm { color: var(--warm); }
+        .value-display.rose { color: var(--rose); }
+        .value-display.blue { color: var(--blue); }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 5px;
+            border-radius: 3px;
+            background: var(--surface2);
+            outline: none;
+            margin-top: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(110, 231, 183, 0.35);
+            transition: transform 0.15s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+        .divider { height: 1px; background: var(--border); }
+
+        .result-card {
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .result-card .result-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+        .result-card .result-value {
+            font-family: 'Instrument Serif', serif;
+            font-size: 34px;
+        }
+        .result-card .result-sub {
+            font-size: 11.5px;
+            color: var(--text-dim);
+            margin-top: 4px;
+            line-height: 1.5;
+        }
+
+        .result-card.green {
+            background: var(--accent-dim);
+            border: 1px solid rgba(110, 231, 183, 0.25);
+        }
+        .result-card.green .result-label { color: var(--accent); }
+        .result-card.green .result-value { color: var(--accent); }
+
+        .result-card.blue {
+            background: var(--blue-dim);
+            border: 1px solid rgba(125, 211, 252, 0.25);
+        }
+        .result-card.blue .result-label { color: var(--blue); }
+        .result-card.blue .result-value { color: var(--blue); }
+
+        .result-card.warm {
+            background: var(--warm-dim);
+            border: 1px solid rgba(246, 193, 119, 0.25);
+        }
+        .result-card.warm .result-label { color: var(--warm); }
+        .result-card.warm .result-value { color: var(--warm); }
+
+        .result-card.rose {
+            background: var(--rose-dim);
+            border: 1px solid rgba(242, 136, 155, 0.25);
+        }
+        .result-card.rose .result-label { color: var(--rose); }
+        .result-card.rose .result-value { color: var(--rose); }
+
+        .result-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .diff-positive { color: var(--rose) !important; }
+        .diff-negative { color: var(--accent) !important; }
+
+        .homes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 20px;
+        }
+        .homes-grid .column-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
+        }
+        .homes-grid .col {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .crosshair-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(20, 23, 30, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 12px;
+            color: var(--text-dim);
+            backdrop-filter: blur(8px);
+            pointer-events: none;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 14px;
+            font-size: 11px;
+            color: var(--text-dim);
+            background: rgba(20, 23, 30, 0.85);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            backdrop-filter: blur(8px);
+        }
+        .legend span { display: flex; align-items: center; gap: 5px; }
+        .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        @media (max-width: 1000px) {
+            body { flex-direction: column-reverse; }
+            .panel { width: 100%; max-height: 55%; border-left: none; border-top: 1px solid var(--border); }
+            #canvas-container { flex: 1; }
+        }
+        @media (max-width: 500px) {
+            .homes-grid { grid-template-columns: 1fr; gap: 20px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <div class="legend">
+        <span><span class="dot" style="background:#6ee7b7"></span> Low cost</span>
+        <span><span class="dot" style="background:#f6c177"></span> Mid cost</span>
+        <span><span class="dot" style="background:#f2889b"></span> High cost</span>
+    </div>
+    <div class="crosshair-info">Click &amp; drag to rotate · Scroll to zoom</div>
+</div>
+
+<div class="panel">
+    <h1>Monthly Cost<br><em>Explorer</em></h1>
+    <p class="subtitle">Compare your current monthly payment to your new home's cost across different sale &amp; purchase price scenarios.</p>
+
+    <!-- CURRENT HOME & NEW HOME SIDE BY SIDE -->
+    <div class="homes-grid">
+        <div class="col">
+            <div class="column-label">Current Home</div>
+
+            <div class="control-group">
+                <label>Current Mortgage Payment</label>
+                <div class="value-display warm" id="curPaymentDisplay">$1,200</div>
+                <input type="range" id="curPaymentSlider" min="0" max="10000" step="50" value="1200">
+            </div>
+
+            <div class="control-group">
+                <label>Annual Property Tax</label>
+                <div class="value-display" id="curTaxDisplay">$6,000</div>
+                <input type="range" id="curTaxSlider" min="1000" max="25000" step="500" value="6000">
+            </div>
+
+            <div class="control-group">
+                <label>Remaining Mortgage</label>
+                <div class="value-display rose" id="oweDisplay">$180,000</div>
+                <input type="range" id="oweSlider" min="0" max="500000" step="5000" value="180000">
+            </div>
+
+            <div class="control-group">
+                <label>Sale Price</label>
+                <div class="value-display accent" id="sellDisplay">$400,000</div>
+                <input type="range" id="sellSlider" min="100000" max="1000000" step="10000" value="400000">
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="column-label">New Home</div>
+
+      <div class="control-group spacer" aria-hidden="true">
+        <label>&nbsp;</label>
+        <div class="value-display">&nbsp;</div>
+        <div style="height:5px;margin-top:2px"></div>
+      </div>
+
+            <div class="control-group">
+                <label>Annual Property Tax</label>
+                <div class="value-display" id="taxDisplay">$8,000</div>
+                <input type="range" id="taxSlider" min="1000" max="25000" step="500" value="8000">
+            </div>
+
+            <div class="control-group">
+                <label>Additional Cash Down</label>
+                <div class="value-display blue" id="cashDisplay">$25,000</div>
+                <input type="range" id="cashSlider" min="0" max="1000000" step="5000" value="25000">
+            </div>
+
+            <div class="control-group">
+                <label>Purchase Price</label>
+                <div class="value-display warm" id="buyDisplay">$550,000</div>
+                <input type="range" id="buySlider" min="200000" max="5000000" step="10000" value="550000">
+            </div>
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- LOAN TERMS SECTION -->
+    <div class="section-label">Loan Terms</div>
+
+    <div class="control-group">
+        <label>Interest Rate</label>
+        <div class="value-display" id="rateDisplay">6.50%</div>
+        <input type="range" id="rateSlider" min="2.0" max="10.0" step="0.125" value="6.5">
+    </div>
+
+    <div class="control-group">
+        <label>Loan Term</label>
+        <div class="value-display" id="termDisplay">30 years</div>
+        <input type="range" id="termSlider" min="10" max="30" step="5" value="30">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="result-row">
+        <div class="result-card warm">
+            <div class="result-label">Current Monthly</div>
+            <div class="result-value" id="currentMonthly">$1,638</div>
+            <div class="result-sub" id="currentSub">mortgage + taxes</div>
+        </div>
+        <div class="result-card green">
+            <div class="result-label">New Monthly</div>
+            <div class="result-value" id="newMonthly">$1,644</div>
+            <div class="result-sub" id="newSub">mortgage + taxes</div>
+        </div>
+    </div>
+
+    <div class="result-card blue">
+        <div class="result-label">Monthly Difference</div>
+        <div class="result-value" id="diffValue">+$6</div>
+        <div class="result-sub" id="diffSub">You'll pay $6 more per month</div>
+    </div>
+
+    <div class="result-card rose">
+        <div class="result-label">Total New Mortgage</div>
+        <div class="result-value" id="loanValue">$195,000</div>
+        <div class="result-sub" id="loanSub">After $220K equity + $25K cash down</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+    // === MORTGAGE MATH ===
+    function calcMonthlyPayment(principal, ratePercent, years) {
+        if (principal <= 0) return 0;
+        const r = ratePercent / 100 / 12;
+        const n = years * 12;
+        if (r === 0) return principal / n;
+        return principal * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    }
+
+    function getNewHomeCost(sellPrice, buyPrice, newTax, cashDown, owe, rate, years) {
+        // Equity from sale = sale price - remaining balance
+        const equity = Math.max(sellPrice - owe, 0);
+        // Down payment = equity + additional cash
+        const downPayment = equity + cashDown;
+        // New loan = purchase price - down payment (can't be negative)
+        const newLoan = Math.max(buyPrice - downPayment, 0);
+        const mortgage = calcMonthlyPayment(newLoan, rate, years);
+        const tax = newTax / 12;
+        return { total: mortgage + tax, mortgage, tax, newLoan };
+    }
+
+    function getCurrentHomeCost(curPayment, curTax) {
+        const tax = curTax / 12;
+        return { total: curPayment + tax, mortgage: curPayment, tax };
+    }
+
+    // === THREE.JS SETUP ===
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 5000);
+    camera.position.set(350, 280, 350);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0c0e13, 1);
+    container.appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(200, 400, 200);
+    scene.add(dirLight);
+
+    // === GRID & AXES ===
+    const GRID = 60;
+    const SELL_MIN = 100000, SELL_MAX = 800000;
+    const BUY_MIN = 200000, BUY_MAX = 1000000;
+    const SCALE_XZ = 300 / GRID;
+    const OFFSET = -GRID / 2 * SCALE_XZ;
+
+    const gridHelper = new THREE.GridHelper(300, 20, 0x1e2230, 0x1a1d28);
+    gridHelper.position.y = -5;
+    scene.add(gridHelper);
+
+    function makeLabel(text, pos, color = 0x8a8d96) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+        ctx.font = '500 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 256, 40);
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.copy(pos);
+        sprite.scale.set(120, 15, 1);
+        scene.add(sprite);
+    }
+    makeLabel('Sale Price →', new THREE.Vector3(0, -20, OFFSET - 30));
+    makeLabel('← Purchase Price', new THREE.Vector3(OFFSET - 30, -20, 0));
+    makeLabel('Monthly Cost ↑', new THREE.Vector3(OFFSET - 30, 120, OFFSET - 30));
+
+    // === SURFACE MESH ===
+    const geometry = new THREE.PlaneBufferGeometry(300, 300, GRID - 1, GRID - 1);
+    geometry.rotateX(-Math.PI / 2);
+    const posAttr = geometry.attributes.position;
+    const colors = new Float32Array(posAttr.count * 3);
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.MeshPhongMaterial({
+        vertexColors: true, side: THREE.DoubleSide,
+        shininess: 40, transparent: true, opacity: 0.92, flatShading: false
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    const wireMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, wireframe: true, transparent: true, opacity: 0.04
+    });
+    const wireMesh = new THREE.Mesh(geometry, wireMat);
+    scene.add(wireMesh);
+
+    // Marker
+    const markerGeo = new THREE.SphereGeometry(4, 16, 16);
+    const markerMat = new THREE.MeshPhongMaterial({ color: 0x6ee7b7, emissive: 0x6ee7b7, emissiveIntensity: 0.6 });
+    const marker = new THREE.Mesh(markerGeo, markerMat);
+    scene.add(marker);
+
+    // === Current cost reference plane ===
+    const planeGeo = new THREE.PlaneBufferGeometry(300, 300);
+    planeGeo.rotateX(-Math.PI / 2);
+    const planeMat = new THREE.MeshBasicMaterial({
+        color: 0xf6c177, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+    });
+    const refPlane = new THREE.Mesh(planeGeo, planeMat);
+    scene.add(refPlane);
+
+    // Dashed line ring around reference plane
+    const refEdgeGeo = new THREE.EdgesGeometry(new THREE.PlaneBufferGeometry(300, 300));
+    refEdgeGeo.rotateX(-Math.PI / 2);
+    const refEdgeMat = new THREE.LineBasicMaterial({ color: 0xf6c177, transparent: true, opacity: 0.35 });
+    const refEdge = new THREE.LineSegments(refEdgeGeo, refEdgeMat);
+    scene.add(refEdge);
+
+    // Reference plane label
+    let refLabel;
+    function makeRefLabel(text, y) {
+        if (refLabel) scene.remove(refLabel);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f6c177';
+        ctx.font = '600 26px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 256, 40);
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+        refLabel = new THREE.Sprite(mat);
+        refLabel.position.set(-OFFSET + 10, y + 10, -OFFSET + 10);
+        refLabel.scale.set(100, 12, 1);
+        scene.add(refLabel);
+    }
+
+    // === COLOR RAMP ===
+    function colorForValue(t) {
+        const r = t < 0.5 ? 0.43 + t * 1.5 * 0.53 : 0.95 - (t - 0.5) * 0.04;
+        const g = t < 0.5 ? 0.91 - t * 0.8 : 0.53 - (t - 0.5) * 0.54;
+        const b = t < 0.5 ? 0.72 - t * 0.6 : 0.48 + (t - 0.5) * 0.74;
+        return [r, g, b];
+    }
+
+    // === READ ALL SLIDERS ===
+    function getInputs() {
+        return {
+            curPayment: +document.getElementById('curPaymentSlider').value,
+            curTax: +document.getElementById('curTaxSlider').value,
+            owe: +document.getElementById('oweSlider').value,
+            newTax: +document.getElementById('taxSlider').value,
+            cashDown: +document.getElementById('cashSlider').value,
+            rate: +document.getElementById('rateSlider').value,
+            years: +document.getElementById('termSlider').value,
+            sell: +document.getElementById('sellSlider').value,
+            buy: +document.getElementById('buySlider').value,
+        };
+    }
+
+    // === UPDATE SURFACE ===
+    let maxZ = 5000;
+    function updateSurface() {
+        const { curPayment, curTax, owe, newTax, cashDown, rate, years } = getInputs();
+
+        let zMax = 0;
+        const zValues = [];
+
+        for (let j = 0; j < GRID; j++) {
+            for (let i = 0; i < GRID; i++) {
+                const sell = SELL_MIN + (i / (GRID - 1)) * (SELL_MAX - SELL_MIN);
+                const buy = BUY_MIN + (j / (GRID - 1)) * (BUY_MAX - BUY_MIN);
+                const { total } = getNewHomeCost(sell, buy, newTax, cashDown, owe, rate, years);
+                zValues.push(total);
+                if (total > zMax) zMax = total;
+            }
+        }
+
+        maxZ = Math.max(zMax, 500);
+        const heightScale = 240 / maxZ;
+
+        for (let idx = 0; idx < posAttr.count; idx++) {
+            const y = zValues[idx] * heightScale;
+            posAttr.setY(idx, y);
+            const t = Math.min(zValues[idx] / maxZ, 1);
+            const [r, g, b] = colorForValue(t);
+            colors[idx * 3] = r;
+            colors[idx * 3 + 1] = g;
+            colors[idx * 3 + 2] = b;
+        }
+
+        posAttr.needsUpdate = true;
+        geometry.attributes.color.needsUpdate = true;
+        geometry.computeVertexNormals();
+
+        // Update reference plane for current home cost
+        const curCost = getCurrentHomeCost(curPayment, curTax);
+        const refY = curCost.total * heightScale;
+        refPlane.position.y = refY;
+        refEdge.position.y = refY;
+        makeRefLabel('Current: $' + Math.round(curCost.total).toLocaleString() + '/mo', refY);
+
+        updateMarker();
+    }
+
+    function updateMarker() {
+        const inp = getInputs();
+        const { total: newTotal, mortgage: newMort, tax: newMonthTax, newLoan } =
+            getNewHomeCost(inp.sell, inp.buy, inp.newTax, inp.cashDown, inp.owe, inp.rate, inp.years);
+        const curCost = getCurrentHomeCost(inp.curPayment, inp.curTax);
+
+        const heightScale = 240 / maxZ;
+        const ix = (inp.sell - SELL_MIN) / (SELL_MAX - SELL_MIN) * (GRID - 1);
+        const iz = (inp.buy - BUY_MIN) / (BUY_MAX - BUY_MIN) * (GRID - 1);
+        const y = newTotal * heightScale;
+
+        marker.position.set(OFFSET + ix * SCALE_XZ, y + 6, OFFSET + iz * SCALE_XZ);
+
+        // Current monthly
+        document.getElementById('currentMonthly').textContent = '$' + Math.round(curCost.total).toLocaleString();
+        document.getElementById('currentSub').textContent =
+            '$' + Math.round(curCost.mortgage).toLocaleString() + ' mtg + $' + Math.round(curCost.tax).toLocaleString() + ' tax';
+
+        // New monthly
+        document.getElementById('newMonthly').textContent = '$' + Math.round(newTotal).toLocaleString();
+        document.getElementById('newSub').textContent =
+            '$' + Math.round(newMort).toLocaleString() + ' mtg + $' + Math.round(newMonthTax).toLocaleString() + ' tax';
+
+        // Difference
+        const diff = newTotal - curCost.total;
+        const diffEl = document.getElementById('diffValue');
+        const diffSubEl = document.getElementById('diffSub');
+        const sign = diff >= 0 ? '+' : '-';
+        diffEl.textContent = sign + '$' + Math.abs(Math.round(diff)).toLocaleString();
+        diffEl.className = 'result-value ' + (diff >= 0 ? 'diff-positive' : 'diff-negative');
+
+        if (diff >= 0) {
+            diffSubEl.textContent = "You'll pay $" + Math.round(diff).toLocaleString() + ' more per month';
+        } else {
+            diffSubEl.textContent = "You'll save $" + Math.abs(Math.round(diff)).toLocaleString() + ' per month';
+        }
+
+        // Total new mortgage
+        const equity = Math.max(inp.sell - inp.owe, 0);
+        const downPayment = equity + inp.cashDown;
+        document.getElementById('loanValue').textContent = '$' + Math.round(newLoan).toLocaleString();
+        document.getElementById('loanSub').textContent =
+            'After $' + Math.round(equity / 1000).toLocaleString() + 'K equity + $' +
+            Math.round(inp.cashDown / 1000).toLocaleString() + 'K cash down';
+    }
+
+    // === SLIDER WIRING ===
+    const allSliders = [
+        'curPaymentSlider', 'curTaxSlider', 'oweSlider', 'taxSlider', 'cashSlider',
+        'rateSlider', 'termSlider', 'sellSlider', 'buySlider'
+    ];
+    const surfaceSliders = new Set(['curPaymentSlider', 'curTaxSlider', 'oweSlider', 'taxSlider', 'cashSlider', 'rateSlider', 'termSlider']);
+    const displayFmt = {
+        curPaymentSlider: v => '$' + Number(v).toLocaleString(),
+        curTaxSlider: v => '$' + Number(v).toLocaleString(),
+        oweSlider: v => '$' + Number(v).toLocaleString(),
+        taxSlider: v => '$' + Number(v).toLocaleString(),
+        cashSlider: v => '$' + Number(v).toLocaleString(),
+        rateSlider: v => Number(v).toFixed(2) + '%',
+        termSlider: v => v + ' years',
+        sellSlider: v => '$' + Number(v).toLocaleString(),
+        buySlider: v => '$' + Number(v).toLocaleString(),
+    };
+    const displayElMap = {
+        curPaymentSlider: 'curPaymentDisplay',
+        curTaxSlider: 'curTaxDisplay',
+        oweSlider: 'oweDisplay',
+        taxSlider: 'taxDisplay',
+        cashSlider: 'cashDisplay',
+        rateSlider: 'rateDisplay',
+        termSlider: 'termDisplay',
+        sellSlider: 'sellDisplay',
+        buySlider: 'buyDisplay',
+    };
+
+    allSliders.forEach(id => {
+        document.getElementById(id).addEventListener('input', function() {
+            document.getElementById(displayElMap[id]).textContent = displayFmt[id](this.value);
+            if (surfaceSliders.has(id)) {
+                updateSurface();
+            } else {
+                updateMarker();
+            }
+        });
+    });
+
+    // === ORBIT CONTROLS ===
+    let isDragging = false, prevX, prevY;
+    let theta = -0.6, phi = 0.65, radius = 450;
+
+    function updateCamera() {
+        camera.position.x = radius * Math.sin(phi) * Math.cos(theta);
+        camera.position.y = radius * Math.cos(phi);
+        camera.position.z = radius * Math.sin(phi) * Math.sin(theta);
+        camera.lookAt(0, 60, 0);
+    }
+
+    container.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        theta -= (e.clientX - prevX) * 0.005;
+        phi = Math.max(0.2, Math.min(1.4, phi - (e.clientY - prevY) * 0.005));
+        prevX = e.clientX; prevY = e.clientY;
+        updateCamera();
+    });
+    container.addEventListener('wheel', e => {
+        radius = Math.max(200, Math.min(800, radius + e.deltaY * 0.5));
+        updateCamera();
+        e.preventDefault();
+    }, { passive: false });
+
+    container.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) { isDragging = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY; }
+    });
+    container.addEventListener('touchend', () => isDragging = false);
+    container.addEventListener('touchmove', e => {
+        if (!isDragging || e.touches.length !== 1) return;
+        theta -= (e.touches[0].clientX - prevX) * 0.005;
+        phi = Math.max(0.2, Math.min(1.4, phi - (e.touches[0].clientY - prevY) * 0.005));
+        prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
+        updateCamera();
+        e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    // === INIT & ANIMATE ===
+    updateCamera();
+    updateSurface();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const s = 1 + 0.15 * Math.sin(Date.now() * 0.004);
+        marker.scale.set(s, s, s);
+        renderer.render(scene, camera);
+    }
+    animate();
+</script>
+</body>
+</html>
