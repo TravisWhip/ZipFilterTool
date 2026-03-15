@@ -24,6 +24,7 @@
             --rose-dim: rgba(242, 136, 155, 0.15);
             --blue: #7dd3fc;
             --blue-dim: rgba(125, 211, 252, 0.15);
+            --feasible: rgba(138, 141, 150, 0.3);
         }
 
         body {
@@ -106,6 +107,38 @@
         .value-display.rose { color: var(--rose); }
         .value-display.blue { color: var(--blue); }
 
+        /* Slider with feasible range overlay */
+        .slider-wrap {
+            position: relative;
+            height: 16px;
+            margin-top: 2px;
+        }
+        .slider-wrap input[type="range"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .feasible-bar {
+            position: absolute;
+            top: 4px;
+            height: 7px;
+            border-radius: 4px;
+            background: rgba(138, 141, 150, 0.5);
+            pointer-events: none;
+            display: none;
+            z-index: 1;
+            left: 0%;
+            width: 0%;
+            box-shadow: 0 0 8px rgba(138, 141, 150, 0.35);
+        }
+        .budget-active .feasible-bar { display: block; }
+        .feasible-bar.infeasible {
+            background: rgba(242, 136, 155, 0.4);
+            box-shadow: 0 0 8px rgba(242, 136, 155, 0.25);
+        }
+
         input[type="range"] {
             -webkit-appearance: none;
             appearance: none;
@@ -114,7 +147,31 @@
             border-radius: 3px;
             background: var(--surface2);
             outline: none;
-            margin-top: 2px;
+            position: relative;
+            z-index: 2;
+        }
+
+        /* In budget mode, make slider tracks transparent so feasible bars show through */
+        .budget-active .slider-wrap input[type="range"] {
+            background: transparent;
+        }
+        .budget-active .slider-wrap input[type="range"]::-webkit-slider-runnable-track {
+            background: transparent;
+        }
+        .budget-active .slider-wrap input[type="range"]::-moz-range-track {
+            background: transparent;
+        }
+        /* Add a pseudo-track behind the feasible bar for budget mode */
+        .budget-active .slider-wrap::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 0;
+            right: 0;
+            height: 7px;
+            border-radius: 4px;
+            background: var(--surface2);
+            z-index: 0;
         }
 
         input[type="range"]::-webkit-slider-thumb {
@@ -127,10 +184,81 @@
             cursor: pointer;
             box-shadow: 0 0 10px rgba(110, 231, 183, 0.35);
             transition: transform 0.15s;
+            position: relative;
+            z-index: 3;
         }
         input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 
         .divider { height: 1px; background: var(--border); }
+
+        /* Toggle switch */
+        .budget-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+        }
+        .budget-toggle .toggle-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            flex: 1;
+        }
+        .budget-toggle .toggle-label span {
+            display: block;
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 0;
+            text-transform: none;
+            margin-top: 2px;
+            color: var(--text-dim);
+            opacity: 0.7;
+        }
+        .switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .slider-track {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--border);
+            border-radius: 12px;
+            transition: background 0.25s;
+        }
+        .switch .slider-track::before {
+            content: '';
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: transform 0.25s, background 0.25s;
+        }
+        .switch input:checked + .slider-track {
+            background: rgba(110, 231, 183, 0.3);
+        }
+        .switch input:checked + .slider-track::before {
+            transform: translateX(20px);
+            background: var(--accent);
+        }
+
+        .budget-slider-row {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .budget-active .budget-slider-row { display: flex; }
 
         .result-card {
             border-radius: 12px;
@@ -155,31 +283,19 @@
             line-height: 1.5;
         }
 
-        .result-card.green {
-            background: var(--accent-dim);
-            border: 1px solid rgba(110, 231, 183, 0.25);
-        }
+        .result-card.green { background: var(--accent-dim); border: 1px solid rgba(110, 231, 183, 0.25); }
         .result-card.green .result-label { color: var(--accent); }
         .result-card.green .result-value { color: var(--accent); }
 
-        .result-card.blue {
-            background: var(--blue-dim);
-            border: 1px solid rgba(125, 211, 252, 0.25);
-        }
+        .result-card.blue { background: var(--blue-dim); border: 1px solid rgba(125, 211, 252, 0.25); }
         .result-card.blue .result-label { color: var(--blue); }
         .result-card.blue .result-value { color: var(--blue); }
 
-        .result-card.warm {
-            background: var(--warm-dim);
-            border: 1px solid rgba(246, 193, 119, 0.25);
-        }
+        .result-card.warm { background: var(--warm-dim); border: 1px solid rgba(246, 193, 119, 0.25); }
         .result-card.warm .result-label { color: var(--warm); }
         .result-card.warm .result-value { color: var(--warm); }
 
-        .result-card.rose {
-            background: var(--rose-dim);
-            border: 1px solid rgba(242, 136, 155, 0.25);
-        }
+        .result-card.rose { background: var(--rose-dim); border: 1px solid rgba(242, 136, 155, 0.25); }
         .result-card.rose .result-label { color: var(--rose); }
         .result-card.rose .result-value { color: var(--rose); }
 
@@ -212,6 +328,13 @@
             flex-direction: column;
             gap: 16px;
         }
+
+        .over-budget .result-card.green {
+            background: var(--rose-dim);
+            border-color: rgba(242, 136, 155, 0.25);
+        }
+        .over-budget .result-card.green .result-label { color: var(--rose); }
+        .over-budget .result-card.green .result-value { color: var(--rose); }
 
         .crosshair-info {
             position: absolute;
@@ -265,9 +388,31 @@
     <div class="crosshair-info">Click &amp; drag to rotate · Scroll to zoom</div>
 </div>
 
-<div class="panel">
+<div class="panel" id="panel">
     <h1>Monthly Cost<br><em>Explorer</em></h1>
     <p class="subtitle">Compare your current monthly payment to your new home's cost across different sale &amp; purchase price scenarios.</p>
+
+    <!-- BUDGET MODE TOGGLE -->
+    <div class="budget-toggle">
+        <div class="toggle-label">
+            Maximum Budget Mode
+            <span>Constrain sliders to stay within budget</span>
+        </div>
+        <label class="switch">
+            <input type="checkbox" id="budgetToggle">
+            <span class="slider-track"></span>
+        </label>
+    </div>
+
+    <div class="budget-slider-row">
+        <div class="control-group">
+            <label>Maximum Monthly Budget</label>
+            <div class="value-display accent" id="budgetDisplay">$3,000</div>
+            <div class="slider-wrap">
+                <input type="range" id="budgetSlider" min="500" max="20000" step="100" value="3000">
+            </div>
+        </div>
+    </div>
 
     <!-- CURRENT HOME & NEW HOME SIDE BY SIDE -->
     <div class="homes-grid">
@@ -277,53 +422,74 @@
             <div class="control-group">
                 <label>Current Mortgage Payment</label>
                 <div class="value-display warm" id="curPaymentDisplay">$1,200</div>
-                <input type="range" id="curPaymentSlider" min="0" max="10000" step="50" value="1200">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_curPaymentSlider"></div>
+                    <input type="range" id="curPaymentSlider" min="0" max="10000" step="50" value="1200">
+                </div>
             </div>
 
             <div class="control-group">
                 <label>Annual Property Tax</label>
                 <div class="value-display" id="curTaxDisplay">$6,000</div>
-                <input type="range" id="curTaxSlider" min="1000" max="25000" step="500" value="6000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_curTaxSlider"></div>
+                    <input type="range" id="curTaxSlider" min="1000" max="25000" step="500" value="6000">
+                </div>
             </div>
 
             <div class="control-group">
                 <label>Remaining Mortgage</label>
                 <div class="value-display rose" id="oweDisplay">$180,000</div>
-                <input type="range" id="oweSlider" min="0" max="500000" step="5000" value="180000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_oweSlider"></div>
+                    <input type="range" id="oweSlider" min="0" max="500000" step="5000" value="180000">
+                </div>
             </div>
 
             <div class="control-group">
                 <label>Sale Price</label>
                 <div class="value-display accent" id="sellDisplay">$400,000</div>
-                <input type="range" id="sellSlider" min="100000" max="1000000" step="10000" value="400000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_sellSlider"></div>
+                    <input type="range" id="sellSlider" min="100000" max="1000000" step="10000" value="400000">
+                </div>
             </div>
         </div>
 
         <div class="col">
             <div class="column-label">New Home</div>
 
-      <div class="control-group spacer" aria-hidden="true">
-        <label>&nbsp;</label>
-        <div class="value-display">&nbsp;</div>
-        <div style="height:5px;margin-top:2px"></div>
-      </div>
+            <div class="control-group spacer" aria-hidden="true">
+                <label>&nbsp;</label>
+                <div class="value-display">&nbsp;</div>
+                <div style="height:16px;margin-top:2px"></div>
+            </div>
 
             <div class="control-group">
                 <label>Annual Property Tax</label>
                 <div class="value-display" id="taxDisplay">$8,000</div>
-                <input type="range" id="taxSlider" min="1000" max="25000" step="500" value="8000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_taxSlider"></div>
+                    <input type="range" id="taxSlider" min="1000" max="25000" step="500" value="8000">
+                </div>
             </div>
 
             <div class="control-group">
                 <label>Additional Cash Down</label>
                 <div class="value-display blue" id="cashDisplay">$25,000</div>
-                <input type="range" id="cashSlider" min="0" max="1000000" step="5000" value="25000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_cashSlider"></div>
+                    <input type="range" id="cashSlider" min="0" max="1000000" step="5000" value="25000">
+                </div>
             </div>
 
             <div class="control-group">
                 <label>Purchase Price</label>
                 <div class="value-display warm" id="buyDisplay">$550,000</div>
-                <input type="range" id="buySlider" min="200000" max="5000000" step="10000" value="550000">
+                <div class="slider-wrap">
+                    <div class="feasible-bar" id="feasible_buySlider"></div>
+                    <input type="range" id="buySlider" min="200000" max="5000000" step="10000" value="550000">
+                </div>
             </div>
         </div>
     </div>
@@ -336,13 +502,19 @@
     <div class="control-group">
         <label>Interest Rate</label>
         <div class="value-display" id="rateDisplay">6.50%</div>
-        <input type="range" id="rateSlider" min="2.0" max="10.0" step="0.125" value="6.5">
+        <div class="slider-wrap">
+            <div class="feasible-bar" id="feasible_rateSlider"></div>
+            <input type="range" id="rateSlider" min="2.0" max="10.0" step="0.125" value="6.5">
+        </div>
     </div>
 
     <div class="control-group">
         <label>Loan Term</label>
         <div class="value-display" id="termDisplay">30 years</div>
-        <input type="range" id="termSlider" min="10" max="30" step="5" value="30">
+        <div class="slider-wrap">
+            <div class="feasible-bar" id="feasible_termSlider"></div>
+            <input type="range" id="termSlider" min="10" max="30" step="5" value="30">
+        </div>
     </div>
 
     <div class="divider"></div>
@@ -385,11 +557,8 @@
     }
 
     function getNewHomeCost(sellPrice, buyPrice, newTax, cashDown, owe, rate, years) {
-        // Equity from sale = sale price - remaining balance
         const equity = Math.max(sellPrice - owe, 0);
-        // Down payment = equity + additional cash
         const downPayment = equity + cashDown;
-        // New loan = purchase price - down payment (can't be negative)
         const newLoan = Math.max(buyPrice - downPayment, 0);
         const mortgage = calcMonthlyPayment(newLoan, rate, years);
         const tax = newTax / 12;
@@ -399,6 +568,123 @@
     function getCurrentHomeCost(curPayment, curTax) {
         const tax = curTax / 12;
         return { total: curPayment + tax, mortgage: curPayment, tax };
+    }
+
+    // Compute new monthly cost from a params object (for constraint solver)
+    function newMonthlyCostFromParams(p) {
+        return getNewHomeCost(p.sell, p.buy, p.newTax, p.cashDown, p.owe, p.rate, p.years).total;
+    }
+
+    // === BUDGET CONSTRAINT SOLVER ===
+    // For a given slider, find the min and max values it can take
+    // while keeping the new monthly cost <= maxBudget,
+    // with all other sliders held at their current values.
+
+    const budgetSliderIds = ['taxSlider', 'cashSlider', 'buySlider', 'oweSlider', 'sellSlider', 'rateSlider', 'termSlider'];
+
+    function getParamsFromInputs() {
+        return {
+            sell: +document.getElementById('sellSlider').value,
+            buy: +document.getElementById('buySlider').value,
+            newTax: +document.getElementById('taxSlider').value,
+            cashDown: +document.getElementById('cashSlider').value,
+            owe: +document.getElementById('oweSlider').value,
+            rate: +document.getElementById('rateSlider').value,
+            years: +document.getElementById('termSlider').value,
+        };
+    }
+
+    function sliderMeta(id) {
+        const el = document.getElementById(id);
+        return { min: +el.min, max: +el.max, step: +el.step, val: +el.value };
+    }
+
+    // Map slider id to the param key it controls
+    const sliderToParam = {
+        taxSlider: 'newTax',
+        cashSlider: 'cashDown',
+        buySlider: 'buy',
+        oweSlider: 'owe',
+        sellSlider: 'sell',
+        rateSlider: 'rate',
+        termSlider: 'years',
+    };
+
+    function findFeasibleRange(sliderId, params, maxBudget) {
+        const meta = sliderMeta(sliderId);
+        const paramKey = sliderToParam[sliderId];
+        if (!paramKey) return null;
+
+        // Binary search for boundaries
+        // For some sliders, increasing value increases cost (buy, newTax, owe, rate)
+        // For others, increasing value decreases cost (sell, cashDown, years)
+        // We'll just sweep with a coarse then fine pass
+
+        const steps = 200;
+        const range = meta.max - meta.min;
+        const increment = range / steps;
+
+        let feasibleMin = null;
+        let feasibleMax = null;
+
+        for (let i = 0; i <= steps; i++) {
+            const testVal = meta.min + i * increment;
+            const testParams = { ...params, [paramKey]: testVal };
+            const cost = newMonthlyCostFromParams(testParams);
+            if (cost <= maxBudget) {
+                if (feasibleMin === null) feasibleMin = testVal;
+                feasibleMax = testVal;
+            }
+        }
+
+        if (feasibleMin === null) return { min: null, max: null, feasible: false };
+        return { min: feasibleMin, max: feasibleMax, feasible: true };
+    }
+
+    function updateFeasibleRanges() {
+        const budgetOn = document.getElementById('budgetToggle').checked;
+        if (!budgetOn) return;
+
+        const maxBudget = +document.getElementById('budgetSlider').value;
+        const params = getParamsFromInputs();
+        const currentCost = newMonthlyCostFromParams(params);
+        const panel = document.getElementById('panel');
+
+        // Check if current config is over budget
+        if (currentCost > maxBudget) {
+            panel.classList.add('over-budget');
+        } else {
+            panel.classList.remove('over-budget');
+        }
+
+        budgetSliderIds.forEach(id => {
+            const bar = document.getElementById('feasible_' + id);
+            const slider = document.getElementById(id);
+            const meta = sliderMeta(id);
+            const range = meta.max - meta.min;
+
+            const result = findFeasibleRange(id, params, maxBudget);
+
+            if (!result.feasible) {
+                // No feasible value exists — show a thin red bar
+                bar.style.left = '0%';
+                bar.style.width = '0%';
+                bar.classList.add('infeasible');
+            } else {
+                const leftPct = ((result.min - meta.min) / range) * 100;
+                const widthPct = ((result.max - result.min) / range) * 100;
+                bar.style.left = Math.max(0, leftPct) + '%';
+                bar.style.width = Math.min(100 - leftPct, widthPct) + '%';
+                bar.classList.remove('infeasible');
+            }
+        });
+
+        // curPaymentSlider and curTaxSlider don't affect new home cost,
+        // so no constraint bar for them — hide them
+        ['curPaymentSlider', 'curTaxSlider'].forEach(id => {
+            const bar = document.getElementById('feasible_' + id);
+            if (bar) bar.style.display = 'none';
+        });
     }
 
     // === THREE.JS SETUP ===
@@ -422,8 +708,8 @@
 
     // === GRID & AXES ===
     const GRID = 60;
-    const SELL_MIN = 100000, SELL_MAX = 800000;
-    const BUY_MIN = 200000, BUY_MAX = 1000000;
+    const SELL_MIN = 100000, SELL_MAX = 1000000;
+    const BUY_MIN = 200000, BUY_MAX = 5000000;
     const SCALE_XZ = 300 / GRID;
     const OFFSET = -GRID / 2 * SCALE_XZ;
 
@@ -485,14 +771,29 @@
     const refPlane = new THREE.Mesh(planeGeo, planeMat);
     scene.add(refPlane);
 
-    // Dashed line ring around reference plane
     const refEdgeGeo = new THREE.EdgesGeometry(new THREE.PlaneBufferGeometry(300, 300));
     refEdgeGeo.rotateX(-Math.PI / 2);
     const refEdgeMat = new THREE.LineBasicMaterial({ color: 0xf6c177, transparent: true, opacity: 0.35 });
     const refEdge = new THREE.LineSegments(refEdgeGeo, refEdgeMat);
     scene.add(refEdge);
 
-    // Reference plane label
+    // === Budget ceiling plane ===
+    const budgetPlaneGeo = new THREE.PlaneBufferGeometry(300, 300);
+    budgetPlaneGeo.rotateX(-Math.PI / 2);
+    const budgetPlaneMat = new THREE.MeshBasicMaterial({
+        color: 0x6ee7b7, transparent: true, opacity: 0.06, side: THREE.DoubleSide
+    });
+    const budgetPlane = new THREE.Mesh(budgetPlaneGeo, budgetPlaneMat);
+    budgetPlane.visible = false;
+    scene.add(budgetPlane);
+
+    const budgetEdgeGeo = new THREE.EdgesGeometry(new THREE.PlaneBufferGeometry(300, 300));
+    budgetEdgeGeo.rotateX(-Math.PI / 2);
+    const budgetEdgeMat = new THREE.LineBasicMaterial({ color: 0x6ee7b7, transparent: true, opacity: 0.3 });
+    const budgetEdge = new THREE.LineSegments(budgetEdgeGeo, budgetEdgeMat);
+    budgetEdge.visible = false;
+    scene.add(budgetEdge);
+
     let refLabel;
     function makeRefLabel(text, y) {
         if (refLabel) scene.remove(refLabel);
@@ -509,6 +810,24 @@
         refLabel.position.set(-OFFSET + 10, y + 10, -OFFSET + 10);
         refLabel.scale.set(100, 12, 1);
         scene.add(refLabel);
+    }
+
+    let budgetLabel;
+    function makeBudgetLabel(text, y) {
+        if (budgetLabel) scene.remove(budgetLabel);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#6ee7b7';
+        ctx.font = '600 26px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 256, 40);
+        const tex = new THREE.CanvasTexture(canvas);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+        budgetLabel = new THREE.Sprite(mat);
+        budgetLabel.position.set(-OFFSET + 10, y + 10, OFFSET - 10);
+        budgetLabel.scale.set(100, 12, 1);
+        scene.add(budgetLabel);
     }
 
     // === COLOR RAMP ===
@@ -569,12 +888,28 @@
         geometry.attributes.color.needsUpdate = true;
         geometry.computeVertexNormals();
 
-        // Update reference plane for current home cost
+        // Update reference plane
         const curCost = getCurrentHomeCost(curPayment, curTax);
         const refY = curCost.total * heightScale;
         refPlane.position.y = refY;
         refEdge.position.y = refY;
         makeRefLabel('Current: $' + Math.round(curCost.total).toLocaleString() + '/mo', refY);
+
+        // Update budget plane
+        const budgetOn = document.getElementById('budgetToggle').checked;
+        if (budgetOn) {
+            const maxBudget = +document.getElementById('budgetSlider').value;
+            const budgetY = maxBudget * heightScale;
+            budgetPlane.position.y = budgetY;
+            budgetPlane.visible = true;
+            budgetEdge.position.y = budgetY;
+            budgetEdge.visible = true;
+            makeBudgetLabel('Budget: $' + Math.round(maxBudget).toLocaleString() + '/mo', budgetY);
+        } else {
+            budgetPlane.visible = false;
+            budgetEdge.visible = false;
+            if (budgetLabel) { scene.remove(budgetLabel); budgetLabel = null; }
+        }
 
         updateMarker();
     }
@@ -618,11 +953,13 @@
 
         // Total new mortgage
         const equity = Math.max(inp.sell - inp.owe, 0);
-        const downPayment = equity + inp.cashDown;
         document.getElementById('loanValue').textContent = '$' + Math.round(newLoan).toLocaleString();
         document.getElementById('loanSub').textContent =
             'After $' + Math.round(equity / 1000).toLocaleString() + 'K equity + $' +
             Math.round(inp.cashDown / 1000).toLocaleString() + 'K cash down';
+
+        // Update feasible ranges if budget mode is on
+        updateFeasibleRanges();
     }
 
     // === SLIDER WIRING ===
@@ -663,6 +1000,30 @@
                 updateMarker();
             }
         });
+    });
+
+    // Budget toggle
+    document.getElementById('budgetToggle').addEventListener('change', function() {
+        const panel = document.getElementById('panel');
+        if (this.checked) {
+            panel.classList.add('budget-active');
+        } else {
+            panel.classList.remove('budget-active');
+            panel.classList.remove('over-budget');
+            // Hide all feasible bars
+            budgetSliderIds.forEach(id => {
+                const bar = document.getElementById('feasible_' + id);
+                if (bar) { bar.style.left = '0%'; bar.style.width = '0%'; }
+            });
+            if (budgetLabel) { scene.remove(budgetLabel); budgetLabel = null; }
+        }
+        updateSurface();
+    });
+
+    // Budget slider
+    document.getElementById('budgetSlider').addEventListener('input', function() {
+        document.getElementById('budgetDisplay').textContent = '$' + Number(this.value).toLocaleString();
+        updateSurface();
     });
 
     // === ORBIT CONTROLS ===
