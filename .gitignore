@@ -1,0 +1,10 @@
+# Edited/exported output from the editor
+*-edited.JEF
+*-edited.jef
+*.png
+
+# OS / editor clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/

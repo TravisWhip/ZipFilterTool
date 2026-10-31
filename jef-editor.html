@@ -1,0 +1,1429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JEF Stitch Editor</title>
+<style>
+  :root { --bg:#f2f2ef; --panel:#fff; --line:#d8d8d4; --fg:#222; --muted:#666; --sel:#29b6f2; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }   /* make the hidden attribute win over display:flex rules */
+  html, body { height:100%; margin:0; }
+  body { font:13px system-ui, sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0 12px 0 0; }
+  #wrap { flex:1; display:flex; min-height:0; }
+  #stage { flex:1; position:relative; min-width:0; }
+  #cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #drophint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:16px; pointer-events:none; text-align:center; padding:16px; }
+  #stage.over { outline:3px dashed #2a7; outline-offset:-8px; }
+  aside { width:300px; overflow:auto; background:var(--panel); border-left:1px solid var(--line); padding:10px 12px; }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 0 6px; }
+  aside > :first-child h2, aside > h2:first-child { margin-top:0; }
+  .row { display:flex; gap:6px; align-items:center; margin:4px 0; flex-wrap:wrap; }
+  input[type=number] { width:80px; }
+  button { padding:4px 9px; cursor:pointer; }
+  button:disabled { cursor:default; }
+  .sw { display:inline-block; width:16px; height:16px; border:1px solid #888; border-radius:3px; flex:none; }
+  .thread { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  .thread select { flex:1; min-width:0; }
+  #info, .help { color:var(--muted); line-height:1.55; }
+  .help kbd { background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px; font-size:11px; }
+  #status { color:var(--muted); margin-left:auto; }
+  .tools { display:flex; }
+  .tools button { border-radius:0; margin-left:-1px; }
+  .tools button:first-child { border-radius:4px 0 0 4px; }
+  .tools button:last-child { border-radius:0 4px 4px 0; }
+  .tools button.active { background:#333; color:#fff; border-color:#333; }
+  .lbl { width:68px; flex:none; }
+  input.sm { width:60px; }
+  .card { background:#f3faff; border:1px solid #bfe3f7; border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+  .card h2 { margin-top:0 !important; color:#1477a8; }
+  .val { color:var(--muted); min-width:44px; }
+  .align button { padding:3px 7px; font-size:12px; }
+  @media (max-width: 760px) {
+    #wrap { flex-direction:column; }
+    #stage { min-height:55vh; }
+    aside { width:auto; border-left:0; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>JEF Stitch Editor</h1>
+  <button id="newBtn">New</button>
+  <button id="openBtn">Open…</button>
+  <input id="file" type="file" accept=".jef,.JEF" hidden>
+  <button id="saveBtn">Save JEF</button>
+  <button id="pngBtn">Save PNG</button>
+  <button id="undoBtn" disabled title="Ctrl+Z">Undo</button>
+  <button id="redoBtn" disabled title="Ctrl+Y">Redo</button>
+  <button id="fitBtn">Fit</button>
+  <span class="tools">
+    <button data-tool="select" class="active" title="Select, move and resize shapes (V)">Select</button>
+    <button data-tool="points" title="Edit individual stitch points of the loaded design (P)">Points</button>
+  </span>
+  <span class="tools">
+    <button data-tool="line" title="Line (L)">Line</button>
+    <button data-tool="rect" title="Rectangle (R)">Rectangle</button>
+    <button data-tool="oval" title="Oval / circle (O)">Oval</button>
+    <button data-tool="tri" title="Triangle (T)">Triangle</button>
+  </span>
+  <span id="status"></span>
+</header>
+
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="drophint">Pick Rectangle, Oval, Line or Triangle and drag here to draw,<br>or drop a .JEF file to edit it.</div>
+  </div>
+
+  <aside>
+    <!-- Shape properties (Select tool) -->
+    <section id="shapeBox" class="card" hidden>
+      <h2 id="shapeTitle">Shape</h2>
+      <div id="geom">
+        <div class="row"><label class="lbl" id="shWLabel">Width</label><input id="shW" type="number" step="0.5" min="0.5"> mm</div>
+        <div class="row" id="shHRow"><label class="lbl">Height</label><input id="shH" type="number" step="0.5" min="0.5"> mm</div>
+        <div class="row"><label class="lbl">Rotate</label><input id="shR" type="number" step="5"> °</div>
+        <div class="row"><label class="lbl">Center</label>X <input id="shX" class="sm" type="number" step="0.5"> Y <input id="shY" class="sm" type="number" step="0.5"></div>
+      </div>
+      <div id="alignRow" class="row align" hidden>
+        <span class="lbl">Align</span>
+        <button data-align="left" title="Align left edges">⇤</button>
+        <button data-align="cx" title="Align centers (horizontal)">↔</button>
+        <button data-align="right" title="Align right edges">⇥</button>
+        <button data-align="top" title="Align top edges">⤒</button>
+        <button data-align="cy" title="Align middles (vertical)">↕</button>
+        <button data-align="bottom" title="Align bottom edges">⤓</button>
+      </div>
+      <div class="row"><label class="lbl">Stitch</label>
+        <select id="shStyle">
+          <option value="satin">Satin (zigzag)</option>
+          <option value="run">Running (thin line)</option>
+          <option value="triple">Triple running (bold line)</option>
+        </select></div>
+      <div class="row satinOnly"><label class="lbl">Thickness</label><input id="shThick" type="range" min="0.5" max="10" step="0.5"><span class="val" id="shThickV"></span></div>
+      <div class="row satinOnly"><label class="lbl">Spacing</label><input id="shDens" type="range" min="0.2" max="3" step="0.1"><span class="val" id="shDensV"></span></div>
+      <div class="row cornerOnly"><label class="lbl">Corners</label><span class="val" style="min-width:0">Sharp</span><input id="shCorner" type="range" min="0" max="100" step="5" style="width:90px"><span class="val" style="min-width:0">Round</span></div>
+      <div class="row runOnly"><label class="lbl">Stitch len</label><input id="shLen" type="range" min="1" max="7" step="0.5"><span class="val" id="shLenV"></span></div>
+      <div class="row"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
+        <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
+      <div class="row"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
+      <div class="row">
+        <button id="shDup" title="Ctrl+D">Duplicate</button>
+        <button id="shDel" title="Delete">Delete</button>
+        <button id="shBake" title="Turn into plain stitches so you can edit single points">To stitches</button>
+      </div>
+      <div class="row">
+        <span class="lbl">Sew order</span>
+        <button id="shEarlier" title="Sew this shape earlier">◀ Earlier</button>
+        <button id="shLater" title="Sew this shape later">Later ▶</button>
+      </div>
+      <div id="shInfo" class="help"></div>
+    </section>
+
+    <!-- Point editing (Points tool) -->
+    <section id="pointBox" class="card" hidden>
+      <h2>Stitch points</h2>
+      <div id="selInfo">Nothing selected.</div>
+      <div id="selEdit" hidden>
+        <div class="row"><label class="lbl">Type</label>
+          <select id="selType"><option value="s">Stitch</option><option value="j">Jump / trim</option></select>
+        </div>
+        <div class="row"><label class="lbl">X</label><input id="selX" type="number" step="0.1"> mm</div>
+        <div class="row"><label class="lbl">Y</label><input id="selY" type="number" step="0.1"> mm</div>
+      </div>
+      <div class="row">
+        <button id="delBtn" disabled>Delete</button>
+        <button id="insBtn" disabled>Insert stitch</button>
+        <button id="togBtn" disabled>Stitch ⇄ Jump</button>
+      </div>
+      <div class="row"><button id="ccBtn" disabled>Insert color change after</button></div>
+    </section>
+
+    <h2>Design</h2>
+    <div id="info"></div>
+
+    <h2>Threads</h2>
+    <div id="threads"></div>
+
+    <h2>View</h2>
+    <div class="row"><label><input type="checkbox" id="showJumps" checked> Jumps</label>
+      <label><input type="checkbox" id="showPts"> Needle points</label></div>
+    <div class="row"><label class="lbl">Line</label><input type="range" id="lw" min="0.5" max="6" step="0.5" value="2"></div>
+    <div class="row"><label><input type="checkbox" id="real"> <b>Realistic preview</b></label></div>
+    <div class="row realOnly" hidden><label class="lbl">Thread</label>
+      <select id="tw">
+        <option value="0.3">60 wt (fine) · 0.3 mm</option>
+        <option value="0.4" selected>40 wt (standard) · 0.4 mm</option>
+        <option value="0.5">30 wt (heavy) · 0.5 mm</option>
+        <option value="0.8">12 wt (bold) · 0.8 mm</option>
+      </select></div>
+    <div class="row realOnly" hidden><label class="lbl">Fabric</label><input type="color" id="fabric" value="#f4f1ea">
+      <button data-fabric="#f4f1ea">Cream</button><button data-fabric="#ffffff">White</button>
+      <button data-fabric="#2b2b2b">Black</button><button data-fabric="#2c3e66">Navy</button></div>
+    <div class="row"><label class="lbl">Sew-out</label><input type="range" id="sew" min="0" max="0" value="0" style="flex:1"></div>
+    <div id="sewInfo" class="help"></div>
+
+    <h2>Shapes (Select tool)</h2>
+    <div class="help">
+      Pick a shape (<kbd>R</kbd> <kbd>O</kbd> <kbd>L</kbd> <kbd>T</kbd>) and drag to draw; click for a 20 mm shape.
+      Click a shape to select it, drag to move. Drag the corner/edge handles to resize, the round handle to rotate,
+      the center dot to move. Shapes snap to the edges and centers of other shapes, the design and the 0" lines (blue guides).<br>
+      <kbd>Shift</kbd> keep proportions / 15° · <kbd>Ctrl</kbd> resize from center · <kbd>Alt</kbd> no snapping ·
+      <kbd>Shift</kbd>+click add to selection · drag on empty space to box-select ·
+      arrows nudge 0.5 mm (<kbd>Shift</kbd> 5 mm) · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> copy/paste/duplicate ·
+      <kbd>Del</kbd> delete · <kbd>Space</kbd>/right-drag pan · wheel zoom.
+    </div>
+
+    <h2>Stitch points (Points tool)</h2>
+    <div class="help">
+      Click a point to select · <kbd>Shift</kbd>+click/drag to add · drag to move · double-click to add a stitch ·
+      <kbd>Del</kbd> delete · <kbd>I</kbd> insert · <kbd>J</kbd> stitch/jump · arrows nudge 0.1 mm.
+      Shapes become editable points after <b>To stitches</b>.
+    </div>
+  </aside>
+</div>
+
+<script>
+// ---------- Janome thread palette (approximate) ----------
+const PALETTE = [
+  ["(none)",0,0,0],["Black",0,0,0],["White",255,255,255],["Yellow",255,255,23],["Orange",255,102,0],
+  ["Olive Green",47,89,51],["Green",35,115,54],["Sky",101,194,200],["Purple",171,90,150],
+  ["Pink",246,105,160],["Red",255,0,0],["Brown",177,112,78],["Blue",11,47,132],["Gold",228,195,93],
+  ["Dark Brown",72,26,5],["Pale Violet",172,156,199],["Pale Yellow",252,242,148],["Pale Pink",249,153,183],
+  ["Peach",250,179,129],["Beige",201,164,128],["Wine Red",151,5,51],["Pale Sky",160,184,204],
+  ["Yellow Green",127,194,28],["Silver Gray",229,229,229],["Gray",136,155,155],["Pale Aqua",152,214,189],
+  ["Baby Blue",178,225,227],["Powder Blue",54,139,160],["Bright Blue",79,131,171],["Slate Blue",56,106,145],
+  ["Navy Blue",7,22,80]
+];
+const threadCSS = (t, n) => t.rgb ? `rgb(${t.rgb.join(",")})`
+  : PALETTE[t.idx] ? `rgb(${PALETTE[t.idx].slice(1).join(",")})`
+  : `hsl(${(n * 67) % 360} 70% 45%)`;
+
+const threadRGB = (t, n) => t.rgb || (PALETTE[t.idx] ? PALETTE[t.idx].slice(1) : [[200,60,60],[60,140,200],[90,170,80],[220,160,40]][n % 4]);
+
+// Fabric background for the realistic preview: base color with a faint woven texture.
+let fabricCache = { color: null, pat: null };
+function fabricPattern() {
+  const color = $("fabric").value;
+  if (fabricCache.color === color) return fabricCache.pat;
+  const c = document.createElement("canvas"); c.width = c.height = 6;
+  const g = c.getContext("2d");
+  g.fillStyle = color; g.fillRect(0, 0, 6, 6);
+  const v = parseInt(color.slice(1), 16), lum = ((v >> 16) * 0.3 + ((v >> 8) & 255) * 0.59 + (v & 255) * 0.11);
+  g.fillStyle = lum > 128 ? "rgba(0,0,0,.05)" : "rgba(255,255,255,.06)";
+  g.fillRect(0, 0, 6, 1); g.fillRect(0, 3, 6, 1); g.fillRect(0, 0, 1, 6); g.fillRect(3, 0, 1, 6);
+  fabricCache = { color, pat: ctx.createPattern(c, "repeat") };
+  return fabricCache.pat;
+}
+
+// ---------- State ----------
+// All coordinates are in 0.1 mm, +Y = up (JEF convention).
+// cmds: stitches of the loaded design ({t:'s'|'j'|'c', x, y}); shapes: live shape objects, turned into stitches on save.
+let cmds = [], threads = [], meta = null, fileName = "design.JEF", threadsDirty = false;
+let shapes = [], nextId = 1, shapeSel = new Set(), clipboard = [];
+let ptSel = new Set(), undoStack = [], redoStack = [], saved = true;
+let view = { s: 1, ox: 0, oy: 0 };
+let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
+let sewAll = true, sewN = 0;
+let defaults = { style: "satin", thick: 30, dens: 4, len: 25, under: true, lock: true, color: "cur", corner: 100 };
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+
+// ---------- JEF read ----------
+function parseJEF(buf) {
+  const d = new DataView(buf), bytes = new Uint8Array(buf);
+  const off = d.getInt32(0, true);
+  const n = d.getInt32(24, true);
+  if (off < 0x74 || off > buf.byteLength || n < 0 || n > 255) throw new Error("not a valid JEF file");
+  const out = [], th = [], types = [];
+  for (let k = 0; k < n; k++) {
+    th.push({ idx: d.getInt32(0x74 + 4 * k, true) });
+    types.push(0x74 + 4 * n + 4 * k + 4 <= off ? d.getInt32(0x74 + 4 * n + 4 * k, true) : 13);
+  }
+  let x = 0, y = 0, i = off, endAt = buf.byteLength;
+  while (i + 1 < buf.byteLength) {
+    if (bytes[i] === 0x80) {
+      const c = bytes[i + 1];
+      if (c === 0x10) { endAt = i; break; }
+      if (i + 3 >= buf.byteLength) break;
+      x += d.getInt8(i + 2); y += d.getInt8(i + 3);
+      out.push({ t: c === 0x01 ? "c" : "j", x, y });
+      i += 4;
+    } else {
+      x += d.getInt8(i); y += d.getInt8(i + 1);
+      out.push({ t: "s", x, y });
+      i += 2;
+    }
+  }
+  if (!th.length) th.push({ idx: 1 });
+  const trailer = bytes.slice(Math.min(endAt + 4, buf.byteLength));
+  readEnhance(trailer, th);
+  return { cmds: out, threads: th, meta: { header: bytes.slice(0, 0x74), types, trailer } };
+}
+
+// Some Janome software appends an "ENHANCE" block with real thread RGB + names. Read it if present.
+function readEnhance(tr, th) {
+  const s = new TextDecoder("latin1").decode(tr);
+  const p = s.indexOf("ENHANCE");
+  if (p < 0 || p + 20 > tr.length) return;
+  const d = new DataView(tr.buffer, tr.byteOffset, tr.byteLength);
+  const count = d.getInt32(p + 16, true);
+  if (count !== th.length) return;
+  for (let k = 0; k < count; k++) {
+    const r = p + 20 + k * 44;
+    if (r + 12 > tr.length) return;
+    let name = "";
+    for (let q = r + 12; q < Math.min(tr.length, r + 44) && tr[q]; q++) name += String.fromCharCode(tr[q]);
+    if (!/^[\x20-\x7e]*$/.test(name)) return;
+    th[k].rgb = [tr[r + 4], tr[r + 5], tr[r + 6]];
+    th[k].name = name;
+  }
+}
+
+// ---------- Shapes → stitches ----------
+function shapeOutline(p) {
+  const { kind, w, h } = p;
+  let pts = [], closed = true;
+  if (kind === "line") { pts = [[-w / 2, 0], [w / 2, 0]]; closed = false; }
+  else if (kind === "rect") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+  else if (kind === "tri") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [0, h / 2]];
+  else {
+    const n = Math.max(32, Math.ceil(Math.PI * (w + h) / 2 / 3));
+    for (let k = 0; k < n; k++) { const a = 2 * Math.PI * k / n; pts.push([w / 2 * Math.cos(a), h / 2 * Math.sin(a)]); }
+  }
+  pts = pts.map(([x, y]) => toWorld(p, x, y));
+  if (closed) pts.push(pts[0].slice());
+  return { pts, smooth: kind === "oval", closed };
+}
+// shape-local → world, and back
+function toWorld(p, x, y) { const r = p.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [p.cx + x * c - y * s, p.cy + x * s + y * c]; }
+function toLocal(p, x, y) { const r = -p.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), dx = x - p.cx, dy = y - p.cy; return [dx * c - dy * s, dx * s + dy * c]; }
+
+function resample(pts, step, smooth) {
+  const out = [pts[0]];
+  if (!smooth) {
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+      for (let k = 1; k <= n; k++) out.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
+    }
+    return out;
+  }
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = cum[cum.length - 1], n = Math.max(1, Math.round(total / step));
+  let seg = 1;
+  for (let k = 1; k <= n; k++) {
+    const d = total * k / n;
+    while (seg < pts.length - 1 && cum[seg] < d) seg++;
+    const t = (d - cum[seg - 1]) / ((cum[seg] - cum[seg - 1]) || 1), a = pts[seg - 1], b = pts[seg];
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  return out;
+}
+function zigzag(samples, width, closed) {
+  const n = samples.length, m = closed ? n - 1 : n, out = [];
+  for (let i = 0; i < n; i++) {
+    let a, b;
+    if (closed) { const j = i % m; a = samples[(j - 1 + m) % m]; b = samples[(j + 1) % m]; }
+    else { a = samples[Math.max(0, i - 1)]; b = samples[Math.min(n - 1, i + 1)]; }
+    const tx = b[0] - a[0], ty = b[1] - a[1], L = Math.hypot(tx, ty) || 1, side = i % 2 ? 1 : -1;
+    out.push([samples[i][0] - ty / L * width / 2 * side, samples[i][1] + tx / L * width / 2 * side]);
+  }
+  return out;
+}
+// Satin column along a path. Zigzags are spaced so that neither edge gets gaps wider than `dens`
+// (the outside of a curve gets as many stitches as it needs), and on the compressed inside of a curve
+// every other stitch is shortened ("short stitch") so needle holes don't pile up in one spot.
+// `sharp` (optional): the original sharp-cornered convex polygon. `round` 0..1 blends the outside of each
+// corner between a pointed miter (0) and the smooth arc (1).
+function satinColumn(pts, width, dens, closed, smooth, sharp = null, round = 1) {
+  const step = Math.min(1, dens / 4);
+  const f = resample(pts, step, smooth), n = f.length, m = closed ? n - 1 : n;
+  const outer = sharp && round < 1 ? outerMiter(sharp, width / 2) : null;
+  const L = [], R = [];
+  for (let i = 0; i < n; i++) {
+    let a, b;
+    if (closed) { const j = i % m; a = f[(j - 1 + m) % m]; b = f[(j + 1) % m]; }
+    else { a = f[Math.max(0, i - 1)]; b = f[Math.min(n - 1, i + 1)]; }
+    const tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, ux = -ty / l, uy = tx / l;
+    let dl = width / 2, dr = width / 2;
+    if (outer) {
+      // push the outside end out toward the sharp corner
+      const [cx, cy] = outer.center, p = f[i];
+      const leftIsOut = (ux * (p[0] - cx) + uy * (p[1] - cy)) > 0;
+      const hit = rayHit(p, leftIsOut ? [ux, uy] : [-ux, -uy], outer.poly);
+      if (hit > width / 2) {
+        const d = width / 2 + (1 - round) * (hit - width / 2);
+        if (leftIsOut) dl = d; else dr = d;
+      }
+    }
+    L.push([f[i][0] + ux * dl, f[i][1] + uy * dl]); R.push([f[i][0] - ux * dr, f[i][1] - uy * dr]);
+  }
+  const picks = [0];
+  let dl = 0, dr = 0;
+  for (let i = 1; i < n; i++) {
+    dl += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]);
+    dr += Math.hypot(R[i][0] - R[i - 1][0], R[i][1] - R[i - 1][1]);
+    if (Math.max(dl, dr) >= dens - step / 2) { picks.push(i); dl = dr = 0; }
+  }
+  if (picks[picks.length - 1] !== n - 1) picks.push(n - 1);
+  const minGap = Math.max(1.5, dens * 0.5), last = [null, null], out = [];
+  picks.forEach((i, k) => {
+    const side = k % 2, e = side ? L[i] : R[i];
+    let p = e;
+    const prev = last[side];
+    if (prev && Math.hypot(e[0] - prev[0], e[1] - prev[1]) < minGap) {
+      p = [f[i][0] + (e[0] - f[i][0]) * 0.3, f[i][1] + (e[1] - f[i][1]) * 0.3];   // short stitch
+    } else last[side] = e;
+    out.push(p);
+  });
+  return out;
+}
+
+// Outward offset of a convex polygon with mitered (pointed) corners.
+function outerMiter(poly, d) {
+  const n = poly.length;
+  const center = [poly.reduce((a, p) => a + p[0], 0) / n, poly.reduce((a, p) => a + p[1], 0) / n];
+  const lines = poly.map((p, i) => {
+    const q = poly[(i + 1) % n], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    let nx = -(q[1] - p[1]) / l, ny = (q[0] - p[0]) / l;
+    if (nx * (p[0] - center[0]) + ny * (p[1] - center[1]) < 0) { nx = -nx; ny = -ny; }   // point outward
+    return [[p[0] + nx * d, p[1] + ny * d], [q[0] + nx * d, q[1] + ny * d]];
+  });
+  const meet = (A, B) => {   // intersection of two infinite lines
+    const [p, p2] = A, [q, q2] = B, r = [p2[0] - p[0], p2[1] - p[1]], s = [q2[0] - q[0], q2[1] - q[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-9) return p2;
+    const t = ((q[0] - p[0]) * s[1] - (q[1] - p[1]) * s[0]) / den;
+    return [p[0] + r[0] * t, p[1] + r[1] * t];
+  };
+  return { center, poly: lines.map((ln, i) => meet(lines[(i - 1 + n) % n], ln)) };
+}
+// Distance along a ray from p in direction d to the first edge of a polygon (Infinity if none).
+function rayHit(p, d, poly) {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], e = [b[0] - a[0], b[1] - a[1]];
+    const den = d[0] * e[1] - d[1] * e[0];
+    if (Math.abs(den) < 1e-9) continue;
+    const w = [a[0] - p[0], a[1] - p[1]];
+    const t = (w[0] * e[1] - w[1] * e[0]) / den, u = (w[0] * d[1] - w[1] * d[0]) / den;
+    if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, t);
+  }
+  return best;
+}
+
+function lockAt(path, atEnd) {
+  const p = atEnd ? path[path.length - 1] : path[0], q = atEnd ? path[path.length - 2] : path[1];
+  const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1;
+  const a = [p[0] + dx / L * 4, p[1] + dy / L * 4];
+  return [a, p, a, p];
+}
+// Round the corners of a closed polygon (pts without the repeated last point) with radius R.
+// Used for satin: when the centerline turns along an arc of radius R ≥ half the satin width, every zigzag stays
+// square to the path, so the inner ends bunch up near the inside corner and the outer ends fan out around it.
+function filletPolygon(pts, R) {
+  const n = pts.length, out = [];
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  out.push(mid(pts[n - 1], pts[0]));                       // start mid-edge, not in a corner
+  for (let i = 0; i < n; i++) {
+    const A = pts[(i - 1 + n) % n], B = pts[i], C = pts[(i + 1) % n];
+    const la = Math.hypot(A[0] - B[0], A[1] - B[1]), lc = Math.hypot(C[0] - B[0], C[1] - B[1]);
+    const u1 = [(A[0] - B[0]) / la, (A[1] - B[1]) / la], u2 = [(C[0] - B[0]) / lc, (C[1] - B[1]) / lc];
+    const phi = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));   // interior angle
+    if (phi > Math.PI - 0.01) { out.push(B); continue; }                                // straight, no corner
+    let d = R / Math.tan(phi / 2);
+    d = Math.min(d, 0.5 * Math.min(la, lc));               // don't run past the middle of an edge
+    const r = d * Math.tan(phi / 2);
+    const T1 = [B[0] + u1[0] * d, B[1] + u1[1] * d], T2 = [B[0] + u2[0] * d, B[1] + u2[1] * d];
+    const bl = Math.hypot(u1[0] + u2[0], u1[1] + u2[1]), dist = r / Math.sin(phi / 2);
+    const Ce = [B[0] + (u1[0] + u2[0]) / bl * dist, B[1] + (u1[1] + u2[1]) / bl * dist];
+    const a1 = Math.atan2(T1[1] - Ce[1], T1[0] - Ce[0]);
+    let sweep = Math.atan2(T2[1] - Ce[1], T2[0] - Ce[0]) - a1;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const steps = Math.max(6, Math.ceil(Math.abs(sweep) * r / 2));
+    for (let k = 0; k <= steps; k++) { const a = a1 + sweep * k / steps; out.push([Ce[0] + r * Math.cos(a), Ce[1] + r * Math.sin(a)]); }
+  }
+  out.push(out[0].slice());
+  return out;
+}
+
+const stitchCache = new Map();
+function stitchesFor(s) {
+  const key = JSON.stringify([s.kind, s.cx, s.cy, s.w, s.h, s.rot, s.style, s.thick, s.dens, s.len, s.under, s.lock, s.corner]);
+  if (stitchCache.has(key)) return stitchCache.get(key);
+  let { pts, smooth, closed } = shapeOutline(s);
+  let path, sharp = null;
+  if (s.style === "satin" && closed && !smooth) {
+    sharp = pts.slice(0, -1);
+    // inner corner radius ≈ 0.5 mm (or less on tiny satin), outer radius = that + full width
+    pts = filletPolygon(pts.slice(0, -1), s.thick / 2 + Math.min(5, s.thick / 4));
+    smooth = true;
+  }
+  if (s.style === "satin") {
+    const zz = satinColumn(pts, s.thick, s.dens, closed, smooth, sharp, (s.corner ?? 100) / 100);
+    path = [];
+    if (s.under) { path.push(...resample(pts, 20, smooth)); if (!closed) zz.reverse(); }
+    path.push(...zz);
+  } else {
+    const run = resample(pts, s.len, smooth);
+    if (s.style === "triple") { path = [run[0]]; for (let i = 1; i < run.length; i++) path.push(run[i], run[i - 1], run[i]); }
+    else path = run;
+  }
+  if (s.lock && path.length > 1) path = [path[0], ...lockAt(path, false), ...path.slice(1), ...lockAt(path, true)];
+  const out = path.map(([x, y]) => [Math.round(x), Math.round(y)]);
+  if (stitchCache.size > 500) stitchCache.clear();
+  stitchCache.set(key, out);
+  return out;
+}
+
+// Append a shape's stitches (with a jump to its start and a color change if needed) to a command list.
+function appendShape(list, th, s) {
+  const st = stitchesFor(s);
+  if (st.length < 2) return false;
+  let changedThreads = false;
+  const cur = th.length - 1;
+  if (s.color !== "cur" && th[cur].idx !== s.color) {
+    if (!list.some(c => c.t !== "c")) th[cur] = { idx: s.color };       // nothing sewn yet: just set the thread
+    else { const l = list[list.length - 1]; list.push({ t: "c", x: l.x, y: l.y }); th.push({ idx: s.color }); }
+    changedThreads = true;
+  }
+  list.push({ t: "j", x: st[0][0], y: st[0][1] });
+  for (const [x, y] of st) list.push({ t: "s", x, y });
+  return changedThreads;
+}
+// The full design as it will be saved: loaded stitches + all shapes, in sew order.
+function compose() {
+  const all = cmds.slice(), th = threads.map(t => ({ ...t }));
+  for (const s of shapes) appendShape(all, th, s);
+  return { all, th };
+}
+
+// ---------- JEF write ----------
+function bounds(list) {
+  let minX = 0, maxX = 0, minY = 0, maxY = 0;
+  for (const c of list) { minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); }
+  return { minX, maxX, minY, maxY };
+}
+function buildJEF() {
+  const { all, th } = compose();
+  const st = [];
+  let px = 0, py = 0;
+  const emit = (t, dx, dy) => t === "s" ? st.push(dx & 255, dy & 255) : st.push(0x80, t === "j" ? 2 : 1, dx & 255, dy & 255);
+  for (const c of all) {
+    const dx = c.x - px, dy = c.y - py;
+    if (c.t === "c") emit("c", 0, 0);
+    if (!(c.t === "c" && dx === 0 && dy === 0)) {
+      const t = c.t === "c" ? "j" : c.t;
+      // single moves are limited to ±127 (0x80 is the command marker), so split long ones
+      const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 127));
+      let ax = 0, ay = 0;
+      for (let k = 1; k <= n; k++) {
+        const tx = Math.round(dx * k / n), ty = Math.round(dy * k / n);
+        emit(t, tx - ax, ty - ay); ax = tx; ay = ty;
+      }
+    }
+    px = c.x; py = c.y;
+  }
+  const n = th.length, off = 0x74 + 8 * n;
+  const dirty = threadsDirty || th.length !== threads.length || th.some((t, k) => t.idx !== threads[k].idx);
+  const trailer = dirty ? new Uint8Array(0) : meta.trailer;
+  const out = new Uint8Array(off + st.length + 4 + trailer.length);
+  out.set(meta.header.slice(0, 0x74), 0);
+  const d = new DataView(out.buffer), b = bounds(all);
+  d.setInt32(0, off, true);
+  d.setInt32(24, n, true);
+  if (meta.isNew) { // smallest standard Janome hoop that fits
+    const W = b.maxX - b.minX, H = b.maxY - b.minY;
+    d.setInt32(32, W <= 500 && H <= 500 ? 1 : W <= 1100 && H <= 1100 ? 0 : W <= 1260 && H <= 1100 ? 3 : W <= 1400 && H <= 2000 ? 2 : 4, true);
+  }
+  d.setInt32(28, st.length / 2 + 1, true);
+  d.setInt32(36, -b.minX, true); d.setInt32(40, b.maxY, true);
+  d.setInt32(44, b.maxX, true);  d.setInt32(48, -b.minY, true);
+  th.forEach((t, k) => {
+    d.setInt32(0x74 + 4 * k, t.idx, true);
+    d.setInt32(0x74 + 4 * n + 4 * k, meta.types[k] ?? 13, true);
+  });
+  out.set(st, off);
+  out.set([0x80, 0x10, 0, 0], off + st.length);
+  out.set(trailer, off + st.length + 4);
+  return out;
+}
+
+// ---------- Undo ----------
+const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes });
+function snapshot() {
+  undoStack.push(state());
+  if (undoStack.length > 200) undoStack.shift();
+  redoStack = []; saved = false;
+}
+function restore(from, to) {
+  if (!from.length) return;
+  to.push(state());
+  const s = JSON.parse(from.pop());
+  cmds = s.cmds; threads = s.threads; threadsDirty = s.threadsDirty; shapes = s.shapes;
+  ptSel = new Set([...ptSel].filter(i => i < cmds.length));
+  shapeSel = new Set([...shapeSel].filter(id => shapes.some(x => x.id === id)));
+  saved = false; changed();
+}
+
+// ---------- View ----------
+const toS = (x, y) => [view.ox + x * view.s, view.oy - y * view.s];
+const toW = (sx, sy) => [(sx - view.ox) / view.s, (view.oy - sy) / view.s];
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  draw();
+}
+function fit() {
+  const { all } = compose();
+  if (!all.length) return;
+  const b = bounds(all), r = cv.getBoundingClientRect(), pad = 50;
+  const w = Math.max(10, b.maxX - b.minX), h = Math.max(10, b.maxY - b.minY);
+  view.s = Math.min((r.width - 2 * pad) / w, (r.height - 2 * pad) / h);
+  view.ox = r.width / 2 - (b.minX + w / 2) * view.s;
+  view.oy = r.height / 2 + (b.minY + h / 2) * view.s;
+  draw();
+}
+
+// ---------- Shape geometry helpers ----------
+const byId = id => shapes.find(s => s.id === id);
+const selShapes = () => shapes.filter(s => shapeSel.has(s.id));
+function aabb(s) {
+  const { pts } = shapeOutline(s);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  return { minX, maxX, minY, maxY };
+}
+function unionBox(boxes) {
+  return boxes.reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minY: Math.min(a.minY, b.minY), maxY: Math.max(a.maxY, b.maxY) }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+}
+function shapeAt(wx, wy) {
+  const pad = 6 / view.s;
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i], [lx, ly] = toLocal(s, wx, wy);
+    const extra = pad + (s.style === "satin" ? s.thick / 2 : 0);
+    if (Math.abs(lx) <= s.w / 2 + extra && Math.abs(ly) <= s.h / 2 + extra) return s;
+  }
+  return null;
+}
+// Handles of a single selected shape, in shape-local coordinates.
+function handles(s) {
+  const hw = s.w / 2, hh = s.h / 2;
+  if (s.kind === "line") return [["p1", -hw, 0], ["p2", hw, 0], ["c", 0, 0]];
+  return [["nw", -hw, hh], ["n", 0, hh], ["ne", hw, hh], ["e", hw, 0], ["se", hw, -hh], ["s", 0, -hh], ["sw", -hw, -hh], ["w", -hw, 0],
+          ["c", 0, 0], ["rot", 0, hh + 26 / view.s]];
+}
+function handleAt(sx, sy) {
+  if (shapeSel.size !== 1 || tool !== "select") return null;
+  const s = selShapes()[0];
+  if (!s) return null;
+  for (const [id, lx, ly] of handles(s)) {
+    const [hx, hy] = toS(...toWorld(s, lx, ly));
+    if (Math.abs(hx - sx) <= 7 && Math.abs(hy - sy) <= 7) return id;
+  }
+  return null;
+}
+const HSIGN = { nw: [-1, 1], n: [0, 1], ne: [1, 1], e: [1, 0], se: [1, -1], s: [0, -1], sw: [-1, -1], w: [-1, 0] };
+function handleCursor(id, s) {
+  if (id === "c") return "move";
+  if (id === "rot") return "grab";
+  if (id === "p1" || id === "p2") return "crosshair";
+  const [hx, hy] = HSIGN[id], a = ((Math.atan2(hy, hx) * 180 / Math.PI + s.rot) % 180 + 180) % 180;
+  return a < 22.5 || a >= 157.5 ? "ew-resize" : a < 67.5 ? "nesw-resize" : a < 112.5 ? "ns-resize" : "nwse-resize";
+}
+
+// ---------- Snapping (draw.io-style guides) ----------
+const GRID = 5; // 0.5 mm
+function snapTargets(excludeIds) {
+  const boxes = shapes.filter(s => !excludeIds.has(s.id)).map(aabb);
+  const base = cmds.filter(c => c.t !== "c");
+  if (base.length) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const c of base) { minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); }
+    boxes.push({ minX, maxX, minY, maxY });
+  }
+  const xs = [{ v: 0, box: null }], ys = [{ v: 0, box: null }];   // the 0" center lines
+  for (const b of boxes) {
+    for (const v of [b.minX, (b.minX + b.maxX) / 2, b.maxX]) xs.push({ v, box: b });
+    for (const v of [b.minY, (b.minY + b.maxY) / 2, b.maxY]) ys.push({ v, box: b });
+  }
+  return { xs, ys };
+}
+// Find the closest target to any of `vals`. Returns {d, v, box} or null.
+function bestSnap(vals, targets) {
+  const thr = 7 / view.s;
+  let best = null;
+  for (const val of vals) for (const t of targets) {
+    const d = t.v - val;
+    if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, v: t.v, box: t.box };
+  }
+  return best;
+}
+function guide(axis, hit, box) {
+  const other = hit.box || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+  if (axis === "x") return { axis, v: hit.v, a: Math.min(box.minY, other.minY), b: Math.max(box.maxY, other.maxY), full: !hit.box };
+  return { axis, v: hit.v, a: Math.min(box.minX, other.minX), b: Math.max(box.maxX, other.maxX), full: !hit.box };
+}
+// Snap a moving box: returns adjusted dx, dy and guides.
+function snapBox(box, excl, off) {
+  guides = [];
+  if (off) return { dx: 0, dy: 0 };
+  const t = snapTargets(excl);
+  const hx = bestSnap([box.minX, (box.minX + box.maxX) / 2, box.maxX], t.xs);
+  const hy = bestSnap([box.minY, (box.minY + box.maxY) / 2, box.maxY], t.ys);
+  const dx = hx ? hx.d : Math.round(box.minX / GRID) * GRID - box.minX;
+  const dy = hy ? hy.d : Math.round(box.minY / GRID) * GRID - box.minY;
+  const moved = { minX: box.minX + dx, maxX: box.maxX + dx, minY: box.minY + dy, maxY: box.maxY + dy };
+  if (hx) guides.push(guide("x", hx, moved));
+  if (hy) guides.push(guide("y", hy, moved));
+  return { dx, dy };
+}
+// Snap a single point (new-shape corners, line ends, resized edges).
+function snapPoint(x, y, excl, off, axes = "xy") {
+  guides = [];
+  if (off) return [x, y];
+  const t = snapTargets(excl);
+  const hx = axes.includes("x") && bestSnap([x], t.xs), hy = axes.includes("y") && bestSnap([y], t.ys);
+  const nx = hx ? hx.v : Math.round(x / GRID) * GRID, ny = hy ? hy.v : Math.round(y / GRID) * GRID;
+  const pb = { minX: nx, maxX: nx, minY: ny, maxY: ny };
+  if (hx) guides.push(guide("x", hx, pb));
+  if (hy) guides.push(guide("y", hy, pb));
+  return [nx, ny];
+}
+
+// ---------- Drawing ----------
+function draw() {
+  const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const real = $("real").checked;
+  ctx.fillStyle = real ? fabricPattern() : "#fff"; ctx.fillRect(0, 0, r.width, r.height);
+  const [wx0, wy1] = toW(0, 0), [wx1, wy0] = toW(r.width, r.height);
+  const vLines = (step, color) => {
+    ctx.beginPath();
+    for (let gx = Math.ceil(wx0 / step) * step; gx <= wx1; gx += step) { const sx = Math.round(toS(gx, 0)[0]) + .5; ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+    for (let gy = Math.ceil(wy0 / step) * step; gy <= wy1; gy += step) { const sy = Math.round(toS(0, gy)[1]) + .5; ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+  };
+  // 10 mm grid, then inch lines measured from the center (1" = 254 units)
+  const IN = 254;
+  let inchStep = 1; while (inchStep * IN * view.s < 45) inchStep *= 2;
+  const inchUnit = IN * view.s >= 120 ? IN / 2 : IN * inchStep;
+  if (!real) {
+    if (100 * view.s >= 12) vLines(100, "#eef0f3");
+    vLines(inchUnit, "#c9d6ea");
+    const [cx0, cy0] = toS(0, 0);
+    ctx.strokeStyle = "#9fb3cf"; ctx.beginPath();
+    ctx.moveTo(cx0 - 14, cy0 + .5); ctx.lineTo(cx0 + 14, cy0 + .5); ctx.moveTo(cx0 + .5, cy0 - 14); ctx.lineTo(cx0 + .5, cy0 + 14); ctx.stroke();
+  }
+
+  // stitches (loaded design + shapes), batched by color
+  const { all, th } = compose();
+  const limit = sewAll ? all.length : Math.min(sewN, all.length);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const lw = +$("lw").value, showJ = $("showJumps").checked;
+  if (real) {
+    // Each stitch drawn at true thread width: dark edge, body, then a thin highlight so it reads as a twisted thread.
+    const tpx = Math.max(0.6, +$("tw").value * 10 * view.s);
+    const hl = Math.max(0.4, tpx * 0.18), off = tpx * 0.14;
+    let px = 0, py = 0, ci = 0, cols = null;
+    const setColor = k => {
+      const [r0, g0, b0] = threadRGB(th[k] || { idx: -1 }, k), mix = (f, t) => `rgb(${[r0, g0, b0].map(v => Math.round(v + (t - v) * f)).join(",")})`;
+      cols = [mix(0.45, 0), `rgb(${r0},${g0},${b0})`, mix(0.55, 255)];
+    };
+    setColor(0);
+    ctx.lineCap = "round";
+    for (let i = 0; i < limit; i++) {
+      const c = all[i];
+      if (c.t === "c") setColor(++ci);
+      else if (c.t === "s" && (c.x !== px || c.y !== py)) {
+        const [ax, ay] = toS(px, py), [bx, by] = toS(c.x, c.y);
+        const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * off, ny = (bx - ax) / L * off;
+        ctx.strokeStyle = cols[0]; ctx.lineWidth = tpx;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.strokeStyle = cols[1]; ctx.lineWidth = tpx * 0.72;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        if (tpx > 2.5) {
+          ctx.strokeStyle = cols[2]; ctx.lineWidth = hl;
+          ctx.beginPath(); ctx.moveTo(ax - nx, ay - ny); ctx.lineTo(bx - nx, by - ny); ctx.stroke();
+        }
+      }
+      px = c.x; py = c.y;
+    }
+  } else {
+  let px = 0, py = 0, ci = 0, open = false;
+  const flush = () => { if (open) { ctx.stroke(); open = false; } };
+  for (let i = 0; i < limit; i++) {
+    const c = all[i];
+    if (c.t === "c") { flush(); ci++; }
+    else if (c.t === "j") {
+      flush();
+      if (showJ && (c.x !== px || c.y !== py)) {
+        ctx.save(); ctx.strokeStyle = "rgba(220,0,0,.5)"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(...toS(px, py)); ctx.lineTo(...toS(c.x, c.y)); ctx.stroke(); ctx.restore();
+      }
+    } else {
+      if (!open) {
+        ctx.strokeStyle = threadCSS(th[ci] || { idx: -1 }, ci); ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(...toS(px, py)); open = true;
+      }
+      ctx.lineTo(...toS(c.x, c.y));
+    }
+    px = c.x; py = c.y;
+  }
+  flush();
+  }
+  if ((!real && $("showPts").checked) || tool === "points") {
+    ctx.fillStyle = "rgba(0,0,0,.6)";
+    const upto = tool === "points" ? Math.min(limit, cmds.length) : limit;
+    for (let i = 0; i < upto; i++) {
+      const c = all[i]; if (c.t === "c") continue;
+      const [sx, sy] = toS(c.x, c.y); ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+    }
+  }
+  if (!sewAll && limit > 0 && limit < all.length) {
+    const [sx, sy] = toS(all[limit - 1].x, all[limit - 1].y);
+    ctx.strokeStyle = "#06c"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sx - 9, sy); ctx.lineTo(sx + 9, sy); ctx.moveTo(sx, sy - 9); ctx.lineTo(sx, sy + 9); ctx.stroke();
+  }
+
+  // point selection
+  ctx.strokeStyle = "#e07a00"; ctx.lineWidth = 2;
+  for (const i of ptSel) {
+    const [sx, sy] = toS(cmds[i].x, cmds[i].y);
+    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // shape hover + selection
+  const outlineBox = (s, color, dash) => {
+    const hw = s.w / 2, hh = Math.max(s.h / 2, s.kind === "line" ? 0 : 0);
+    const pts = s.kind === "line" ? [[-hw, 0], [hw, 0]] : [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash);
+    ctx.beginPath(); pts.forEach(([x, y], i) => { const p = toS(...toWorld(s, x, y)); i ? ctx.lineTo(...p) : ctx.moveTo(...p); });
+    if (s.kind !== "line") ctx.closePath();
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  if (tool === "select") {
+    const hs = hoverId != null && !shapeSel.has(hoverId) && byId(hoverId);
+    if (hs) outlineBox(hs, "rgba(41,182,242,.7)", []);
+    for (const s of selShapes()) outlineBox(s, "#29b6f2", [4, 3]);
+    if (shapeSel.size === 1) {
+      const s = selShapes()[0];
+      if (s.kind !== "line") {   // stem to the rotate handle
+        const a = toS(...toWorld(s, 0, s.h / 2)), b = toS(...toWorld(s, 0, s.h / 2 + 26 / view.s));
+        ctx.strokeStyle = "#29b6f2"; ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+      }
+      for (const [id, lx, ly] of handles(s)) {
+        const [hx, hy] = toS(...toWorld(s, lx, ly));
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "#1a8fd0";
+        if (id === "rot") {
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(hx, hy, 3, -Math.PI * .1, Math.PI * 1.3); ctx.stroke();
+        } else if (id === "c") {
+          ctx.fillStyle = "#29b6f2"; ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#fff"; ctx.stroke();
+        } else {
+          ctx.fillStyle = "#fff"; ctx.fillRect(hx - 4.5, hy - 4.5, 9, 9); ctx.strokeRect(hx - 4.5, hy - 4.5, 9, 9);
+        }
+      }
+    }
+  }
+  // snap guides
+  ctx.strokeStyle = "#0a84ff"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  for (const g of guides) {
+    ctx.beginPath();
+    if (g.axis === "x") {
+      const sx = Math.round(toS(g.v, 0)[0]) + .5;
+      if (g.full) { ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+      else { ctx.moveTo(sx, toS(0, g.b)[1] - 12); ctx.lineTo(sx, toS(0, g.a)[1] + 12); }
+    } else {
+      const sy = Math.round(toS(0, g.v)[1]) + .5;
+      if (g.full) { ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+      else { ctx.moveTo(toS(g.a, 0)[0] - 12, sy); ctx.lineTo(toS(g.b, 0)[0] + 12, sy); }
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // rubber band
+  if (drag && drag.mode === "box") {
+    ctx.fillStyle = "rgba(41,182,242,.08)"; ctx.strokeStyle = "#29b6f2"; ctx.lineWidth = 1;
+    ctx.fillRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
+    ctx.strokeRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
+  }
+  // rulers on top
+  ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(0, 0, r.width, 18); ctx.fillRect(0, 0, 34, r.height);
+  ctx.fillStyle = "#4a6890"; ctx.font = "11px system-ui, sans-serif"; ctx.textBaseline = "middle";
+  const fmt = v => { const s = Math.round(v * 2) / 2; return (Number.isInteger(s) ? s : s.toFixed(1)) + '"'; };
+  ctx.textAlign = "center";
+  for (let gx = Math.ceil(wx0 / inchUnit) * inchUnit; gx <= wx1; gx += inchUnit) { const sx = toS(gx, 0)[0]; if (sx >= 40) ctx.fillText(fmt(gx / IN), sx, 9); }
+  ctx.textAlign = "right";
+  for (let gy = Math.ceil(wy0 / inchUnit) * inchUnit; gy <= wy1; gy += inchUnit) { const sy = toS(0, gy)[1]; if (sy >= 24) ctx.fillText(fmt(gy / IN), 31, sy); }
+  ctx.strokeStyle = "#d6dbe2"; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.moveTo(0, 18.5); ctx.lineTo(r.width, 18.5); ctx.moveTo(34.5, 0); ctx.lineTo(34.5, r.height); ctx.stroke();
+}
+
+// ---------- Panels ----------
+function changed() {
+  const { all, th } = compose();
+  $("sew").max = all.length;
+  if (sewAll) sewN = all.length;
+  $("sew").value = Math.min(sewN, all.length);
+  const real = all.filter(c => c.t !== "c"), b = bounds(real.length ? real : [{ x: 0, y: 0 }]);
+  const st = all.filter(c => c.t === "s").length, jm = all.filter(c => c.t === "j").length;
+  const W = (b.maxX - b.minX) / 10, H = (b.maxY - b.minY) / 10;
+  $("info").innerHTML = `<b>${fileName}</b><br>Size: ${W.toFixed(1)} × ${H.toFixed(1)} mm (${(W / 25.4).toFixed(2)} × ${(H / 25.4).toFixed(2)} in)<br>` +
+    `Stitches: ${st} · Jumps: ${jm} · Colors: ${th.length} · Shapes: ${shapes.length}`;
+  $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
+  renderThreads(th);
+  renderShapePanel();
+  renderPointPanel();
+  $("undoBtn").disabled = !undoStack.length; $("redoBtn").disabled = !redoStack.length;
+  $("status").textContent = saved ? "" : "Unsaved changes";
+  $("drophint").hidden = !!(cmds.length || shapes.length);
+  draw();
+}
+
+function renderThreads(th) {
+  const box = $("threads"); box.innerHTML = "";
+  th.forEach((t, k) => {
+    const row = document.createElement("div"); row.className = "thread";
+    const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = threadCSS(t, k);
+    row.append(`${k + 1}.`, sw);
+    if (k < threads.length && cmds.some(c => c.t !== "c")) {   // threads of the loaded design are editable here
+      const s = document.createElement("select");
+      PALETTE.forEach((p, i) => { if (i) s.add(new Option(`${i} · ${p[0]}`, i)); });
+      if (!PALETTE[t.idx]) s.add(new Option(`${t.idx} · (unknown)`, t.idx));
+      s.value = t.idx;
+      s.onchange = () => { snapshot(); threads[k].idx = +s.value; delete threads[k].rgb; delete threads[k].name; threadsDirty = true; changed(); };
+      row.append(s);
+      if (t.name) { const n = document.createElement("span"); n.textContent = t.name; n.style.color = "#666"; row.append(n); }
+    } else {
+      const n = document.createElement("span");
+      n.textContent = (PALETTE[t.idx] ? PALETTE[t.idx][0] : "#" + t.idx) + (k < threads.length ? " (starting thread)" : " (from shape)");
+      row.append(n);
+    }
+    box.append(row);
+  });
+}
+
+const SHAPE_NAMES = { line: "Line", rect: "Rectangle", oval: "Oval", tri: "Triangle" };
+function renderShapePanel() {
+  const sel = selShapes();
+  $("shapeBox").hidden = tool === "points" || !sel.length;
+  if (!sel.length) return;
+  const s = sel[0], single = sel.length === 1;
+  $("shapeTitle").textContent = single ? SHAPE_NAMES[s.kind] : `${sel.length} shapes`;
+  $("geom").hidden = !single; $("alignRow").hidden = single;
+  $("shBake").disabled = false;
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = typeof v === "number" ? +v.toFixed(1) : v; };
+  if (single) {
+    $("shWLabel").textContent = s.kind === "line" ? "Length" : "Width";
+    $("shHRow").hidden = s.kind === "line";
+    set("shW", s.w / 10); set("shH", s.h / 10); set("shR", s.rot); set("shX", s.cx / 10); set("shY", s.cy / 10);
+  }
+  set("shStyle", s.style); set("shThick", s.thick / 10); set("shDens", s.dens / 10); set("shLen", s.len / 10);
+  $("shUnder").checked = s.under; $("shLock").checked = s.lock; set("shColor", String(s.color));
+  document.querySelectorAll(".satinOnly").forEach(el => el.hidden = s.style !== "satin");
+  document.querySelectorAll(".runOnly").forEach(el => el.hidden = s.style === "satin");
+  set("shCorner", s.corner ?? 100);
+  document.querySelectorAll(".cornerOnly").forEach(el => el.hidden = !(s.style === "satin" && sel.some(x => x.kind === "rect" || x.kind === "tri")));
+  $("shThickV").textContent = (s.thick / 10).toFixed(1) + " mm";
+  $("shDensV").textContent = (s.dens / 10).toFixed(1) + " mm";
+  $("shLenV").textContent = (s.len / 10).toFixed(1) + " mm";
+  const n = sel.reduce((a, x) => a + stitchesFor(x).length, 0);
+  const bb = unionBox(sel.map(aabb));
+  $("shInfo").textContent = `${n} stitches · outer size ${((bb.maxX - bb.minX) / 10).toFixed(1)} × ${((bb.maxY - bb.minY) / 10).toFixed(1)} mm`;
+  const i = shapes.indexOf(s);
+  $("shEarlier").disabled = !single || i === 0; $("shLater").disabled = !single || i === shapes.length - 1;
+}
+
+function renderPointPanel() {
+  $("pointBox").hidden = tool !== "points";
+  const any = ptSel.size > 0;
+  ["delBtn", "togBtn", "ccBtn"].forEach(id => $(id).disabled = !any);
+  $("insBtn").disabled = !cmds.length;
+  if (!cmds.length) { $("selInfo").textContent = "No stitch points yet. Load a file, or convert shapes with “To stitches”."; $("selEdit").hidden = true; return; }
+  if (!any) { $("selInfo").textContent = "Nothing selected."; $("selEdit").hidden = true; return; }
+  if (ptSel.size > 1) { $("selInfo").textContent = `${ptSel.size} points selected.`; $("selEdit").hidden = true; return; }
+  const i = [...ptSel][0], c = cmds[i];
+  $("selInfo").textContent = `#${i + 1} of ${cmds.length}` + (c.t === "c" ? " (color change)" : "");
+  $("selEdit").hidden = c.t === "c";
+  $("selType").value = c.t === "j" ? "j" : "s";
+  if (document.activeElement !== $("selX")) $("selX").value = (c.x / 10).toFixed(1);
+  if (document.activeElement !== $("selY")) $("selY").value = (c.y / 10).toFixed(1);
+}
+
+// ---------- Shape operations ----------
+function newShape(kind, cx, cy, w, h, rot = 0) {
+  const s = { id: nextId++, kind, cx: Math.round(cx), cy: Math.round(cy), w: Math.max(5, Math.round(w)), h: kind === "line" ? 0 : Math.max(5, Math.round(h)), rot, ...defaults };
+  shapes.push(s);
+  return s;
+}
+function deleteShapes() {
+  if (!shapeSel.size) return;
+  snapshot();
+  shapes = shapes.filter(s => !shapeSel.has(s.id));
+  shapeSel.clear(); changed();
+}
+function copyShapes() { clipboard = selShapes().map(s => JSON.parse(JSON.stringify(s))); }
+function pasteShapes(offset = 50) {
+  if (!clipboard.length) return;
+  snapshot();
+  shapeSel.clear();
+  clipboard = clipboard.map(c => ({ ...c, cx: c.cx + offset, cy: c.cy - offset }));
+  for (const c of clipboard) { const s = { ...c, id: nextId++ }; shapes.push(s); shapeSel.add(s.id); }
+  setTool("select"); changed();
+}
+function nudgeShapes(dx, dy) {
+  if (!shapeSel.size) return;
+  snapshot();
+  for (const s of selShapes()) { s.cx += dx; s.cy += dy; }
+  changed();
+}
+function alignShapes(how) {
+  const sel = selShapes(); if (sel.length < 2) return;
+  snapshot();
+  const all = unionBox(sel.map(aabb));
+  for (const s of sel) {
+    const b = aabb(s);
+    if (how === "left") s.cx += all.minX - b.minX;
+    if (how === "right") s.cx += all.maxX - b.maxX;
+    if (how === "cx") s.cx += (all.minX + all.maxX) / 2 - (b.minX + b.maxX) / 2;
+    if (how === "bottom") s.cy += all.minY - b.minY;
+    if (how === "top") s.cy += all.maxY - b.maxY;
+    if (how === "cy") s.cy += (all.minY + all.maxY) / 2 - (b.minY + b.maxY) / 2;
+    s.cx = Math.round(s.cx); s.cy = Math.round(s.cy);
+  }
+  changed();
+}
+function reorder(dir) {
+  if (shapeSel.size !== 1) return;
+  const i = shapes.indexOf(selShapes()[0]), j = i + dir;
+  if (j < 0 || j >= shapes.length) return;
+  snapshot();
+  [shapes[i], shapes[j]] = [shapes[j], shapes[i]];
+  changed();
+}
+// Turn selected shapes into ordinary stitches (so single points can be edited).
+function bakeShapes() {
+  if (!shapeSel.size) return;
+  snapshot();
+  for (const s of selShapes()) if (appendShape(cmds, threads, s)) threadsDirty = true;
+  shapes = shapes.filter(s => !shapeSel.has(s.id));
+  shapeSel.clear(); changed();
+}
+
+// ---------- Point operations (Points tool) ----------
+const ptSorted = () => [...ptSel].sort((a, b) => a - b);
+function deletePoints() {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSorted().reverse()) {
+    if (cmds[i].t === "c") {
+      let k = 0; for (let q = 0; q <= i; q++) if (cmds[q].t === "c") k++;
+      threads.splice(k, 1); threadsDirty = true;
+    }
+    cmds.splice(i, 1);
+  }
+  ptSel.clear(); changed();
+}
+function insertAfter(i, x, y) {
+  snapshot();
+  cmds.splice(i + 1, 0, { t: "s", x: Math.round(x), y: Math.round(y) });
+  ptSel = new Set([i + 1]); changed();
+}
+function insertStitch() {
+  if (!cmds.length) return;
+  const i = ptSel.size ? Math.max(...ptSel) : cmds.length - 1;
+  const a = cmds[i], b = cmds[i + 1];
+  if (b) insertAfter(i, (a.x + b.x) / 2, (a.y + b.y) / 2); else insertAfter(i, a.x + 10, a.y);
+}
+function toggleType() {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSel) if (cmds[i].t !== "c") cmds[i].t = cmds[i].t === "s" ? "j" : "s";
+  changed();
+}
+function insertColorChange() {
+  if (!ptSel.size) return;
+  snapshot();
+  const i = Math.max(...ptSel);
+  let k = 0; for (let q = 0; q <= i; q++) if (cmds[q].t === "c") k++;
+  cmds.splice(i + 1, 0, { t: "c", x: cmds[i].x, y: cmds[i].y });
+  threads.splice(k + 1, 0, { idx: ((threads[k]?.idx ?? 0) % (PALETTE.length - 1)) + 1 });
+  threadsDirty = true;
+  ptSel = new Set([i + 1]); changed();
+}
+function nudgePoints(dx, dy) {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSel) { cmds[i].x += dx; cmds[i].y += dy; }
+  changed();
+}
+function hitPoint(sx, sy) {
+  let best = -1, bd = 49;
+  for (let i = 0; i < cmds.length; i++) {
+    if (cmds[i].t === "c") continue;
+    const [px, py] = toS(cmds[i].x, cmds[i].y);
+    const dd = (px - sx) ** 2 + (py - sy) ** 2;
+    if (dd <= bd) { bd = dd; best = i; }
+  }
+  return best;
+}
+
+// ---------- Tools ----------
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
+  cv.style.cursor = t === "select" ? "default" : t === "points" ? "crosshair" : "copy";
+  if (t !== "points") ptSel.clear();
+  changed();
+}
+
+// ---------- Mouse ----------
+const mpos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const moved = (e, d) => { const [x, y] = mpos(e); return Math.abs(x - d.x0) + Math.abs(y - d.y0) >= 3; };
+
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("pointerdown", e => {
+  cv.setPointerCapture(e.pointerId);
+  editing = false;
+  const [x, y] = mpos(e), [wx, wy] = toW(x, y);
+  if (e.button === 1 || e.button === 2 || spaceDown) {
+    e.preventDefault();
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: true }; return;
+  }
+  if (e.button !== 0) return;
+
+  // --- drawing a new shape ---
+  if (SHAPE_NAMES[tool]) {
+    const p = snapPoint(wx, wy, new Set(), e.altKey);
+    drag = { mode: "create", x0: x, y0: y, start: p, kind: tool, shape: null };
+    return;
+  }
+
+  // --- Select tool ---
+  if (tool === "select") {
+    const h = handleAt(x, y);
+    if (h) {
+      const s = selShapes()[0];
+      drag = { mode: h === "c" ? "move" : h === "rot" ? "rotate" : h[0] === "p" ? "endpoint" : "resize",
+               handle: h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(s)), id: s.id, started: false,
+               w0: [wx, wy], origs: [[s.id, s.cx, s.cy]] };
+      return;
+    }
+    const s = shapeAt(wx, wy);
+    if (s) {
+      if (e.shiftKey) { shapeSel.has(s.id) ? shapeSel.delete(s.id) : shapeSel.add(s.id); changed(); return; }
+      if (!shapeSel.has(s.id)) { shapeSel = new Set([s.id]); changed(); }
+      drag = { mode: "move", x0: x, y0: y, w0: [wx, wy], started: false, origs: selShapes().map(q => [q.id, q.cx, q.cy]) };
+      return;
+    }
+    drag = { mode: "box", x0: x, y0: y, x, y, add: e.shiftKey };
+    return;
+  }
+
+  // --- Points tool ---
+  const h = hitPoint(x, y);
+  if (h >= 0) {
+    if (e.shiftKey) { ptSel.has(h) ? ptSel.delete(h) : ptSel.add(h); changed(); return; }
+    if (!ptSel.has(h)) ptSel = new Set([h]);
+    drag = { mode: "ptmove", x0: x, y0: y, w0: [wx, wy], started: false, orig: [...ptSel].map(i => [i, cmds[i].x, cmds[i].y]) };
+    changed();
+  } else if (e.shiftKey) {
+    drag = { mode: "ptbox", x0: x, y0: y, x, y };
+  } else {
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: false };
+  }
+});
+
+cv.addEventListener("pointermove", e => {
+  const [x, y] = mpos(e), [wx, wy] = toW(x, y);
+  if (!drag) {   // hover feedback
+    if (tool === "select") {
+      const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy);
+      cv.style.cursor = h ? handleCursor(h, selShapes()[0]) : s ? "move" : "default";
+      const id = s ? s.id : null;
+      if (id !== hoverId) { hoverId = id; draw(); }
+    }
+    return;
+  }
+  const alt = e.altKey;
+  switch (drag.mode) {
+    case "pan":
+      view.ox = drag.ox + x - drag.x0; view.oy = drag.oy + y - drag.y0;
+      if (moved(e, drag)) drag.moved = true;
+      break;
+
+    case "create": {
+      if (!drag.shape && !moved(e, drag)) return;
+      const [ax, ay] = drag.start;
+      let [bx, by] = snapPoint(wx, wy, new Set(drag.shape ? [drag.shape.id] : []), alt);
+      if (!drag.shape) { snapshot(); drag.shape = newShape(drag.kind, ax, ay, 5, 5); shapeSel = new Set([drag.shape.id]); }
+      const s = drag.shape;
+      if (s.kind === "line") {
+        let ang = Math.atan2(by - ay, bx - ax), L = Math.hypot(bx - ax, by - ay);
+        if (e.shiftKey) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; bx = ax + Math.cos(ang) * L; by = ay + Math.sin(ang) * L; }
+        Object.assign(s, { cx: Math.round((ax + bx) / 2), cy: Math.round((ay + by) / 2), w: Math.max(5, Math.round(L)), rot: +(ang * 180 / Math.PI).toFixed(1) });
+      } else {
+        let w = Math.abs(bx - ax), h = Math.abs(by - ay);
+        if (e.shiftKey) { w = h = Math.max(w, h); bx = ax + Math.sign(bx - ax || 1) * w; by = ay + Math.sign(by - ay || 1) * h; }
+        if (e.ctrlKey) Object.assign(s, { cx: ax, cy: ay, w: Math.max(5, 2 * w), h: Math.max(5, 2 * h) });
+        else Object.assign(s, { cx: Math.round((ax + bx) / 2), cy: Math.round((ay + by) / 2), w: Math.max(5, Math.round(w)), h: Math.max(5, Math.round(h)) });
+      }
+      changed(); return;
+    }
+
+    case "move": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
+      for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = cx + rdx; s.cy = cy + rdy; }
+      const ids = new Set(drag.origs.map(o => o[0]));
+      const { dx, dy } = snapBox(unionBox([...ids].map(id => aabb(byId(id)))), ids, alt);
+      for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = Math.round(cx + rdx + dx); s.cy = Math.round(cy + rdy + dy); }
+      changed(); return;
+    }
+
+    case "resize": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const o = drag.orig, s = byId(drag.id), [hx, hy] = HSIGN[drag.handle];
+      const fromCenter = e.ctrlKey, keepRatio = e.shiftKey;
+      let [mx, my] = [wx, wy];
+      // snap the moving edge(s) to guides — only when the shape isn't rotated
+      if (o.rot % 360 === 0) [mx, my] = snapPoint(wx, wy, new Set([o.id]), alt, (hx ? "x" : "") + (hy ? "y" : ""));
+      else guides = [];
+      const [lx, ly] = toLocal(o, mx, my);
+      let w = o.w, h = o.h;
+      if (hx) w = fromCenter ? 2 * hx * lx : hx * lx + o.w / 2;
+      if (hy) h = fromCenter ? 2 * hy * ly : hy * ly + o.h / 2;
+      w = Math.max(5, w); h = Math.max(5, h);
+      if (keepRatio) {
+        const k = hx && hy ? Math.max(w / o.w, h / o.h) : hx ? w / o.w : h / o.h;
+        w = o.w * k; h = o.h * k;
+      }
+      if (!alt && o.rot % 360 !== 0) { w = Math.round(w / GRID) * GRID || GRID; h = Math.round(h / GRID) * GRID || GRID; }
+      // keep the opposite side fixed (or the center, with Ctrl)
+      const clx = fromCenter ? 0 : hx ? hx * (w - o.w) / 2 : 0;
+      const cly = fromCenter ? 0 : hy ? hy * (h - o.h) / 2 : 0;
+      const [ncx, ncy] = toWorld(o, clx, cly);
+      Object.assign(s, { w: Math.round(w), h: Math.round(h), cx: ncx, cy: ncy });   // center may sit on a half unit so edges land exactly
+      changed(); return;
+    }
+
+    case "rotate": {
+      if (!drag.started) { snapshot(); drag.started = true; }
+      const s = byId(drag.id);
+      let a = Math.atan2(wy - s.cy, wx - s.cx) * 180 / Math.PI - 90;
+      a = e.shiftKey ? Math.round(a / 15) * 15 : Math.round(a);
+      if (!e.shiftKey && !alt) for (const q of [0, 90, 180, 270, -90, -180, -270]) if (Math.abs(a - q) <= 3) a = q;  // stick to square angles
+      s.rot = ((a % 360) + 540) % 360 - 180;
+      changed(); return;
+    }
+
+    case "endpoint": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const o = drag.orig, s = byId(drag.id);
+      const fixed = toWorld(o, drag.handle === "p1" ? o.w / 2 : -o.w / 2, 0);
+      let [bx, by] = snapPoint(wx, wy, new Set([o.id]), alt);
+      let ang = Math.atan2(by - fixed[1], bx - fixed[0]), L = Math.hypot(bx - fixed[0], by - fixed[1]);
+      if (e.shiftKey) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; bx = fixed[0] + Math.cos(ang) * L; by = fixed[1] + Math.sin(ang) * L; }
+      // keep p1/p2 on the same ends
+      const deg = ang * 180 / Math.PI + (drag.handle === "p1" ? 180 : 0);
+      Object.assign(s, { cx: Math.round((fixed[0] + bx) / 2), cy: Math.round((fixed[1] + by) / 2), w: Math.max(5, Math.round(L)), rot: +(((deg % 360) + 540) % 360 - 180).toFixed(1) });
+      changed(); return;
+    }
+
+    case "box": case "ptbox":
+      drag.x = x; drag.y = y; break;
+
+    case "ptmove": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const dx = Math.round(wx - drag.w0[0]), dy = Math.round(wy - drag.w0[1]);
+      for (const [i, ox, oy] of drag.orig) { cmds[i].x = ox + dx; cmds[i].y = oy + dy; }
+      changed(); return;
+    }
+  }
+  draw();
+});
+
+cv.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const d = drag; drag = null; guides = [];
+  if (d.mode === "create" && !d.shape) {   // plain click: drop a 20 mm shape centered there
+    snapshot();
+    const s = newShape(d.kind, d.start[0], d.start[1], 200, 200);
+    shapeSel = new Set([s.id]);
+  }
+  if (d.mode === "create") { setTool("select"); return; }
+  if (d.mode === "pan" && !d.moved) { ptSel.clear(); }
+  if (d.mode === "box") {
+    const ax = Math.min(d.x0, d.x), bx = Math.max(d.x0, d.x), ay = Math.min(d.y0, d.y), by = Math.max(d.y0, d.y);
+    if (!d.add) shapeSel.clear();
+    if (bx - ax > 3 || by - ay > 3) {
+      const [w0x, w0y] = toW(ax, by), [w1x, w1y] = toW(bx, ay);
+      for (const s of shapes) { const b = aabb(s); if (b.minX >= w0x && b.maxX <= w1x && b.minY >= w0y && b.maxY <= w1y) shapeSel.add(s.id); }
+    }
+  }
+  if (d.mode === "ptbox") {
+    const ax = Math.min(d.x0, d.x), bx = Math.max(d.x0, d.x), ay = Math.min(d.y0, d.y), by = Math.max(d.y0, d.y);
+    cmds.forEach((c, i) => { if (c.t === "c") return; const [px, py] = toS(c.x, c.y); if (px >= ax && px <= bx && py >= ay && py <= by) ptSel.add(i); });
+  }
+  changed();
+});
+
+cv.addEventListener("dblclick", e => {
+  if (tool !== "points" || !cmds.length) return;
+  const [x, y] = mpos(e);
+  if (hitPoint(x, y) >= 0) return;
+  const i = ptSel.size ? Math.max(...ptSel) : cmds.length - 1;
+  insertAfter(i, ...toW(x, y));
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const [x, y] = mpos(e), f = Math.exp(-e.deltaY * 0.0015);
+  view.ox = x - (x - view.ox) * f; view.oy = y - (y - view.oy) * f; view.s *= f;
+  draw();
+}, { passive: false });
+
+// ---------- Keyboard ----------
+document.addEventListener("keyup", e => { if (e.key === " ") spaceDown = false; });
+document.addEventListener("keydown", e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri" };
+  const pts = tool === "points";
+  if (e.key === " ") { e.preventDefault(); spaceDown = true; }
+  else if (mod && k === "z") { e.preventDefault(); e.shiftKey ? restore(redoStack, undoStack) : restore(undoStack, redoStack); }
+  else if (mod && k === "y") { e.preventDefault(); restore(redoStack, undoStack); }
+  else if (mod && k === "a") {
+    e.preventDefault();
+    if (pts) ptSel = new Set(cmds.map((c, i) => i).filter(i => cmds[i].t !== "c"));
+    else { setTool("select"); shapeSel = new Set(shapes.map(s => s.id)); }
+    changed();
+  }
+  else if (mod && k === "c") { if (!pts) copyShapes(); }
+  else if (mod && k === "x") { if (!pts) { copyShapes(); deleteShapes(); } }
+  else if (mod && k === "v") { e.preventDefault(); pasteShapes(); }
+  else if (mod && k === "d") { e.preventDefault(); copyShapes(); pasteShapes(); }
+  else if (mod) return;
+  else if (k === "delete" || k === "backspace") { e.preventDefault(); pts ? deletePoints() : deleteShapes(); }
+  else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); ptSel.clear(); changed(); }
+  else if (toolKeys[k]) setTool(toolKeys[k]);
+  else if (pts && k === "i") insertStitch();
+  else if (pts && k === "j") toggleType();
+  else if (k.startsWith("arrow")) {
+    e.preventDefault();
+    const step = pts ? (e.shiftKey ? 10 : 1) : (e.shiftKey ? 50 : 5);
+    const dx = k === "arrowleft" ? -step : k === "arrowright" ? step : 0, dy = k === "arrowup" ? step : k === "arrowdown" ? -step : 0;
+    pts ? nudgePoints(dx, dy) : nudgeShapes(dx, dy);
+  }
+});
+
+// ---------- Panel inputs ----------
+let editing = false;   // one undo step per field edit
+document.addEventListener("focusin", () => { editing = false; });
+function editShapes(fn) {
+  if (!shapeSel.size) return;
+  if (!editing) { snapshot(); editing = true; }
+  fn(selShapes());
+  changed();
+}
+const num = id => parseFloat($(id).value);
+$("shW").addEventListener("input", () => num("shW") > 0 && editShapes(([s]) => s.w = Math.round(num("shW") * 10)));
+$("shH").addEventListener("input", () => num("shH") > 0 && editShapes(([s]) => s.h = Math.round(num("shH") * 10)));
+$("shR").addEventListener("input", () => !isNaN(num("shR")) && editShapes(([s]) => s.rot = num("shR")));
+$("shX").addEventListener("input", () => !isNaN(num("shX")) && editShapes(([s]) => s.cx = Math.round(num("shX") * 10)));
+$("shY").addEventListener("input", () => !isNaN(num("shY")) && editShapes(([s]) => s.cy = Math.round(num("shY") * 10)));
+const styleField = (id, key, read) => $(id).addEventListener("input", () => editShapes(sel => {
+  const v = read(); for (const s of sel) s[key] = v; defaults[key] = v;
+}));
+styleField("shStyle", "style", () => $("shStyle").value);
+styleField("shThick", "thick", () => Math.round(num("shThick") * 10));
+styleField("shDens", "dens", () => Math.round(num("shDens") * 10));
+styleField("shLen", "len", () => Math.round(num("shLen") * 10));
+styleField("shUnder", "under", () => $("shUnder").checked);
+styleField("shCorner", "corner", () => +$("shCorner").value);
+styleField("shLock", "lock", () => $("shLock").checked);
+styleField("shColor", "color", () => $("shColor").value === "cur" ? "cur" : +$("shColor").value);
+$("shColor").add(new Option("Keep current thread", "cur"));
+PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`, i)); });
+document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
+$("shDup").onclick = () => { copyShapes(); pasteShapes(); };
+$("shDel").onclick = deleteShapes;
+$("shBake").onclick = bakeShapes;
+$("shEarlier").onclick = () => reorder(-1);
+$("shLater").onclick = () => reorder(1);
+
+$("delBtn").onclick = deletePoints;
+$("insBtn").onclick = insertStitch;
+$("togBtn").onclick = toggleType;
+$("ccBtn").onclick = insertColorChange;
+$("selType").onchange = () => { const i = [...ptSel][0]; snapshot(); cmds[i].t = $("selType").value; changed(); };
+["selX", "selY"].forEach((id, axis) => $(id).onchange = () => {
+  const i = [...ptSel][0], v = Math.round(num(id) * 10);
+  if (isNaN(v)) return renderPointPanel();
+  snapshot(); cmds[i][axis ? "y" : "x"] = v; changed();
+});
+
+$("undoBtn").onclick = () => restore(undoStack, redoStack);
+$("redoBtn").onclick = () => restore(redoStack, undoStack);
+$("fitBtn").onclick = fit;
+document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+["showJumps", "showPts", "lw", "tw", "fabric"].forEach(id => $(id).addEventListener("input", draw));
+$("real").addEventListener("input", () => { document.querySelectorAll(".realOnly").forEach(el => el.hidden = !$("real").checked); draw(); });
+document.querySelectorAll("[data-fabric]").forEach(b => b.onclick = () => { $("fabric").value = b.dataset.fabric; draw(); });
+$("sew").addEventListener("input", () => { sewN = +$("sew").value; sewAll = sewN >= +$("sew").max; changed(); });
+
+// ---------- File I/O ----------
+function newDesign() {
+  const h = new Uint8Array(0x74), d = new DataView(h.buffer), t = new Date(), p = v => String(v).padStart(2, "0");
+  d.setInt32(4, 0x14, true);
+  const ds = `${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`;
+  for (let i = 0; i < 14; i++) h[8 + i] = ds.charCodeAt(i);
+  h.fill(0xff, 0x34, 0x74);
+  meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
+  cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
+  shapeSel.clear(); ptSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+  const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
+  view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
+  changed();
+}
+function load(file) {
+  file.arrayBuffer().then(buf => {
+    try {
+      const r = parseJEF(buf);
+      cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
+      shapeSel.clear(); ptSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+      changed(); fit();
+    } catch (err) { alert("Could not read file: " + err.message); }
+  });
+}
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("newBtn").onclick = () => { if (saved || confirm("Start a new design? Unsaved changes will be lost.")) newDesign(); };
+$("openBtn").onclick = () => $("file").click();
+$("file").onchange = e => { e.target.files[0] && load(e.target.files[0]); e.target.value = ""; };
+$("saveBtn").onclick = () => {
+  const name = meta.isNew ? fileName : fileName.replace(/(-edited)?(\.jef)?$/i, "-edited.JEF");
+  download(new Blob([buildJEF()], { type: "application/octet-stream" }), name);
+  saved = true; changed();
+};
+$("pngBtn").onclick = () => cv.toBlob(b => download(b, fileName.replace(/\.jef$/i, "") + ".png"));
+const stage = $("stage");
+stage.addEventListener("dragover", e => { e.preventDefault(); stage.classList.add("over"); });
+stage.addEventListener("dragleave", () => stage.classList.remove("over"));
+stage.addEventListener("drop", e => { e.preventDefault(); stage.classList.remove("over"); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); });
+window.addEventListener("beforeunload", e => { if (!saved) e.preventDefault(); });
+new ResizeObserver(resize).observe(stage);
+newDesign();
+</script>
+</body>
+</html>
