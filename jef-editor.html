@@ -296,19 +296,19 @@
       <div class="row runOnly"><label class="lbl">Stitch len</label><input id="shLen" type="range" min="1" max="7" step="0.5"><span class="val" id="shLenV"></span></div>
       <div class="row"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
         <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
-      <div class="row"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
-      <div class="row"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
+      <div class="row liveOnly"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
+      <div class="row liveOnly"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
       <div class="row appOnly"><span class="lbl">Appliqué</span>
         <label title="Sew a tack-down line, stop so you can trim the fabric, then sew the cover stitches"><input type="checkbox" id="shApp"> Appliqué</label></div>
       <div class="row appSub"><span class="lbl"></span>
         <label title="First sew a placement line and stop, so you know where to lay the fabric"><input type="checkbox" id="shAppPlace"> Placement line first</label></div>
       <div class="help appSub" id="shAppHelp"></div>
-      <div class="row">
+      <div class="row liveOnly">
         <button id="shDup" title="Ctrl+D">Duplicate</button>
         <button id="shDel" title="Delete">Delete</button>
         <button id="shBake" title="Turn into plain stitches so you can edit single points">To stitches</button>
       </div>
-      <div class="row">
+      <div class="row liveOnly">
         <span class="lbl">Sew order</span>
         <button id="shEarlier" title="Sew this shape earlier">◀ Earlier</button>
         <button id="shLater" title="Sew this shape later">Later ▶</button>
@@ -553,6 +553,9 @@ function pullField(all) {
 // cmds: stitches of the loaded design ({t:'s'|'j'|'c', x, y}); shapes: live shape objects, turned into stitches on save.
 let cmds = [], threads = [], meta = null, fileName = "design.JEF", threadsDirty = false;
 let shapes = [], nextId = 1, shapeSel = new Set(), clipboard = [];
+// Stitch runs made from shapes ("To stitches") remember the shape they came from, so its settings stay editable:
+// every command of such a run carries c.sid, and runSources[sid] = { def: the shape's settings, stage, xf }.
+let runSources = {};
 // measurements: on-canvas dimension lines {id, a:[x,y], b:[x,y]} (editor only — not part of the JEF)
 let measures = [], measSel = null, measPick = null, nextMeasId = 1;
 let ptSel = new Set(), undoStack = [], redoStack = [], saved = true;
@@ -961,7 +964,7 @@ function buildJEF() {
 }
 
 // ---------- Undo ----------
-const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes, measures });
+const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes, measures, runSources });
 function snapshot() {
   undoStack.push(state());
   if (undoStack.length > 200) undoStack.shift();
@@ -973,6 +976,7 @@ function restore(from, to) {
   const s = JSON.parse(from.pop());
   cmds = s.cmds; threads = s.threads; threadsDirty = s.threadsDirty; shapes = s.shapes;
   measures = s.measures || []; if (!measures.some(m => m.id === measSel)) measSel = null; measPick = null;
+  runSources = s.runSources || {};
   ptSel = new Set([...ptSel].filter(i => i < cmds.length));
   runSel.clear();
   shapeSel = new Set([...shapeSel].filter(id => shapes.some(x => x.id === id)));
@@ -1173,6 +1177,90 @@ function setRunStop(v) {
   }
   // runs after an inserted/removed color change shift by one
   runSel = new Set(deltas.map(([s]) => s + deltas.filter(([t]) => t <= s).reduce((a, [, d]) => a + d, 0)));
+  changed();
+}
+
+// ---- Editable stitch runs (made with "To stitches") ----
+const runSid = r => { for (let i = r.start; i <= r.end; i++) if (cmds[i].sid != null) return cmds[i].sid; return null; };
+function newSid() { let m = 0; for (const k in runSources) m = Math.max(m, +k); return m + 1; }
+// A source shape's settings, without the live-shape bookkeeping.
+function sourceDef(s) { const d = JSON.parse(JSON.stringify(s)); delete d.id; delete d.after; delete d.group; delete d.stop; return d; }
+// Fit the transform (move / resize / rotate) between a run's original stitches G and where they are now C:
+// X = a·x + b·y + e, Y = c·x + d·y + f → [a, b, e, c, d, f]. Falls back to a similarity from the end points for
+// straight runs (lines), where a full fit is undefined.
+function fitAffine(G, C) {
+  const n = G.length;
+  let Sxx = 0, Sxy = 0, Sx = 0, Syy = 0, Sy = 0, SXx = 0, SXy = 0, SX = 0, SYx = 0, SYy = 0, SY = 0;
+  for (let i = 0; i < n; i++) {
+    const [x, y] = G[i], [X, Y] = C[i];
+    Sxx += x * x; Sxy += x * y; Sx += x; Syy += y * y; Sy += y;
+    SXx += X * x; SXy += X * y; SX += X; SYx += Y * x; SYy += Y * y; SY += Y;
+  }
+  const M = [[Sxx, Sxy, Sx], [Sxy, Syy, Sy], [Sx, Sy, n]];
+  const det = m => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const D = det(M);
+  const scale = Math.max(1, Sxx + Syy) * Math.max(1, n);
+  if (Math.abs(D) < 1e-9 * scale * scale) {   // straight run: rotation + uniform scale + move from the two ends
+    const [g0, g1] = [G[0], G[n - 1]], [c0, c1] = [C[0], C[n - 1]];
+    const gx = g1[0] - g0[0], gy = g1[1] - g0[1], cx = c1[0] - c0[0], cy = c1[1] - c0[1], gl = gx * gx + gy * gy || 1;
+    const a = (gx * cx + gy * cy) / gl, b = (gx * cy - gy * cx) / gl;   // complex ratio
+    return [a, -b, c0[0] - (a * g0[0] - b * g0[1]), b, a, c0[1] - (b * g0[0] + a * g0[1])];
+  }
+  const solve = v => {
+    const col = (k) => M.map((row, i) => row.map((x, j) => j === k ? v[i] : x));
+    return [det(col(0)) / D, det(col(1)) / D, det(col(2)) / D];
+  };
+  const [a, b, e] = solve([SXx, SXy, SX]), [c, d, f] = solve([SYx, SYy, SY]);
+  return [a, b, e, c, d, f];
+}
+const applyXf = (xf, x, y) => [xf[0] * x + xf[1] * y + xf[2], xf[3] * x + xf[4] * y + xf[5]];
+// Where this run's source stitches have been moved to. exact = the run still matches the generated stitches
+// (no hand edits with the Points tool).
+function runTransform(r, sid) {
+  const src = runSources[sid], st = (shapeStages(src.def)[src.stage] || {}).st || [];
+  const C = []; for (let i = r.start; i <= r.end; i++) if (cmds[i].t === "s") C.push([cmds[i].x, cmds[i].y]);
+  if (C.length === st.length && st.length >= 2) {
+    const xf = fitAffine(st, C);
+    const err = Math.max(...st.map(([x, y], i) => { const [X, Y] = applyXf(xf, x, y); return Math.hypot(X - C[i][0], Y - C[i][1]); }));
+    if (err <= 2) return { xf, exact: true };
+  }
+  return { xf: src.xf || [1, 0, 0, 0, 1, 0], exact: false };
+}
+// Replace a run's stitches with freshly generated ones from its source, placed with transform xf.
+function regenRun(r, sid, xf) {
+  const src = runSources[sid], st = (shapeStages(src.def)[src.stage] || {}).st;
+  if (!st || st.length < 2) return;
+  const g = runGroupOf(r), extra = g != null ? { sid, g } : { sid };
+  const P = st.map(([x, y]) => applyXf(xf, x, y).map(Math.round));
+  cmds.splice(r.start, r.end - r.start + 1, { t: "j", x: P[0][0], y: P[0][1], ...extra }, ...P.map(([x, y]) => ({ t: "s", x, y, ...extra })));
+  src.xf = xf;
+}
+// Change the source settings of the selected runs and regenerate them.
+let srcConfirmed = false;
+function editRunSources(fn) {
+  const rs = selRuns().filter(r => runSid(r) != null);
+  if (!rs.length) return;
+  const jobs = rs.map(r => ({ r, sid: runSid(r), ...runTransform(r, runSid(r)) }));
+  if (!editing) {
+    if (jobs.some(j => !j.exact) && !srcConfirmed &&
+        !confirm("Some of these stitches were edited by hand (Points tool). Changing the shape settings regenerates the stitches and replaces those edits. Continue?")) {
+      changed(); return;
+    }
+    snapshot(); editing = true; srcConfirmed = true;
+  }
+  // runs that share a source with unselected runs (e.g. copies) get their own copy, so only the selection changes
+  const allRuns = getRuns(), forked = new Map();
+  for (const j of jobs) {
+    const users = allRuns.filter(r => runSid(r) === j.sid).length, mine = jobs.filter(k => k.sid === j.sid).length;
+    if (users > mine) {
+      if (!forked.has(j.sid)) { const n = newSid(); runSources[n] = JSON.parse(JSON.stringify(runSources[j.sid])); forked.set(j.sid, n); }
+      j.sid = forked.get(j.sid);
+    }
+  }
+  const sids = [...new Set(jobs.map(j => j.sid))];
+  fn(sids.map(s => runSources[s].def));
+  for (const j of jobs.sort((a, b) => b.r.start - a.r.start)) regenRun(j.r, j.sid, j.xf);
+  runSel = new Set(getRuns().filter(r => sids.includes(runSid(r))).map(r => r.start));   // keep them selected
   changed();
 }
 
@@ -1941,13 +2029,20 @@ function renderThreads(th) {
 }
 
 const SHAPE_NAMES = { line: "Line", rect: "Rectangle", oval: "Oval", tri: "Triangle" };
+let panelMode = "shapes";   // "shapes": live shapes · "runsrc": stitch settings of runs made with "To stitches"
 function renderShapePanel() {
-  const sel = selShapes();
+  let sel = selShapes();
+  panelMode = "shapes";
+  if (!sel.length && tool === "select") {   // stitch runs made from shapes: show their stitch settings
+    const sids = [...new Set(selRuns().map(runSid).filter(k => k != null && runSources[k]))];
+    if (sids.length) { sel = sids.map(k => runSources[k].def); panelMode = "runsrc"; }
+  }
   $("shapeBox").hidden = tool === "points" || !sel.length;
   if (!sel.length) return;
-  const s = sel[0], single = sel.length === 1;
-  $("shapeTitle").textContent = single ? SHAPE_NAMES[s.kind] : `${sel.length} shapes`;
-  $("geom").hidden = !single; $("alignRow").hidden = single;
+  const s = sel[0], single = sel.length === 1, src = panelMode === "runsrc";
+  $("shapeTitle").textContent = src ? `${SHAPE_NAMES[s.kind]} stitches — settings` : single ? SHAPE_NAMES[s.kind] : `${sel.length} shapes`;
+  $("geom").hidden = !single || src; $("alignRow").hidden = single || src;
+  document.querySelectorAll(".liveOnly").forEach(el => el.hidden = src);
   $("shBake").disabled = false;
   const set = (id, v, d = 1) => { if (document.activeElement !== $(id)) $(id).value = typeof v === "number" ? +v.toFixed(d) : v; };
   if (single) {
@@ -1960,7 +2055,7 @@ function renderShapePanel() {
   $("shUnder").checked = s.under; $("shLock").checked = s.lock; set("shColor", String(s.color));
   $("shStop").checked = !!s.stop;
   // appliqué (closed shapes only)
-  const appOk = sel.some(canApplique);
+  const appOk = !src && sel.some(canApplique);   // (appliqué stages are fixed once turned into stitches)
   document.querySelectorAll(".appOnly").forEach(el => el.hidden = !appOk);
   $("shApp").checked = !!s.applique; $("shAppPlace").checked = !!s.appPlace;
   document.querySelectorAll(".appSub").forEach(el => el.hidden = !(appOk && s.applique));
@@ -1976,9 +2071,11 @@ function renderShapePanel() {
   $("shLenV").textContent = fmtLen(s.len);
   const n = sel.reduce((a, x) => a + shapeStages(x).reduce((b, stg) => b + stg.st.length, 0), 0);
   const bb = unionBox(sel.map(aabb));
-  $("shInfo").textContent = `${n} stitches · outer size ${fmtSize(bb.maxX - bb.minX, bb.maxY - bb.minY)}`;
+  $("shInfo").textContent = src
+    ? `Changing these regenerates the stitches (position, size, rotation, order, thread and pauses are kept).`
+    : `${n} stitches · outer size ${fmtSize(bb.maxX - bb.minX, bb.maxY - bb.minY)}`;
   // is the frame centered on what's inside it?
-  const c = single ? contentsOf(s) : null, tol = 0.5;   // within 0.05 mm counts as centered
+  const c = single && !src ? contentsOf(s) : null, tol = 0.5;   // within 0.05 mm counts as centered
   $("centerRow").hidden = !c;
   if (c) {
     const ok = Math.abs(c.dx) <= tol && Math.abs(c.dy) <= tol;
@@ -2218,7 +2315,17 @@ function pasteShapes(offset = 50) {
   const gmap = new Map(); let gNext = newGroupId();
   const remap = g => { if (g == null) return undefined; if (!gmap.has(g)) gmap.set(g, gNext++); return gmap.get(g); };
   for (const c of clipboard.shapes) { const s = { ...c, id: nextId++, group: remap(c.group) }; if (s.group == null) delete s.group; shapes.push(s); shapeSel.add(s.id); }
-  const runs = clipboard.runs.map(run => run.map(c => { const n = { ...c, g: remap(c.g) }; if (n.g == null) delete n.g; return n; }));
+  // pasted runs made from shapes get their own copy of the source settings (so editing one doesn't change the other)
+  const smap = new Map();
+  const remapSid = sid => {
+    if (sid == null || !runSources[sid]) return undefined;
+    if (!smap.has(sid)) { const n = newSid(); runSources[n] = JSON.parse(JSON.stringify(runSources[sid])); smap.set(sid, n); }
+    return smap.get(sid);
+  };
+  const runs = clipboard.runs.map(run => run.map(c => {
+    const n = { ...c, g: remap(c.g), sid: remapSid(c.sid) };
+    if (n.g == null) delete n.g; if (n.sid == null) delete n.sid; return n;
+  }));
   for (const st of appendRuns(runs, 0, 0)) runSel.add(st);
   if (gmap.size) {   // keep each new group together in the sew order
     const order = orderList(), sel = order.filter(isSelItem), starts = applyOrder(normalizeGroups(order));
@@ -2284,11 +2391,15 @@ function bakeShapes() {
     const s = it.s, thread = s.color === "cur" ? { ...last } : { idx: s.color };
     last = thread;
     if (!shapeSel.has(s.id)) return it;
-    const g = s.group != null ? { g: s.group } : {};   // stays in its group
-    // one run per stage (appliqué shapes have several, with labelled pauses between them)
-    return shapeStages(s).filter(stg => stg.st.length >= 2).map((stg, k) => ({ type: "run", baked: true, obj: {
-      cmds: [{ t: "j", x: stg.st[0][0], y: stg.st[0][1], ...g }, ...stg.st.map(([x, y]) => ({ t: "s", x, y, ...g }))],
-      thread, pause: k === 0 ? !!s.stop : true, pauseNote: k ? stg.note || undefined : undefined } }));
+    // one run per stage (appliqué shapes have several, with labelled pauses between them). Each run remembers the
+    // shape it came from (sid → runSources) so its stitch settings stay editable.
+    return shapeStages(s).map((stg, k) => ({ stg, k })).filter(({ stg }) => stg.st.length >= 2).map(({ stg, k }) => {
+      const sid = newSid(); runSources[sid] = { def: sourceDef(s), stage: k, xf: [1, 0, 0, 0, 1, 0] };
+      const extra = s.group != null ? { sid, g: s.group } : { sid };   // stays in its group
+      return { type: "run", baked: true, obj: {
+        cmds: [{ t: "j", x: stg.st[0][0], y: stg.st[0][1], ...extra }, ...stg.st.map(([x, y]) => ({ t: "s", x, y, ...extra }))],
+        thread, pause: k === 0 ? !!s.stop : true, pauseNote: k ? stg.note || undefined : undefined } };
+    });
   }).flat().filter(Boolean);
   const starts = applyOrder(order);
   shapeSel.clear();
@@ -2698,8 +2809,9 @@ document.addEventListener("keydown", e => {
 
 // ---------- Panel inputs ----------
 let editing = false;   // one undo step per field edit
-document.addEventListener("focusin", () => { editing = false; });
+document.addEventListener("focusin", () => { editing = false; srcConfirmed = false; });
 function editShapes(fn) {
+  if (panelMode === "runsrc") return editRunSources(fn);   // stitch runs made from shapes: regenerate them
   if (!shapeSel.size) return;
   if (!editing) { snapshot(); editing = true; }
   fn(selShapes());
@@ -3030,7 +3142,7 @@ function newDesign() {
   h.fill(0xff, 0x34, 0x74);
   meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
   cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
-  measures = []; measSel = null; measPick = null;
+  measures = []; measSel = null; measPick = null; runSources = {};
   shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
   const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
   view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
@@ -3041,7 +3153,7 @@ function load(file) {
     try {
       const r = parseJEF(buf);
       cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
-      measures = []; measSel = null; measPick = null;
+      measures = []; measSel = null; measPick = null; runSources = {};
       // show the hoop the file was made for, if it's one we know
       const code = new DataView(buf).getInt32(32, true), known = HOOPS.find(h => h.code === code);
       if (known) { $("hoop").value = known.id; $("hoopRot").checked = false; saveHoop(); }
