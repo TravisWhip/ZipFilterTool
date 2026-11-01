@@ -414,6 +414,40 @@
 
         .card-footer span { color: var(--rose); }
 
+        /* ── Link to other tools ── */
+        .tool-link {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            width: 100%;
+            max-width: 440px;
+            margin-top: 1rem;
+            padding: 0.9rem 1.1rem;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 2px 14px var(--shadow);
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
+            animation: fadeUp 0.45s 0.08s ease both;
+        }
+        .tool-link:hover {
+            border-color: var(--rose);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 18px rgba(168,95,82,0.18);
+        }
+        .tool-link svg { flex-shrink: 0; }
+        .tool-link-text { flex: 1; line-height: 1.35; }
+        .tool-link-title {
+            display: block;
+            font-family: 'Playfair Display', serif;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .tool-link-sub { display: block; font-size: 0.74rem; color: var(--muted); }
+        .tool-link-arrow { color: var(--rose); font-size: 1.1rem; }
+
         /* ── Spinner ── */
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinner {
@@ -648,6 +682,20 @@
     </div>
 
 </div>
+
+<!-- Other tools -->
+<a class="tool-link" href="jef-editor/jef-editor.html">
+    <svg width="34" height="34" viewBox="0 0 38 38" fill="none" aria-hidden="true">
+        <circle cx="19" cy="19" r="16" stroke="#c97d6e" stroke-width="2.5"/>
+        <circle cx="19" cy="19" r="11.5" stroke="#c97d6e" stroke-width="1.2" stroke-dasharray="3 2.5"/>
+        <path d="M11 22 L15 16 L19 22 L23 16 L27 22" stroke="#8fa68a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="tool-link-text">
+        <span class="tool-link-title">JEF Stitch Editor</span>
+        <span class="tool-link-sub">View, design and edit Janome .JEF embroidery files</span>
+    </span>
+    <span class="tool-link-arrow">→</span>
+</a>
 
 <script>
     const fileInput  = document.getElementById('fileInput');
