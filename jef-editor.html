@@ -52,6 +52,29 @@
   #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
   #realBar input[type=color] { width:30px; height:22px; padding:0 2px; }
   .realToggle { padding:3px 8px; border:1px solid #e3d6b8; border-radius:6px; background:#fff; }
+  /* Sew-out player */
+  #playBar { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:4; display:flex; flex-direction:column; gap:6px;
+             width:min(620px, calc(100% - 24px)); background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px;
+             box-shadow:0 3px 14px rgba(0,0,0,.12); white-space:nowrap; }
+  #playBar .pb-row { display:flex; gap:8px; align-items:center; }
+  #playBar .pb-row > .pb-more { display:flex; gap:8px; align-items:center; flex:1; min-width:0; }
+  #playBar .pb-slide input { flex:1; min-width:80px; }
+  #playBar .pb-fold { margin-left:auto; padding:2px 8px; }
+  #playBar #playInfo { overflow:hidden; text-overflow:ellipsis; }
+  /* collapsed: just a small pill with Play (and Stop) */
+  #playBar.folded { width:auto; padding:5px 6px; }
+  #playBar.folded .pb-more { display:none !important; }
+  #playBtn { font-weight:600; }
+  /* stop / finished message, inside the sew-out bar */
+  #playPause { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:8px;
+               background:#fff4e0; border:1px solid #f0c27a; white-space:normal; }
+  #playPause .pp-text { flex:1; min-width:0; }
+  #playPause .pp-btns { display:flex; gap:6px; flex:none; }
+  #ppTitle { font-weight:700; color:#8a4b00; }
+  #ppMsg { color:#444; line-height:1.45; }
+  #ppMsg .sw { width:16px; height:16px; vertical-align:middle; margin:0 3px; }
+  #playBar.folded:has(#playPause:not([hidden])) { width:min(620px, calc(100% - 24px)); }
+  .pp-go { background:#1477a8; color:#fff; border:1px solid #1477a8; border-radius:6px; padding:6px 16px; font-weight:600; }
   /* Right-click menu */
   #ctxMenu { position:fixed; z-index:50; min-width:190px; background:#fff; border:1px solid #ccd; border-radius:8px;
              box-shadow:0 6px 24px rgba(0,0,0,.18); padding:4px; }
@@ -208,6 +231,37 @@
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="drophint">Pick Rectangle, Oval, Line or Triangle and drag here to draw,<br>or drop a .JEF file to edit it.</div>
+    <!-- sew-out player -->
+    <div id="playBar" hidden>
+      <!-- shown when the simulated machine stops (or finishes) -->
+      <div id="playPause" hidden>
+        <div class="pp-text"><div id="ppTitle"></div><div id="ppMsg"></div></div>
+        <div class="pp-btns">
+          <button id="ppContinue" class="pp-go">Continue ▶</button>
+          <button id="ppStop">Stop</button>
+        </div>
+      </div>
+      <div class="pb-row">
+        <button id="playBtn" title="Simulate the machine sewing the design, stopping at each pause / thread change">▶ Play sew-out</button>
+        <button id="playStopBtn" title="Stop the simulation and show the whole design" hidden>⏹ Stop</button>
+        <span class="pb-more">
+          <select id="playSpeed" title="Simulation speed">
+            <option value="12">Real speed (~700 st/min)</option>
+            <option value="60">5×</option>
+            <option value="250" selected>20×</option>
+            <option value="1000">80×</option>
+            <option value="5000">Very fast</option>
+          </select>
+          <span id="playInfo" class="val"></span>
+        </span>
+        <button id="playFold" class="pb-fold" title="Collapse / expand the sew-out player">▾</button>
+      </div>
+      <div class="pb-row pb-more pb-slide">
+        <span class="val">Sew-out</span>
+        <input type="range" id="sew" min="0" max="0" value="0" title="Drag to show the design up to any point in the sewing order">
+        <span id="sewInfo" class="val"></span>
+      </div>
+    </div>
   </div>
 
   <button id="sideTab" class="edgeTab" title="Show the side panel" hidden>Side panel ◂</button>
@@ -244,6 +298,11 @@
         <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
       <div class="row"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
       <div class="row"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
+      <div class="row appOnly"><span class="lbl">Appliqué</span>
+        <label title="Sew a tack-down line, stop so you can trim the fabric, then sew the cover stitches"><input type="checkbox" id="shApp"> Appliqué</label></div>
+      <div class="row appSub"><span class="lbl"></span>
+        <label title="First sew a placement line and stop, so you know where to lay the fabric"><input type="checkbox" id="shAppPlace"> Placement line first</label></div>
+      <div class="help appSub" id="shAppHelp"></div>
       <div class="row">
         <button id="shDup" title="Ctrl+D">Duplicate</button>
         <button id="shDel" title="Delete">Delete</button>
@@ -312,8 +371,6 @@
     <div class="row"><label class="lbl">Hoop</label><select id="hoop" style="flex:1;min-width:0"></select></div>
     <div class="row"><span class="lbl"></span><label><input type="checkbox" id="hoopRot"> Turn 90°</label></div>
     <div class="row"><label class="lbl">Grid</label><input type="range" id="gridOp" min="0" max="100" step="5" value="100"><span class="val" id="gridOpV">100%</span></div>
-    <div class="row"><label class="lbl">Sew-out</label><input type="range" id="sew" min="0" max="0" value="0" style="flex:1"></div>
-    <div id="sewInfo" class="help"></div>
 
     <h2>Shapes (Select tool)</h2>
     <div class="help">
@@ -757,8 +814,29 @@ function stitchesFor(s) {
 }
 
 // Append a shape's stitches (with a jump to its start and a color change if needed) to a command list.
+// ---- Appliqué ----
+// An appliqué shape sews in stages with a same-thread stop between them:
+//   [placement line → stop: place fabric] → tack-down (underlay) → stop: trim fabric → cover stitches.
+const canApplique = s => s.kind === "rect" || s.kind === "oval" || s.kind === "tri";
+const APP_NOTES = { place: "Place the appliqué fabric over the placement line", trim: "Trim the fabric close to the tack-down stitches" };
+function runningOutline(s, len = 20) {   // a locked running stitch along the shape's outline
+  const { pts, smooth } = shapeOutline(s);
+  let path = resample(pts, len, smooth);
+  if (path.length > 1) path = [path[0], ...lockAt(path, false), ...path.slice(1), ...lockAt(path, true)];
+  return path.map(([x, y]) => [Math.round(x), Math.round(y)]);
+}
+// The shape's stitches as stages: [{ st, note }] where note (if any) is the stop before that stage.
+function shapeStages(s) {
+  if (!(s.applique && canApplique(s))) return [{ st: stitchesFor(s) }];
+  const stages = [];
+  if (s.appPlace) stages.push({ st: runningOutline(s) });
+  stages.push({ st: runningOutline(s), note: s.appPlace ? APP_NOTES.place : null });          // tack-down
+  stages.push({ st: stitchesFor({ ...s, under: false }), note: APP_NOTES.trim });             // cover (tack-down already holds it)
+  return stages;
+}
+
 function appendShape(list, th, s) {
-  const st = stitchesFor(s);
+  const stages = shapeStages(s), st = stages[0].st;
   if (st.length < 2) return false;
   let changedThreads = false;
   const cur = th.length - 1, sewn = list.some(c => c.t === "s");
@@ -773,6 +851,16 @@ function appendShape(list, th, s) {
   }
   list.push({ t: "j", x: st[0][0], y: st[0][1] });
   for (const [x, y] of st) list.push({ t: "s", x, y });
+  // appliqué: each further stage starts with a same-thread stop (carrying what to do) and a jump to its start
+  for (const stage of stages.slice(1)) {
+    if (stage.st.length < 2) continue;
+    const l = list[list.length - 1];
+    list.push({ t: "c", x: l.x, y: l.y, ...(stage.note ? { note: stage.note } : {}) });
+    th.push({ idx: th[th.length - 1].idx });
+    list.push({ t: "j", x: stage.st[0][0], y: stage.st[0][1] });
+    for (const [x, y] of stage.st) list.push({ t: "s", x, y });
+    changedThreads = true;
+  }
   return changedThreads;
 }
 // The full design as it will be saved: loaded stitches + all shapes, in sew order.
@@ -1095,12 +1183,12 @@ function runObjects() {
   return runs.map((r, k) => {
     const thread = threads[countC(r.start)] || threads[threads.length - 1];
     const prev = k ? runs[k - 1] : null;
-    let hasC = false;
-    if (prev) for (let i = prev.end + 1; i < r.start; i++) if (cmds[i].t === "c") hasC = true;
+    let hasC = false, pauseNote;
+    if (prev) for (let i = prev.end + 1; i < r.start; i++) if (cmds[i].t === "c") { hasC = true; pauseNote = cmds[i].note; }
     const prevThread = prev ? threads[countC(prev.start)] : null;
     // (a color change before the very first run is a pause after any live shapes sewn before it)
     const pause = prev ? !!(hasC && prevThread && prevThread.idx === thread.idx) : cmds.slice(0, r.start).some(c => c.t === "c");
-    return { cmds: cmds.slice(r.start, r.end + 1).map(c => ({ ...c })), thread: { ...thread }, pause, start: r.start };
+    return { cmds: cmds.slice(r.start, r.end + 1).map(c => ({ ...c })), thread: { ...thread }, pause, pauseNote, start: r.start };
   });
 }
 // ---- Groups ----
@@ -1223,7 +1311,8 @@ function applyOrder(order) {
       newThreads.push({ ...o.thread });
       if (o.pause && anything) { newCmds.push({ t: "c", x: o.cmds[0].x, y: o.cmds[0].y }); newThreads.push({ ...o.thread }); }
     } else if (cur.idx !== o.thread.idx || o.pause) {
-      const l = newCmds[newCmds.length - 1]; newCmds.push({ t: "c", x: l.x, y: l.y }); newThreads.push({ ...o.thread });
+      const l = newCmds[newCmds.length - 1], note = o.pause && cur.idx === o.thread.idx && o.pauseNote ? { note: o.pauseNote } : {};
+      newCmds.push({ t: "c", x: l.x, y: l.y, ...note }); newThreads.push({ ...o.thread });
     }
     anything = true;
     const run = o.cmds.map(c => ({ ...c }));
@@ -1667,7 +1756,9 @@ function draw() {
     ctx.fillStyle = threadCSS(th[stopNo] || { idx: -1 }, stopNo);
     ctx.beginPath(); ctx.arc(sx + 8, sy + 7, 4.5, 0, 2 * Math.PI); ctx.fill();
     ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
-    const label = same ? "Stop" : "Stop · thread " + (stopNo + 1);
+    const note = all[i].note;
+    const label = note === APP_NOTES.place ? "Stop · place fabric" : note === APP_NOTES.trim ? "Stop · trim fabric"
+                : same ? "Stop" : "Stop · thread " + (stopNo + 1);
     const tw = ctx.measureText(label).width;
     ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillRect(sx + 13, sy - 7, tw + 6, 13);
     ctx.fillStyle = "#222"; ctx.fillText(label, sx + 16, sy);
@@ -1799,6 +1890,8 @@ function changed() {
   $("sew").max = all.length;
   if (sewAll) sewN = all.length;
   $("sew").value = Math.min(sewN, all.length);
+  $("playBar").hidden = !all.some(c => c.t === "s");
+  if (play.idx > all.length) play.idx = all.length;
   const real = all.filter(c => c.t !== "c"), b = bounds(real.length ? real : [{ x: 0, y: 0 }]);
   const st = all.filter(c => c.t === "s").length, jm = all.filter(c => c.t === "j").length;
   const W = (b.maxX - b.minX) / 10, H = (b.maxY - b.minY) / 10;
@@ -1806,6 +1899,7 @@ function changed() {
     `Stitches: ${st} · Jumps: ${jm} · Colors: ${th.length} · Shapes: ${shapes.length}` +
     (hoopFits(real) ? "" : `<br><b style="color:#c0392b">⚠ Design goes outside the ${fmtSize(currentHoop().W, currentHoop().H)} hoop</b>`);
   $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
+  syncPlayUI(all);
   renderThreads(th);
   const validRuns = new Set(getRuns().map(r => r.start));   // drop selections that no longer exist
   runSel = new Set([...runSel].filter(s => validRuns.has(s)));
@@ -1865,6 +1959,14 @@ function renderShapePanel() {
   set("shStyle", s.style); set("shThick", s.thick / 10); set("shDens", s.dens / 10); set("shLen", s.len / 10);
   $("shUnder").checked = s.under; $("shLock").checked = s.lock; set("shColor", String(s.color));
   $("shStop").checked = !!s.stop;
+  // appliqué (closed shapes only)
+  const appOk = sel.some(canApplique);
+  document.querySelectorAll(".appOnly").forEach(el => el.hidden = !appOk);
+  $("shApp").checked = !!s.applique; $("shAppPlace").checked = !!s.appPlace;
+  document.querySelectorAll(".appSub").forEach(el => el.hidden = !(appOk && s.applique));
+  $("shAppHelp").innerHTML = "Sews: " + (s.appPlace ? "placement line → <b>⏸ place fabric</b> → " : "") +
+    `tack-down → <b>⏸ trim fabric</b> → ${s.style === "satin" ? "satin" : s.style === "triple" ? "triple running" : "running"} cover.` +
+    (s.appPlace ? "" : "<br>Lay the fabric over the area before you start.");
   document.querySelectorAll(".satinOnly").forEach(el => el.hidden = s.style !== "satin");
   document.querySelectorAll(".runOnly").forEach(el => el.hidden = s.style === "satin");
   set("shCorner", s.corner ?? 100);
@@ -1872,7 +1974,7 @@ function renderShapePanel() {
   $("shThickV").textContent = fmtLen(s.thick);
   $("shDensV").textContent = fmtLen(s.dens);
   $("shLenV").textContent = fmtLen(s.len);
-  const n = sel.reduce((a, x) => a + stitchesFor(x).length, 0);
+  const n = sel.reduce((a, x) => a + shapeStages(x).reduce((b, stg) => b + stg.st.length, 0), 0);
   const bb = unionBox(sel.map(aabb));
   $("shInfo").textContent = `${n} stitches · outer size ${fmtSize(bb.maxX - bb.minX, bb.maxY - bb.minY)}`;
   // is the frame centered on what's inside it?
@@ -2017,7 +2119,7 @@ function renderOrder() {
     const lab = document.createElement("div"); lab.className = "lab";
     const nSt = (() => { let n = 0; for (let q = m.from; q <= m.to; q++) if (all[q].t === "s") n++; return n; })();
     lab.innerHTML = m.type === "run" ? `Stitch run<br><small>${nSt} stitches</small>`
-                                     : `${SHAPE_NAMES[m.s.kind]}<br><small>live shape · ${nSt} st</small>`;
+                                     : `${SHAPE_NAMES[m.s.kind]}${m.s.applique && canApplique(m.s) ? " · appliqué" : ""}<br><small>live shape · ${nSt} st</small>`;
     row.append(num, cvs, lab);
     row.onclick = e => {
       if (tool !== "select") setTool("select");
@@ -2182,11 +2284,12 @@ function bakeShapes() {
     const s = it.s, thread = s.color === "cur" ? { ...last } : { idx: s.color };
     last = thread;
     if (!shapeSel.has(s.id)) return it;
-    const st = stitchesFor(s);
-    if (st.length < 2) return null;
     const g = s.group != null ? { g: s.group } : {};   // stays in its group
-    return { type: "run", baked: true, obj: { cmds: [{ t: "j", x: st[0][0], y: st[0][1], ...g }, ...st.map(([x, y]) => ({ t: "s", x, y, ...g }))], thread, pause: !!s.stop } };
-  }).filter(Boolean);
+    // one run per stage (appliqué shapes have several, with labelled pauses between them)
+    return shapeStages(s).filter(stg => stg.st.length >= 2).map((stg, k) => ({ type: "run", baked: true, obj: {
+      cmds: [{ t: "j", x: stg.st[0][0], y: stg.st[0][1], ...g }, ...stg.st.map(([x, y]) => ({ t: "s", x, y, ...g }))],
+      thread, pause: k === 0 ? !!s.stop : true, pauseNote: k ? stg.note || undefined : undefined } }));
+  }).flat().filter(Boolean);
   const starts = applyOrder(order);
   shapeSel.clear();
   runSel = new Set(order.filter(it => it.baked).map(it => starts.get(it.obj)));   // keep them selected and editable
@@ -2649,6 +2752,8 @@ $("rnStop").add(new Option("Stop — keep the same thread (add fabric…)", "sam
 PALETTE.forEach((p, i) => { if (i) $("rnStop").add(new Option(`Stop & change to ${i} · ${p[0]}`, i)); });
 $("rnStop").addEventListener("input", () => setRunStop($("rnStop").value));
 $("shStop").addEventListener("input", () => editShapes(sel => { for (const s of sel) s.stop = $("shStop").checked; }));
+$("shApp").addEventListener("input", () => editShapes(sel => { for (const s of sel) if (canApplique(s)) s.applique = $("shApp").checked; }));
+$("shAppPlace").addEventListener("input", () => editShapes(sel => { for (const s of sel) if (canApplique(s)) s.appPlace = $("shAppPlace").checked; }));
 $("rnDup").onclick = () => { copyShapes(); pasteShapes(); };
 $("rnDel").onclick = deleteShapes;
 $("rnPts").onclick = () => {
@@ -2677,6 +2782,114 @@ $("redoBtn").onclick = () => restore(redoStack, undoStack);
 $("fitBtn").onclick = fit;
 document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
 ["showJumps", "showPts", "lw", "tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", draw));
+// ---------- Sew-out player ----------
+// Plays the design command by command at the chosen speed. At every color change (= the machine stops) it waits
+// for Continue, saying whether to change thread or that it's a same-thread pause.
+const play = { state: "idle", idx: 0, acc: 0, last: 0, raf: 0 };   // idle | playing | paused | stopped-at-stop | done
+const threadName = t => t.name || (PALETTE[t.idx] ? `${t.idx} · ${PALETTE[t.idx][0]}` : "#" + t.idx);
+function playProgress(all) {
+  let st = 0, stTot = 0, stops = 0, stopsTot = 0;
+  for (let i = 0; i < all.length; i++) {
+    const s = all[i].t === "s", c = all[i].t === "c";
+    if (s) stTot++; if (c) stopsTot++;
+    if (i < play.idx) { if (s) st++; if (c) stops++; }
+  }
+  return { st, stTot, stops, stopsTot };
+}
+function syncPlayUI(all) {
+  all = all || compose().all;
+  const p = playProgress(all), active = play.state !== "idle";
+  $("playBtn").textContent = play.state === "playing" ? "⏸ Pause" : play.state === "paused" ? "▶ Resume" : "▶ Play sew-out";
+  $("playStopBtn").hidden = !active;
+  $("playInfo").textContent = active
+    ? `stitch ${p.st} / ${p.stTot}` + (p.stopsTot ? ` · stop ${p.stops} / ${p.stopsTot}` : "")
+    : `${p.stTot} stitches` + (p.stopsTot ? ` · ${p.stopsTot} stop${p.stopsTot > 1 ? "s" : ""}` : "") + ` · ~${Math.max(1, Math.round(p.stTot / 700))} min`;
+  $("sew").max = all.length; $("sew").value = sewAll ? all.length : sewN;
+  $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
+}
+function playStart() {
+  const n = compose().all.length;
+  if (!n) return;
+  if (play.state === "idle" || play.state === "done" || play.idx >= n) play.idx = 0;
+  play.state = "playing"; play.last = 0; play.acc = 0;
+  sewAll = false; sewN = play.idx;
+  $("playPause").hidden = true;
+  cancelAnimationFrame(play.raf); play.raf = requestAnimationFrame(playTick);
+  syncPlayUI(); draw();
+}
+function playTick(ts) {
+  if (play.state !== "playing") return;
+  if (!play.last) play.last = ts;
+  play.acc += (ts - play.last) / 1000 * +$("playSpeed").value; play.last = ts;
+  const { all, th } = compose(), n = all.length;
+  while (play.acc >= 1 && play.idx < n) {
+    play.acc -= 1; play.idx++;
+    if (all[play.idx - 1].t === "c") { sewN = play.idx; showStop(all, th); break; }
+  }
+  sewN = Math.min(play.idx, n);
+  syncPlayUI(all); draw();
+  if (play.state !== "playing") return;
+  if (play.idx >= n) return playFinish(all);
+  play.raf = requestAnimationFrame(playTick);
+}
+function showStop(all, th) {
+  play.state = "stopped";
+  let k = 0, total = 0;
+  for (let i = 0; i < all.length; i++) if (all[i].t === "c") { total++; if (i < play.idx) k++; }
+  const before = th[k - 1] || th[0], next = th[k] || before, same = before.idx === next.idx;
+  const sw = t => `<span class="sw" style="background:${threadCSS(t, 0)}"></span>`;
+  const note = all[play.idx - 1] && all[play.idx - 1].note;
+  $("ppTitle").textContent = `⏸ Machine stopped (${k} of ${total})` + (note ? " · Appliqué" : "");
+  $("ppMsg").innerHTML = note && same
+    ? `<b>${note}</b>, then Continue. (Same thread${sw(next)})`
+    : same
+    ? `Pause — <b>keep the same thread</b>${sw(next)} · add fabric, trim, or check alignment.`
+    : `Change thread: ${sw(before)}<b>${threadName(before)}</b> → ${sw(next)}<b>${threadName(next)}</b>`;
+  $("ppContinue").textContent = "Continue ▶"; $("ppContinue").hidden = false; $("ppStop").textContent = "Stop";
+  $("playPause").hidden = false;
+}
+function playFinish(all) {
+  play.state = "done"; sewN = all.length;
+  const p = playProgress(all);
+  $("ppTitle").textContent = "✓ Sew-out complete";
+  $("ppMsg").innerHTML = `${p.stTot} stitches` + (p.stopsTot ? `, ${p.stopsTot} stop${p.stopsTot > 1 ? "s" : ""}` : "") +
+    ` · about ${Math.max(1, Math.round(p.stTot / 700))} min of sewing at ~700 stitches/min`;
+  $("ppContinue").hidden = true;
+  $("ppStop").textContent = "Close";
+  $("playPause").hidden = false;
+  syncPlayUI(all);
+}
+function playStop() {
+  cancelAnimationFrame(play.raf);
+  play.state = "idle"; play.idx = 0;
+  $("playPause").hidden = true;
+  sewAll = true; changed();
+}
+$("playBtn").onclick = () => {
+  if (play.state === "playing") { play.state = "paused"; cancelAnimationFrame(play.raf); syncPlayUI(); }
+  else playStart();
+};
+$("playStopBtn").onclick = playStop;
+// collapse / expand the player (remembered in this browser)
+function foldPlayer(folded) {
+  $("playBar").classList.toggle("folded", folded);
+  $("playFold").textContent = folded ? "▸" : "▾";
+  $("playFold").title = folded ? "Expand the sew-out player" : "Collapse the sew-out player";
+  try { localStorage.setItem("jefPlayerFolded", folded ? "1" : "0"); } catch (e) {}
+}
+$("playFold").onclick = () => foldPlayer(!$("playBar").classList.contains("folded"));
+try { foldPlayer(localStorage.getItem("jefPlayerFolded") === "1"); } catch (e) { foldPlayer(false); }
+$("ppContinue").onclick = () => { $("playPause").hidden = true; play.state = "paused"; playStart(); };
+$("ppStop").onclick = playStop;
+// dragging the sew-out slider while playing pauses there
+$("sew").addEventListener("input", () => {
+  if (play.state === "playing" || play.state === "paused" || play.state === "stopped") {
+    cancelAnimationFrame(play.raf); play.state = "paused";
+    play.idx = sewN = +$("sew").value; sewAll = false;
+    $("playPause").hidden = true; syncPlayUI();
+  }
+});
+
 // Right-click menu (canvas and Sew order list)
 function showMenu(x, y) {
   const order = orderList(), sel = order.filter(isSelItem);

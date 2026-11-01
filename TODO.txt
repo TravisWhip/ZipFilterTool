@@ -1,3 +1,5 @@
 
-I want the ability to suppot Appliqué. This means if for instance I create a rectangle that I want to be Appliqué, we will first print out the underlay, then pause (so the user can cut the fabric), then continue with the stiches.
 
+Allow me to edit shapes (spacing, thickness, corners, etc) once I add a shape and press "To stiches". I want to be able to still edit these configurations. 
+
+Allow saving my current edits as a custom file type so I can save and reaload and keep my groupings, measurements, etc. Then I can export to JEF.
