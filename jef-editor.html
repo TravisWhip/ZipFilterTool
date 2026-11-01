@@ -150,6 +150,9 @@
     <button data-tool="oval" title="Oval / circle (O)">Oval</button>
     <button data-tool="tri" title="Triangle (T)">Triangle</button>
   </span>
+  <span class="tools">
+    <button data-tool="measure" title="Measure distances and gaps (M)">📏 Measure</button>
+  </span>
   <span id="status"></span>
 </header>
 
@@ -305,6 +308,7 @@
     <div class="row"><label><input type="checkbox" id="showJumps" checked> Jumps</label>
       <label><input type="checkbox" id="showPts"> Needle points</label></div>
     <div class="row"><label class="lbl">Line</label><input type="range" id="lw" min="0.5" max="6" step="0.5" value="2"></div>
+    <div class="row"><label><input type="checkbox" id="showMeas" checked> Measurements</label><button id="measClear" title="Remove all measurements">Clear all</button></div>
     <div class="row"><label class="lbl">Hoop</label><select id="hoop" style="flex:1;min-width:0"></select></div>
     <div class="row"><span class="lbl"></span><label><input type="checkbox" id="hoopRot"> Turn 90°</label></div>
     <div class="row"><label class="lbl">Grid</label><input type="range" id="gridOp" min="0" max="100" step="5" value="100"><span class="val" id="gridOpV">100%</span></div>
@@ -320,6 +324,14 @@
       <kbd>Shift</kbd>+click add to selection · drag on empty space to box-select ·
       arrows nudge (<kbd>Shift</kbd> = bigger step) · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> copy/paste/duplicate ·
       <kbd>Del</kbd> delete · <kbd>Space</kbd>/right-drag pan · wheel zoom.
+    </div>
+
+    <h2>Measure tool</h2>
+    <div class="help">
+      Press <kbd>M</kbd>. <b>Drag</b> between two points to measure; the ends snap to edges and centers
+      (<kbd>Shift</kbd> = straight across / up-down / 45°, <kbd>Alt</kbd> = no snapping).
+      Or <b>click one element, then another</b> to measure the gap between them — or all four margins if one is inside the other.
+      Click a measurement to select it, drag its ends to adjust, <kbd>Del</kbd> to remove. Measurements aren't saved in the JEF file.
     </div>
 
     <h2>Stitch points (Points tool)</h2>
@@ -484,6 +496,8 @@ function pullField(all) {
 // cmds: stitches of the loaded design ({t:'s'|'j'|'c', x, y}); shapes: live shape objects, turned into stitches on save.
 let cmds = [], threads = [], meta = null, fileName = "design.JEF", threadsDirty = false;
 let shapes = [], nextId = 1, shapeSel = new Set(), clipboard = [];
+// measurements: on-canvas dimension lines {id, a:[x,y], b:[x,y]} (editor only — not part of the JEF)
+let measures = [], measSel = null, measPick = null, nextMeasId = 1;
 let ptSel = new Set(), undoStack = [], redoStack = [], saved = true;
 let view = { s: 1, ox: 0, oy: 0 };
 let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
@@ -859,7 +873,7 @@ function buildJEF() {
 }
 
 // ---------- Undo ----------
-const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes });
+const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes, measures });
 function snapshot() {
   undoStack.push(state());
   if (undoStack.length > 200) undoStack.shift();
@@ -870,6 +884,7 @@ function restore(from, to) {
   to.push(state());
   const s = JSON.parse(from.pop());
   cmds = s.cmds; threads = s.threads; threadsDirty = s.threadsDirty; shapes = s.shapes;
+  measures = s.measures || []; if (!measures.some(m => m.id === measSel)) measSel = null; measPick = null;
   ptSel = new Set([...ptSel].filter(i => i < cmds.length));
   runSel.clear();
   shapeSel = new Set([...shapeSel].filter(id => shapes.some(x => x.id === id)));
@@ -908,12 +923,20 @@ function unionBox(boxes) {
   return boxes.reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minY: Math.min(a.minY, b.minY), maxY: Math.max(a.maxY, b.maxY) }),
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 }
+// Shapes are outlines, so they're hit near their stitched outline only — clicking inside a frame reaches
+// whatever is inside it (e.g. the text in a border).
 function shapeAt(wx, wy) {
   const pad = 6 / view.s;
   for (let i = shapes.length - 1; i >= 0; i--) {
-    const s = shapes[i], [lx, ly] = toLocal(s, wx, wy);
-    const extra = pad + (s.style === "satin" ? s.thick / 2 : 0);
-    if (Math.abs(lx) <= s.w / 2 + extra && Math.abs(ly) <= s.h / 2 + extra) return s;
+    const s = shapes[i], reach = pad + (s.style === "satin" ? s.thick / 2 : 0);
+    const [lx, ly] = toLocal(s, wx, wy);
+    if (Math.abs(lx) > s.w / 2 + reach || Math.abs(ly) > s.h / 2 + reach) continue;   // quick reject
+    const { pts } = shapeOutline(s);
+    for (let k = 1; k < pts.length; k++) {
+      const [ax, ay] = pts[k - 1], [bx, by] = pts[k], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((wx - ax) * dx + (wy - ay) * dy) / L2)) : 0;
+      if (Math.hypot(wx - (ax + t * dx), wy - (ay + t * dy)) <= reach) return s;
+    }
   }
   return null;
 }
@@ -1252,36 +1275,83 @@ function appendRuns(list, dx, dy) {
 
 // ---------- Snapping (draw.io-style guides) ----------
 let GRID = U().snap; // 0.5 mm, or 1/32" in imperial
+// ---- Stitched edges ----
+// A satin shape's stitches reach half the thickness either side of its outline, so it has an outer and an inner edge.
+const halfThick = s => s.style === "satin" ? s.thick / 2 : 0;
+function shapeBoxes(s) {
+  const b = aabb(s), t = halfThick(s);
+  const outer = { minX: b.minX - t, maxX: b.maxX + t, minY: b.minY - t, maxY: b.maxY + t };
+  const inner = t > 0 && s.kind !== "line" && b.maxX - b.minX > 2 * t && b.maxY - b.minY > 2 * t
+    ? { minX: b.minX + t, maxX: b.maxX - t, minY: b.minY + t, maxY: b.maxY - t } : null;
+  return { outer, inner };
+}
+// The empty middle of a frame-like stitch run (e.g. a rectangle border that was turned into stitches),
+// found from the needle points closest to the center on each side. null if the run isn't a closed frame.
+function runInnerBox(r) {
+  const b = runBox(r), w = b.maxX - b.minX, h = b.maxY - b.minY;
+  if (!(w > 30 && h > 30)) return null;
+  const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+  let L = -Infinity, R = Infinity, T = Infinity, B = -Infinity;
+  for (let i = r.start; i <= r.end; i++) {
+    const c = cmds[i]; if (c.t !== "s") continue;
+    if (Math.abs(c.y - cy) < h / 4) { if (c.x < cx) L = Math.max(L, c.x); else R = Math.min(R, c.x); }
+    if (Math.abs(c.x - cx) < w / 4) { if (c.y < cy) B = Math.max(B, c.y); else T = Math.min(T, c.y); }
+  }
+  if (![L, R, T, B].every(isFinite)) return null;
+  const ib = { minX: L, maxX: R, minY: B, maxY: T };
+  if (ib.maxX - ib.minX < 0.3 * w || ib.maxY - ib.minY < 0.3 * h) return null;
+  for (let i = r.start; i <= r.end; i++) {   // the middle must be empty of stitches
+    const c = cmds[i];
+    if (c.t === "s" && c.x > ib.minX + 2 && c.x < ib.maxX - 2 && c.y > ib.minY + 2 && c.y < ib.maxY - 2) return null;
+  }
+  return ib;
+}
+
 // Snap targets: edges and centers of every other shape and stitch run, of every group as a whole, and the 0 lines.
+// Shapes use their stitched (outer) edges; frames also offer their inside edges.
 // kind: 0 = left/bottom edge, 1 = center, 2 = right/top edge.
 function snapTargets(excludeIds) {
   // each box remembers what it belongs to (src), so the canvas can spotlight the item being centered on
   const boxes = [], groups = new Map();
   const addG = (g, b) => { if (g == null) return; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(b); };
-  for (const s of shapes) if (!excludeIds.has(s.id)) { const b = aabb(s); boxes.push({ b, src: { shape: s.id } }); addG(s.group, b); }
-  for (const r of getRuns()) if (!runSel.has(r.start)) { const b = runBox(r); boxes.push({ b, src: { run: r.start } }); addG(runGroupOf(r), b); }
+  const inners = [];
+  for (const s of shapes) if (!excludeIds.has(s.id)) {
+    const { outer, inner } = shapeBoxes(s), src = { shape: s.id };
+    boxes.push({ b: outer, src }); addG(s.group, outer);
+    if (inner) inners.push({ b: inner, src });
+  }
+  for (const r of getRuns()) if (!runSel.has(r.start)) {
+    const b = runBox(r), src = { run: r.start };
+    boxes.push({ b, src }); addG(runGroupOf(r), b);
+    const ib = runInnerBox(r); if (ib) inners.push({ b: ib, src });
+  }
   for (const [g, list] of groups) if (list.length > 1) boxes.push({ b: unionBox(list), group: true, src: { group: g } });
   const xs = [{ v: 0, box: null, kind: 1, src: { origin: true } }], ys = [{ v: 0, box: null, kind: 1, src: { origin: true } }];
   for (const { b, group, src } of boxes) {
     [b.minX, (b.minX + b.maxX) / 2, b.maxX].forEach((v, kind) => xs.push({ v, box: b, kind, group, src }));
     [b.minY, (b.minY + b.maxY) / 2, b.maxY].forEach((v, kind) => ys.push({ v, box: b, kind, group, src }));
   }
+  for (const { b, src } of inners) {   // inside edges (their center is the same as the outer one)
+    xs.push({ v: b.minX, box: b, kind: 0, src, inner: true }, { v: b.maxX, box: b, kind: 2, src, inner: true });
+    ys.push({ v: b.minY, box: b, kind: 0, src, inner: true }, { v: b.maxY, box: b, kind: 2, src, inner: true });
+  }
   return { xs, ys };
 }
 // Find the best target for any of `vals` (a box's [min, center, max], or a single point).
 // Center-to-center matches and whole groups win ties, so a frame drawn around a group locks onto its center.
+// vals: [value, kind] pairs — kind 1 marks the moving item's center (kind -1 = a lone point).
 function bestSnap(vals, targets) {
   const thr = 7 / view.s;
   let best = null, bestScore = Infinity;
-  vals.forEach((val, vk) => {
+  for (const [val, vk] of vals) {
     for (const t of targets) {
       const d = t.v - val;
       if (Math.abs(d) > thr) continue;
-      const center = vals.length === 3 && vk === 1 && t.kind === 1;
+      const center = vk === 1 && t.kind === 1;
       const score = Math.abs(d) - (center ? 3 / view.s : 0) - (t.group ? 1.5 / view.s : 0);
-      if (score < bestScore) { bestScore = score; best = { d, v: t.v, box: t.box, center, group: !!t.group, src: t.src }; }
+      if (score < bestScore) { bestScore = score; best = { d, v: t.v, box: t.box, center, group: !!t.group, src: t.src, inner: !!t.inner }; }
     }
-  });
+  }
   return best;
 }
 function guide(axis, hit, box) {
@@ -1289,13 +1359,14 @@ function guide(axis, hit, box) {
   if (axis === "x") return { axis, v: hit.v, a: Math.min(box.minY, other.minY), b: Math.max(box.maxY, other.maxY), full: !hit.box, ...extra };
   return { axis, v: hit.v, a: Math.min(box.minX, other.minX), b: Math.max(box.maxX, other.maxX), full: !hit.box, ...extra };
 }
-// Snap a moving box: returns adjusted dx, dy and guides.
-function snapBox(box, excl, off) {
+// Snap a moving box (its stitched outer edges, center, and inner edges if it's a frame): returns dx, dy and guides.
+function snapBox(box, excl, off, inner = null) {
   guides = [];
   if (off) return { dx: 0, dy: 0 };
   const t = snapTargets(excl);
-  const hx = bestSnap([box.minX, (box.minX + box.maxX) / 2, box.maxX], t.xs);
-  const hy = bestSnap([box.minY, (box.minY + box.maxY) / 2, box.maxY], t.ys);
+  const vx = [[box.minX, 0], [(box.minX + box.maxX) / 2, 1], [box.maxX, 2]], vy = [[box.minY, 0], [(box.minY + box.maxY) / 2, 1], [box.maxY, 2]];
+  if (inner) { vx.push([inner.minX, 0], [inner.maxX, 2]); vy.push([inner.minY, 0], [inner.maxY, 2]); }
+  const hx = bestSnap(vx, t.xs), hy = bestSnap(vy, t.ys);
   const dx = hx ? hx.d : Math.round(box.minX / GRID) * GRID - box.minX;
   const dy = hy ? hy.d : Math.round(box.minY / GRID) * GRID - box.minY;
   const moved = { minX: box.minX + dx, maxX: box.maxX + dx, minY: box.minY + dy, maxY: box.maxY + dy };
@@ -1308,12 +1379,128 @@ function snapPoint(x, y, excl, off, axes = "xy") {
   guides = [];
   if (off) return [x, y];
   const t = snapTargets(excl);
-  const hx = axes.includes("x") && bestSnap([x], t.xs), hy = axes.includes("y") && bestSnap([y], t.ys);
+  const hx = axes.includes("x") && bestSnap([[x, -1]], t.xs), hy = axes.includes("y") && bestSnap([[y, -1]], t.ys);
   const nx = hx ? hx.v : Math.round(x / GRID) * GRID, ny = hy ? hy.v : Math.round(y / GRID) * GRID;
   const pb = { minX: nx, maxX: nx, minY: ny, maxY: ny };
   if (hx) guides.push(guide("x", hx, pb));
   if (hy) guides.push(guide("y", hy, pb));
   return [nx, ny];
+}
+
+// ---------- Measure tool ----------
+// The element under the mouse as a box: a shape or stitch run, or its whole group if it's grouped.
+// box = stitched outer edges; inner = the inside edges of a frame (if it is one).
+function itemBoxAt(wx, wy) {
+  const s = shapeAt(wx, wy), runs = getRuns();
+  const groupBox = g => unionBox([...runs.filter(r => runGroupOf(r) === g).map(runBox), ...shapes.filter(o => o.group === g).map(o => shapeBoxes(o).outer)]);
+  if (s) {
+    if (s.group != null) return { box: groupBox(s.group), what: "group" };
+    const { outer, inner } = shapeBoxes(s);
+    return { box: outer, inner, what: SHAPE_NAMES[s.kind].toLowerCase() };
+  }
+  const st = runAt(wx, wy);
+  if (st == null) return null;
+  const r = runs.find(x => x.start === st), g = runGroupOf(r);
+  return g != null ? { box: groupBox(g), what: "group" } : { box: runBox(r), inner: runInnerBox(r), what: "stitch run" };
+}
+// Measurements between two elements: the gaps between them, or — if one sits inside the other (like text in a
+// frame) — the four margins from the frame's inside edge.
+function gapMeasures(Ai, Bi) {
+  if (Ai.minX !== undefined) Ai = { box: Ai };   // plain boxes are fine too
+  if (Bi.minX !== undefined) Bi = { box: Bi };
+  const insideOf = (i, o) => { const ob = o.inner || o.box; return i.box.minX >= ob.minX && i.box.maxX <= ob.maxX && i.box.minY >= ob.minY && i.box.maxY <= ob.maxY; };
+  if (insideOf(Ai, Bi)) return gapBoxes(Ai.box, Bi.inner || Bi.box);
+  if (insideOf(Bi, Ai)) return gapBoxes(Bi.box, Ai.inner || Ai.box);
+  return gapBoxes(Ai.box, Bi.box);
+}
+function gapBoxes(A, B) {
+  const out = [], mid = (a0, a1, b0, b1) => { const lo = Math.max(a0, b0), hi = Math.min(a1, b1); return lo <= hi ? (lo + hi) / 2 : ((a0 + a1) / 2 + (b0 + b1) / 2) / 2; };
+  const inside = (i, o) => i.minX >= o.minX && i.maxX <= o.maxX && i.minY >= o.minY && i.maxY <= o.maxY;
+  const margins = (i, o) => {
+    const cy = (i.minY + i.maxY) / 2, cx = (i.minX + i.maxX) / 2;
+    out.push({ a: [o.minX, cy], b: [i.minX, cy] }, { a: [i.maxX, cy], b: [o.maxX, cy] },
+             { a: [cx, o.maxY], b: [cx, i.maxY] }, { a: [cx, i.minY], b: [cx, o.minY] });
+  };
+  if (inside(A, B)) margins(A, B);
+  else if (inside(B, A)) margins(B, A);
+  else {
+    const y = mid(A.minY, A.maxY, B.minY, B.maxY), x = mid(A.minX, A.maxX, B.minX, B.maxX);
+    if (A.maxX <= B.minX) out.push({ a: [A.maxX, y], b: [B.minX, y] });
+    else if (B.maxX <= A.minX) out.push({ a: [B.maxX, y], b: [A.minX, y] });
+    if (A.maxY <= B.minY) out.push({ a: [x, A.maxY], b: [x, B.minY] });
+    else if (B.maxY <= A.minY) out.push({ a: [x, B.maxY], b: [x, A.minY] });
+    if (!out.length) out.push({ a: [(A.minX + A.maxX) / 2, (A.minY + A.maxY) / 2], b: [(B.minX + B.maxX) / 2, (B.minY + B.maxY) / 2] });   // overlapping: center to center
+  }
+  return out;
+}
+// Snap a measure point to element edges/centers. Selected runs are normally left out of snapping (they're the
+// thing being moved), but when measuring everything counts.
+function measSnap(x, y, alt) {
+  const saved = runSel; runSel = new Set();
+  try { return snapPoint(x, y, new Set(), alt); } finally { runSel = saved; }
+}
+function measureAt(sx, sy) {   // {id, end: "a"|"b"|null} for a measurement under the mouse
+  if (!$("showMeas").checked) return null;
+  for (let k = measures.length - 1; k >= 0; k--) {
+    const m = measures[k], [ax, ay] = toS(...m.a), [bx, by] = toS(...m.b);
+    if (Math.hypot(sx - ax, sy - ay) <= 7) return { id: m.id, end: "a" };
+    if (Math.hypot(sx - bx, sy - by) <= 7) return { id: m.id, end: "b" };
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((sx - ax) * dx + (sy - ay) * dy) / L2));
+    if (Math.hypot(sx - (ax + t * dx), sy - (ay + t * dy)) <= 5) return { id: m.id, end: null };
+  }
+  return null;
+}
+function drawMeasure(m, selected, live) {
+  const [ax, ay] = toS(...m.a), [bx, by] = toS(...m.b);
+  const dx = m.b[0] - m.a[0], dy = m.b[1] - m.a[1], d = Math.hypot(dx, dy);
+  const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * 6, ny = (bx - ax) / L * 6;
+  const col = live ? "#ad1457" : "#d81b60";
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = selected ? 2 : 1.25; ctx.setLineDash(live ? [5, 3] : []);
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(ax - nx, ay - ny); ctx.lineTo(ax + nx, ay + ny); ctx.moveTo(bx - nx, by - ny); ctx.lineTo(bx + nx, by + ny); ctx.stroke();
+  // arrow heads
+  const ux = (bx - ax) / L * 7, uy = (by - ay) / L * 7;
+  if (L > 22) {
+    ctx.beginPath();
+    ctx.moveTo(ax, ay); ctx.lineTo(ax + ux + nx * .5, ay + uy + ny * .5); ctx.moveTo(ax, ay); ctx.lineTo(ax + ux - nx * .5, ay + uy - ny * .5);
+    ctx.moveTo(bx, by); ctx.lineTo(bx - ux + nx * .5, by - uy + ny * .5); ctx.moveTo(bx, by); ctx.lineTo(bx - ux - nx * .5, by - uy - ny * .5);
+    ctx.stroke();
+  }
+  // label: distance, plus the across / up-down parts when it's diagonal
+  const diag = Math.abs(dx) > 1 && Math.abs(dy) > 1;
+  const text = fmtLen(d) + (diag ? `  (↔ ${fmtLen(Math.abs(dx))}, ↕ ${fmtLen(Math.abs(dy))})` : "");
+  ctx.font = "bold 11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width + 10, mx = (ax + bx) / 2 + nx * 2.2, my = (ay + by) / 2 + ny * 2.2;
+  ctx.fillStyle = selected ? col : "rgba(255,255,255,.92)"; ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(mx - w / 2, my - 9, w, 18, 4); else ctx.rect(mx - w / 2, my - 9, w, 18);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = selected ? "#fff" : col; ctx.fillText(text, mx, my);
+  if (selected) for (const [px, py] of [[ax, ay], [bx, by]]) {
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawMeasures() {
+  if (!$("showMeas").checked && tool !== "measure") return;
+  for (const m of measures) drawMeasure(m, tool === "measure" && m.id === measSel, false);
+  if (drag && drag.mode === "measure" && drag.moved) drawMeasure({ a: drag.a, b: drag.b }, false, true);
+  if (measPick && tool === "measure") {   // first element picked, waiting for the second
+    const b = measPick.box, [x0, y0] = toS(b.minX, b.maxY), [x1, y1] = toS(b.maxX, b.minY);
+    ctx.save(); ctx.strokeStyle = "#d81b60"; ctx.lineWidth = 1.5; ctx.setLineDash([6, 3]);
+    ctx.strokeRect(x0 - 3, y0 - 3, x1 - x0 + 6, y1 - y0 + 6);
+    ctx.font = "11px system-ui, sans-serif"; ctx.fillStyle = "#d81b60"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${measPick.what} — now click a second element`, x0 - 3, y0 - 6);
+    ctx.restore();
+  }
+}
+function addMeasures(list) {
+  if (!list.length) return;
+  snapshot();
+  for (const m of list) { const id = nextMeasId++; measures.push({ id, a: m.a.slice(), b: m.b.slice() }); measSel = id; }
+  if (!$("showMeas").checked) $("showMeas").checked = true;
+  changed();
 }
 
 // While dragging with a "center" guide active, give every command a spotlight level:
@@ -1586,6 +1773,7 @@ function draw() {
     ctx.fillStyle = "#0a84ff"; ctx.fillRect(px, py - 8, w, 16);
     ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText(text, px + 4, py);
   }
+  drawMeasures();
   // rubber band
   if (drag && drag.mode === "box") {
     ctx.fillStyle = "rgba(41,182,242,.08)"; ctx.strokeStyle = "#29b6f2"; ctx.lineWidth = 1;
@@ -2067,7 +2255,8 @@ function hitPoint(sx, sy) {
 function setTool(t) {
   tool = t;
   document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
-  cv.style.cursor = t === "select" ? "default" : t === "points" ? "crosshair" : "copy";
+  cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : "copy";
+  measPick = null;
   if (t !== "points") ptSel.clear();
   changed();
 }
@@ -2090,6 +2279,19 @@ cv.addEventListener("pointerdown", e => {
   }
   if (e.button !== 0) return;
 
+  // --- Measure tool ---
+  if (tool === "measure") {
+    const hit = measureAt(x, y);
+    if (hit) {   // select a measurement; grabbing an end lets you move it
+      measSel = hit.id; measPick = null;
+      if (hit.end) drag = { mode: "measEnd", id: hit.id, end: hit.end, x0: x, y0: y, started: false };
+      changed(); return;
+    }
+    const a = measSnap(wx, wy, e.altKey);
+    drag = { mode: "measure", x0: x, y0: y, a, b: a, moved: false, wx, wy };
+    return;
+  }
+
   // --- drawing a new shape ---
   if (SHAPE_NAMES[tool]) {
     const p = snapPoint(wx, wy, new Set(), e.altKey);
@@ -2101,9 +2303,10 @@ cv.addEventListener("pointerdown", e => {
   if (tool === "select") {
     // moving everything selected (shapes and stitch runs together)
     const startMove = () => {
-      const rb = runSel.size ? unionBox(selRuns().map(runBox)) : null;
+      const rs = selRuns(), rb = rs.length ? unionBox(rs.map(runBox)) : null;
       drag = { mode: "move", x0: x, y0: y, w0: [wx, wy], started: false,
-               origs: selShapes().map(q => [q.id, q.cx, q.cy]), pts0: runPts0(), runBox0: rb };
+               origs: selShapes().map(q => [q.id, q.cx, q.cy]), pts0: runPts0(), runBox0: rb,
+               runInner0: rs.length === 1 ? runInnerBox(rs[0]) : null };
     };
     const h = handleAt(x, y);
     if (h) {
@@ -2147,6 +2350,7 @@ cv.addEventListener("pointerdown", e => {
 cv.addEventListener("pointermove", e => {
   const [x, y] = mpos(e), [wx, wy] = toW(x, y);
   if (!drag) {   // hover feedback
+    if (tool === "measure") { const h = measureAt(x, y); cv.style.cursor = h ? (h.end ? "move" : "pointer") : "crosshair"; return; }
     if (tool === "select") {
       const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy), r = h || s ? null : runAt(wx, wy);
       cv.style.cursor = h ? handleCursor(h, selTarget()) : s || r != null ? "move" : "default";
@@ -2186,10 +2390,13 @@ cv.addEventListener("pointermove", e => {
       const rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = cx + rdx; s.cy = cy + rdy; }
       const ids = new Set(drag.origs.map(o => o[0]));
-      const boxes = [...ids].map(id => aabb(byId(id)));
-      const rb = drag.runBox0;
-      if (rb) boxes.push({ minX: rb.minX + rdx, maxX: rb.maxX + rdx, minY: rb.minY + rdy, maxY: rb.maxY + rdy });
-      const { dx, dy } = snapBox(unionBox(boxes), ids, alt);
+      const shift = b => b && { minX: b.minX + rdx, maxX: b.maxX + rdx, minY: b.minY + rdy, maxY: b.maxY + rdy };
+      const boxes = [...ids].map(id => shapeBoxes(byId(id)).outer);
+      if (drag.runBox0) boxes.push(shift(drag.runBox0));
+      // a single frame being moved can also line up its inside edges
+      const inner = ids.size === 1 && !drag.runBox0 ? shapeBoxes(byId([...ids][0])).inner
+                  : !ids.size && drag.runInner0 ? shift(drag.runInner0) : null;
+      const { dx, dy } = snapBox(unionBox(boxes), ids, alt, inner);
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = Math.round(cx + rdx + dx); s.cy = Math.round(cy + rdy + dy); }
       for (const [i, x0, y0] of drag.pts0) { cmds[i].x = Math.round(x0 + rdx + dx); cmds[i].y = Math.round(y0 + rdy + dy); }
       changed(); return;
@@ -2200,9 +2407,19 @@ cv.addEventListener("pointermove", e => {
       const o = drag.orig, s = drag.runs ? drag.proxy : byId(drag.id), [hx, hy] = HSIGN[drag.handle];
       const fromCenter = e.ctrlKey, keepRatio = e.shiftKey;
       let [mx, my] = [wx, wy];
-      // snap the moving edge(s) to guides — only when the shape isn't rotated
-      if (o.rot % 360 === 0) [mx, my] = snapPoint(wx, wy, new Set([o.id]), alt, (hx ? "x" : "") + (hy ? "y" : ""));
-      else guides = [];
+      // snap the moving edge(s) to guides — only when the shape isn't rotated. The handle sits on the outline, but
+      // the stitched outer and inner edges (± half the satin thickness) can snap too.
+      guides = [];
+      if (o.rot % 360 === 0 && !alt) {
+        const T = snapTargets(new Set([o.id])), t = drag.runs ? 0 : halfThick(o);
+        const cand = v => t ? [[v, -1], [v + t, -1], [v - t, -1]] : [[v, -1]];
+        const hitX = hx && bestSnap(cand(wx), T.xs), hitY = hy && bestSnap(cand(wy), T.ys);
+        mx = hitX ? wx + hitX.d : hx ? Math.round(wx / GRID) * GRID : wx;
+        my = hitY ? wy + hitY.d : hy ? Math.round(wy / GRID) * GRID : wy;
+        const pb = { minX: mx, maxX: mx, minY: my, maxY: my };
+        if (hitX) guides.push(guide("x", hitX, pb));
+        if (hitY) guides.push(guide("y", hitY, pb));
+      }
       const [lx, ly] = toLocal(o, mx, my);
       let w = o.w, h = o.h;
       if (hx) w = fromCenter ? 2 * hx * lx : hx * lx + o.w / 2;
@@ -2246,6 +2463,22 @@ cv.addEventListener("pointermove", e => {
       changed(); return;
     }
 
+    case "measure": case "measEnd": {
+      if (drag.mode === "measure" && !drag.moved) { if (!moved(e, drag)) return; drag.moved = true; measPick = null; }
+      if (drag.mode === "measEnd" && !drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const m = drag.mode === "measEnd" ? measures.find(q => q.id === drag.id) : null;
+      const fixed = m ? (drag.end === "a" ? m.b : m.a) : drag.a;
+      let [bx, by] = measSnap(wx, wy, alt);
+      if (e.shiftKey) {   // straight across, straight up/down, or 45°
+        const dx = bx - fixed[0], dy = by - fixed[1];
+        if (Math.abs(dx) > 2 * Math.abs(dy)) by = fixed[1];
+        else if (Math.abs(dy) > 2 * Math.abs(dx)) bx = fixed[0];
+        else { const L = Math.max(Math.abs(dx), Math.abs(dy)); bx = fixed[0] + Math.sign(dx) * L; by = fixed[1] + Math.sign(dy) * L; }
+      }
+      if (m) m[drag.end] = [bx, by]; else drag.b = [bx, by];
+      break;
+    }
+
     case "box": case "ptbox":
       drag.x = x; drag.y = y; break;
 
@@ -2262,6 +2495,16 @@ cv.addEventListener("pointermove", e => {
 cv.addEventListener("pointerup", e => {
   if (!drag) return;
   const d = drag; drag = null; guides = [];
+  if (d.mode === "measure") {
+    if (d.moved && Math.hypot(d.b[0] - d.a[0], d.b[1] - d.a[1]) > 0.5) { addMeasures([{ a: d.a, b: d.b }]); return; }
+    // a click (no drag): pick two elements and measure between them
+    const it = itemBoxAt(d.wx, d.wy);
+    if (!it) { measPick = null; measSel = null; }
+    else if (!measPick || JSON.stringify(measPick.box) === JSON.stringify(it.box)) measPick = it;
+    else { const list = gapMeasures(measPick, it); measPick = null; addMeasures(list); return; }
+    changed(); return;
+  }
+  if (d.mode === "measEnd") { changed(); return; }
   if (d.mode === "create" && !d.shape) {   // plain click: drop a 20 mm shape centered there
     snapshot();
     const s = newShape(d.kind, d.start[0], d.start[1], U().click, U().click);   // 20 mm, or 1" in imperial
@@ -2314,7 +2557,7 @@ document.addEventListener("keyup", e => { if (e.key === " ") spaceDown = false; 
 document.addEventListener("keydown", e => {
   if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
-  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri" };
+  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri", m: "measure" };
   const pts = tool === "points";
   if (e.key === " ") { e.preventDefault(); spaceDown = true; }
   else if (mod && k === "z") { e.preventDefault(); e.shiftKey ? restore(redoStack, undoStack) : restore(undoStack, redoStack); }
@@ -2331,7 +2574,12 @@ document.addEventListener("keydown", e => {
   else if (mod && k === "d") { e.preventDefault(); copyShapes(); pasteShapes(); }
   else if (mod && k === "g") { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); }
   else if (mod) return;
+  else if ((k === "delete" || k === "backspace") && tool === "measure") {
+    e.preventDefault();
+    if (measSel != null) { snapshot(); measures = measures.filter(m => m.id !== measSel); measSel = null; changed(); }
+  }
   else if (k === "delete" || k === "backspace") { e.preventDefault(); pts ? deletePoints() : deleteShapes(); }
+  else if (k === "escape" && tool === "measure" && (measPick || measSel != null)) { measPick = null; measSel = null; changed(); }
   else if (k === "escape" && !$("ctxMenu").hidden) hideMenu();
   else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); runSel.clear(); ptSel.clear(); changed(); }
   else if (toolKeys[k]) setTool(toolKeys[k]);
@@ -2376,6 +2624,8 @@ PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`
 document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
 $("shDup").onclick = () => { copyShapes(); pasteShapes(); };
 $("shCenter").onclick = centerOnContents;
+$("measClear").onclick = () => { if (!measures.length) return; snapshot(); measures = []; measSel = null; changed(); };
+$("showMeas").addEventListener("input", draw);
 // stitch-run panel: typed size scales around the group's center; typed center moves it
 function editRunsBox(fn) {
   if (!runSel.size) return;
@@ -2567,6 +2817,7 @@ function newDesign() {
   h.fill(0xff, 0x34, 0x74);
   meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
   cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
+  measures = []; measSel = null; measPick = null;
   shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
   const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
   view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
@@ -2577,6 +2828,7 @@ function load(file) {
     try {
       const r = parseJEF(buf);
       cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
+      measures = []; measSel = null; measPick = null;
       // show the hoop the file was made for, if it's one we know
       const code = new DataView(buf).getInt32(32, true), known = HOOPS.find(h => h.code === code);
       if (known) { $("hoop").value = known.id; $("hoopRot").checked = false; saveHoop(); }
