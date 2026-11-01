@@ -41,6 +41,17 @@
   .card h2 { margin-top:0 !important; color:#1477a8; }
   .val { color:var(--muted); min-width:44px; }
   .align button { padding:3px 7px; font-size:12px; }
+  #realBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:7px 12px;
+             background:#fbf8f1; border-bottom:1px solid var(--line); }
+  #realBar .grp { display:flex; align-items:center; gap:6px; }
+  #realBar .cap { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  #realBar .end { font-size:11px; color:var(--muted); }
+  #realBar input[type=range] { width:130px; }
+  #realBar.off .grp, #realBar.off #pullInfo { opacity:.45; }
+  #realBar .swatches { display:flex; gap:3px; }
+  #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
+  #realBar input[type=color] { width:30px; height:22px; padding:0 2px; }
+  .realToggle { padding:3px 8px; border:1px solid #e3d6b8; border-radius:6px; background:#fff; }
   @media (max-width: 760px) {
     #wrap { flex-direction:column; }
     #stage { min-height:55vh; }
@@ -71,6 +82,42 @@
   </span>
   <span id="status"></span>
 </header>
+
+<div id="realBar" class="off">
+  <label class="realToggle"><input type="checkbox" id="real"> <b>Realistic preview</b></label>
+  <div class="grp"><span class="cap">Thread</span>
+    <select id="tw">
+      <option value="0.3">60 wt · 0.3 mm</option>
+      <option value="0.4" selected>40 wt · 0.4 mm (standard)</option>
+      <option value="0.5">30 wt · 0.5 mm</option>
+      <option value="0.8">12 wt · 0.8 mm</option>
+    </select></div>
+  <div class="grp"><span class="cap">Fabric</span>
+    <select id="fabricType" title="Sets a typical tightness for this fabric">
+      <option value="">Custom</option>
+      <option value="25">Stretch knit (T-shirt)</option>
+      <option value="35">Fleece / sweatshirt</option>
+      <option value="55">Polo pique</option>
+      <option value="75" selected>Woven cotton</option>
+      <option value="90">Denim / canvas</option>
+      <option value="100">Rigid (cap, leather)</option>
+    </select>
+    <input type="color" id="fabric" value="#f4f1ea" title="Fabric color">
+    <span class="swatches">
+      <button data-fabric="#f4f1ea" style="background:#f4f1ea" title="Cream"></button>
+      <button data-fabric="#ffffff" style="background:#fff" title="White"></button>
+      <button data-fabric="#9aa3ad" style="background:#9aa3ad" title="Heather gray"></button>
+      <button data-fabric="#2c3e66" style="background:#2c3e66" title="Navy"></button>
+      <button data-fabric="#2b2b2b" style="background:#2b2b2b" title="Black"></button>
+    </span></div>
+  <div class="grp"><span class="cap">Fabric tightness</span>
+    <span class="end">Loose</span><input type="range" id="tight" min="0" max="100" step="5" value="75"><span class="end">Rigid</span>
+    <span id="tightV" class="val"></span></div>
+  <div class="grp">
+    <label title="See-through copy of the stitches at 100% tightness, drawn underneath, so you can see how far they pulled in"><input type="checkbox" id="ghost" checked> Ghost of 100%</label>
+    <label title="Multiply the pull ×3 to make it easier to see"><input type="checkbox" id="exag"> Exaggerate ×3</label></div>
+  <span id="pullInfo" class="val"></span>
+</div>
 
 <div id="wrap">
   <div id="stage">
@@ -152,17 +199,6 @@
     <div class="row"><label><input type="checkbox" id="showJumps" checked> Jumps</label>
       <label><input type="checkbox" id="showPts"> Needle points</label></div>
     <div class="row"><label class="lbl">Line</label><input type="range" id="lw" min="0.5" max="6" step="0.5" value="2"></div>
-    <div class="row"><label><input type="checkbox" id="real"> <b>Realistic preview</b></label></div>
-    <div class="row realOnly" hidden><label class="lbl">Thread</label>
-      <select id="tw">
-        <option value="0.3">60 wt (fine) · 0.3 mm</option>
-        <option value="0.4" selected>40 wt (standard) · 0.4 mm</option>
-        <option value="0.5">30 wt (heavy) · 0.5 mm</option>
-        <option value="0.8">12 wt (bold) · 0.8 mm</option>
-      </select></div>
-    <div class="row realOnly" hidden><label class="lbl">Fabric</label><input type="color" id="fabric" value="#f4f1ea">
-      <button data-fabric="#f4f1ea">Cream</button><button data-fabric="#ffffff">White</button>
-      <button data-fabric="#2b2b2b">Black</button><button data-fabric="#2c3e66">Navy</button></div>
     <div class="row"><label class="lbl">Sew-out</label><input type="range" id="sew" min="0" max="0" value="0" style="flex:1"></div>
     <div id="sewInfo" class="help"></div>
 
@@ -217,6 +253,38 @@ function fabricPattern() {
   g.fillRect(0, 0, 6, 1); g.fillRect(0, 3, 6, 1); g.fillRect(0, 0, 1, 6); g.fillRect(3, 0, 1, 6);
   fabricCache = { color, pat: ctx.createPattern(c, "repeat") };
   return fabricCache.pat;
+}
+
+// ---------- Fabric pull simulation ----------
+// Every sewn stitch is thread under tension: it pulls the two needle holes at its ends toward each other.
+// How far a hole moves depends on how loose the fabric is. Holes the needle uses more than once move as one.
+// Satin columns therefore narrow (each side is pulled toward the other); running lines only shorten slightly
+// at their ends (pulls in the middle cancel out). Jumps are trimmed, so they don't pull.
+const MAX_PULL = 4;          // 0.4 mm: pull per stitch end on the loosest fabric, for a long stitch
+let lastPull = 0;            // largest hole movement in the last computed field, in 0.1 mm
+function pullField(all) {
+  const loose = (1 - +$("tight").value / 100) * ($("exag").checked ? 3 : 1);
+  if (loose <= 0) { lastPull = 0; return all.map(c => [c.x, c.y]); }
+  const holes = new Map(), keyOf = c => c.x + "," + c.y;
+  const hole = c => { const k = keyOf(c); let h = holes.get(k); if (!h) holes.set(k, h = { dx: 0, dy: 0, minLen: Infinity }); return h; };
+  for (let i = 1; i < all.length; i++) {
+    const c = all[i], p = all[i - 1];
+    if (c.t !== "s") continue;
+    const dx = c.x - p.x, dy = c.y - p.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    // longer stitches pull a little harder, leveling off after ~3 mm
+    const f = MAX_PULL * loose * (1 - Math.exp(-L / 15)) / 2;
+    const a = hole(p), b = hole(c);
+    a.dx += dx / L * f; a.dy += dy / L * f; b.dx -= dx / L * f; b.dy -= dy / L * f;
+    a.minLen = Math.min(a.minLen, L); b.minLen = Math.min(b.minLen, L);
+  }
+  lastPull = 0;
+  for (const h of holes.values()) {   // a hole can't be pulled past its neighbors
+    const m = Math.hypot(h.dx, h.dy), cap = 0.35 * h.minLen;
+    if (m > cap) { h.dx *= cap / m; h.dy *= cap / m; }
+    lastPull = Math.max(lastPull, Math.min(m, cap));
+  }
+  return all.map(c => { const h = holes.get(keyOf(c)); return h ? [c.x + h.dx, c.y + h.dy] : [c.x, c.y]; });
 }
 
 // ---------- State ----------
@@ -732,18 +800,35 @@ function draw() {
     // Each stitch drawn at true thread width: dark edge, body, then a thin highlight so it reads as a twisted thread.
     const tpx = Math.max(0.6, +$("tw").value * 10 * view.s);
     const hl = Math.max(0.4, tpx * 0.18), off = tpx * 0.14;
-    let px = 0, py = 0, ci = 0, cols = null;
+    const P = pullField(all);
+    let px = 0, py = 0, qx = 0, qy = 0, ci = 0, cols = null;
     const setColor = k => {
       const [r0, g0, b0] = threadRGB(th[k] || { idx: -1 }, k), mix = (f, t) => `rgb(${[r0, g0, b0].map(v => Math.round(v + (t - v) * f)).join(",")})`;
       cols = [mix(0.45, 0), `rgb(${r0},${g0},${b0})`, mix(0.55, 255)];
     };
     setColor(0);
     ctx.lineCap = "round";
+    if ($("ghost").checked && lastPull > 0.05) {
+      // Ghost: the unpulled (100% tightness) stitches, see-through and underneath, so the pulled-in
+      // difference shows as a faint rim around the real stitching.
+      ctx.save(); ctx.globalAlpha = 0.32; ctx.lineWidth = tpx;
+      let gx = 0, gy = 0, gc = 0;
+      ctx.strokeStyle = threadCSS(th[0] || { idx: -1 }, 0);
+      for (let i = 0; i < limit; i++) {
+        const c = all[i];
+        if (c.t === "c") { gc++; ctx.strokeStyle = threadCSS(th[gc] || { idx: -1 }, gc); }
+        else if (c.t === "s" && (c.x !== gx || c.y !== gy)) {
+          ctx.beginPath(); ctx.moveTo(...toS(gx, gy)); ctx.lineTo(...toS(c.x, c.y)); ctx.stroke();
+        }
+        gx = c.x; gy = c.y;
+      }
+      ctx.restore();
+    }
     for (let i = 0; i < limit; i++) {
       const c = all[i];
       if (c.t === "c") setColor(++ci);
       else if (c.t === "s" && (c.x !== px || c.y !== py)) {
-        const [ax, ay] = toS(px, py), [bx, by] = toS(c.x, c.y);
+        const [ax, ay] = toS(qx, qy), [bx, by] = toS(P[i][0], P[i][1]);
         const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * off, ny = (bx - ax) / L * off;
         ctx.strokeStyle = cols[0]; ctx.lineWidth = tpx;
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
@@ -754,8 +839,10 @@ function draw() {
           ctx.beginPath(); ctx.moveTo(ax - nx, ay - ny); ctx.lineTo(bx - nx, by - ny); ctx.stroke();
         }
       }
-      px = c.x; py = c.y;
+      px = c.x; py = c.y; qx = P[i][0]; qy = P[i][1];
     }
+    $("pullInfo").textContent = lastPull > 0.05
+      ? `Holes pulled up to ${(lastPull / 10).toFixed(2)} mm${$("exag").checked ? " (×3)" : ""}` : "No visible pull";
   } else {
   let px = 0, py = 0, ci = 0, open = false;
   const flush = () => { if (open) { ctx.stroke(); open = false; } };
@@ -1375,9 +1462,25 @@ $("undoBtn").onclick = () => restore(undoStack, redoStack);
 $("redoBtn").onclick = () => restore(redoStack, undoStack);
 $("fitBtn").onclick = fit;
 document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
-["showJumps", "showPts", "lw", "tw", "fabric"].forEach(id => $(id).addEventListener("input", draw));
-$("real").addEventListener("input", () => { document.querySelectorAll(".realOnly").forEach(el => el.hidden = !$("real").checked); draw(); });
-document.querySelectorAll("[data-fabric]").forEach(b => b.onclick = () => { $("fabric").value = b.dataset.fabric; draw(); });
+["showJumps", "showPts", "lw", "tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", draw));
+function syncRealBar() {
+  const on = $("real").checked, t = +$("tight").value;
+  $("realBar").classList.toggle("off", !on);
+  $("tightV").textContent = t + "%";
+  if (!on) $("pullInfo").textContent = "";
+}
+$("real").addEventListener("input", () => { syncRealBar(); draw(); });
+// Changing any realistic-preview setting turns the preview on, so the effect is visible right away.
+const realInput = () => { if (!$("real").checked) $("real").checked = true; syncRealBar(); draw(); };
+$("tight").addEventListener("input", () => {
+  const t = $("tight").value, match = [...$("fabricType").options].find(o => o.value === t);
+  $("fabricType").value = match ? t : "";
+  realInput();
+});
+$("fabricType").addEventListener("input", () => { if ($("fabricType").value) $("tight").value = $("fabricType").value; realInput(); });
+["tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", realInput));
+document.querySelectorAll("[data-fabric]").forEach(b => b.onclick = () => { $("fabric").value = b.dataset.fabric; realInput(); });
+syncRealBar();
 $("sew").addEventListener("input", () => { sewN = +$("sew").value; sewAll = sewN >= +$("sew").max; changed(); });
 
 // ---------- File I/O ----------
