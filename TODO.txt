@@ -1,0 +1,3 @@
+
+I want the ability to suppot Appliqué. This means if for instance I create a rectangle that I want to be Appliqué, we will first print out the underlay, then pause (so the user can cut the fabric), then continue with the stiches.
+

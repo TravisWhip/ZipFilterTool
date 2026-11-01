@@ -52,7 +52,75 @@
   #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
   #realBar input[type=color] { width:30px; height:22px; padding:0 2px; }
   .realToggle { padding:3px 8px; border:1px solid #e3d6b8; border-radius:6px; background:#fff; }
+  /* Right-click menu */
+  #ctxMenu { position:fixed; z-index:50; min-width:190px; background:#fff; border:1px solid #ccd; border-radius:8px;
+             box-shadow:0 6px 24px rgba(0,0,0,.18); padding:4px; }
+  #ctxMenu button { display:flex; justify-content:space-between; gap:16px; width:100%; border:0; background:none; text-align:left; padding:6px 10px; border-radius:5px; font:inherit; }
+  #ctxMenu button:hover:not(:disabled) { background:#eef8fe; }
+  #ctxMenu button:disabled { color:#bbb; }
+  #ctxMenu kbd { font-size:11px; color:#999; background:none; border:0; }
+  #ctxMenu hr { border:0; border-top:1px solid #eee; margin:4px 0; }
+  /* Groups in the sew order list */
+  .ogrp { border:1px solid #c9b8ea; background:#f7f3fd; border-radius:9px; padding:0 4px 4px; margin:2px 0; }
+  .ogrp.sel { border-color:#7e57c2; box-shadow:0 0 0 1px #7e57c2; }
+  .ogrp-h { display:flex; align-items:center; gap:6px; padding:5px 4px; font-size:12px; color:#5e35b1; cursor:grab; user-select:none; }
+  .ogrp-h .caret { cursor:pointer; width:14px; text-align:center; }
+  .ogrp-h.drop-before { box-shadow:0 -3px 0 #29b6f2; }
+  .ogrp-h.drop-after { box-shadow:0 3px 0 #29b6f2; }
+  .ogrp.collapsed .ogrp-row { display:none; }
+  /* groups lay their members out left-to-right; the list scrolls sideways when a group is wide */
+  .ogrp { width:max-content; min-width:100%; }
+  .ogrp-row { display:flex; align-items:stretch; }
+  .ogrp .oi { flex-direction:column; width:92px; flex:none; gap:3px; text-align:center; }
+  .ogrp .oi .num { width:auto; text-align:center; }
+  .ogrp .oi.drop-before { box-shadow:-3px 0 0 #29b6f2; }
+  .ogrp .oi.drop-after { box-shadow:3px 0 0 #29b6f2; }
+  .sep .short { display:none; }
+  .ogrp .sep { margin:0 2px; min-width:18px; padding:2px; flex-direction:column; }
+  .ogrp .sep .long { display:none; }
+  .ogrp .sep .short { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  /* slim tabs that bring back a collapsed panel */
+  .edgeTab { flex:none; width:24px; padding:10px 0; border:0; border-radius:0; background:#eceae4; color:#444;
+             writing-mode:vertical-rl; font-size:12px; letter-spacing:.04em; cursor:pointer; }
+  #orderTab { border-right:1px solid var(--line); transform:rotate(180deg); }
+  #sideTab { border-left:1px solid var(--line); }
+  .edgeTab:hover { background:#dfeef8; color:#1477a8; }
+  /* list width modes */
+  .opmodes { display:flex; gap:2px; }
+  .opmodes button { padding:1px 6px; font-size:12px; }
+  .opmodes button.active { background:#333; color:#fff; border-color:#333; }
+  #wrap.order-full #orderPanel { flex:1; width:auto !important; }
+  /* drag handle on the list's right edge */
+  #orderResize { flex:none; width:6px; margin-left:-3px; margin-right:-3px; z-index:5; cursor:col-resize; position:relative; touch-action:none; }
+  #orderResize::after { content:""; position:absolute; top:0; bottom:0; left:2px; width:2px; background:transparent; transition:background .15s; }
+  #orderResize:hover::after, #orderResize.active::after { background:#29b6f2; }
+  #wrap.order-full #orderResize { display:none; }
+  body.resizing, body.resizing * { cursor:col-resize !important; user-select:none !important; }
+  #wrap.order-full #stage { display:none; }
+  /* Sew order list */
+  #orderPanel { width:250px; flex:none; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:8px; }
+  .ophead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .oi { display:flex; gap:6px; align-items:center; padding:4px; border:1px solid #ddd; border-radius:7px; background:#fff; cursor:grab; user-select:none; }
+  .oi:hover { border-color:#9fd6f3; }
+  .oi.sel { border-color:#29b6f2; background:#eef8fe; box-shadow:0 0 0 1px #29b6f2; }
+  .oi.dragging { opacity:.4; }
+  .oi.drop-before { box-shadow:0 -3px 0 #29b6f2; }
+  .oi.drop-after { box-shadow:0 3px 0 #29b6f2; }
+  .oi canvas { width:64px; height:44px; border-radius:4px; flex:none; }
+  .oi .num { font-weight:bold; color:#999; width:18px; text-align:right; flex:none; }
+  .oi .lab { font-size:12px; line-height:1.3; min-width:0; }
+  .oi .lab small { color:var(--muted); }
+  .sep { min-height:14px; margin:2px 0; display:flex; gap:5px; align-items:center; justify-content:center; font-size:11px;
+         color:transparent; cursor:pointer; border-radius:4px; }
+  .sep:hover { background:#f3f3f0; color:#888; }
+  .sep.pause { padding:3px; background:#fff3e0; color:#a85a00; border:1px dashed #f0b060; }
+  .sep.change { padding:3px; background:#f1f2f6; color:#556; border:1px solid #dde; cursor:default; }
+  .sep .sw { width:12px; height:12px; }
   @media (max-width: 760px) {
+    .edgeTab, #orderTab { width:auto; writing-mode:horizontal-tb; transform:none; padding:6px; }
+    #orderResize { display:none; }
+    #orderPanel { width:auto !important; }
+    #orderPanel { width:auto; max-height:160px; border-right:0; border-bottom:1px solid var(--line); }
     #wrap { flex-direction:column; }
     #stage { min-height:55vh; }
     aside { width:auto; border-left:0; border-top:1px solid var(--line); }
@@ -70,6 +138,8 @@
   <button id="undoBtn" disabled title="Ctrl+Z">Undo</button>
   <button id="redoBtn" disabled title="Ctrl+Y">Redo</button>
   <button id="fitBtn">Fit</button>
+  <button id="orderBtn" title="Show or hide the sew order list">Sew order</button>
+  <button id="sideBtn" title="Show or hide the right-hand panel">Side panel</button>
   <span class="tools">
     <button data-tool="select" class="active" title="Select, move and resize shapes (V)">Select</button>
     <button data-tool="points" title="Edit individual stitch points of the loaded design (P)">Points</button>
@@ -120,20 +190,33 @@
 </div>
 
 <div id="wrap">
+  <div id="orderPanel">
+    <div class="ophead"><b>Sew order</b>
+      <span class="opmodes">
+        <button data-omode="hidden" title="Hide the list">⇤</button>
+        <button data-omode="normal" title="Normal width">▥</button>
+        <button data-omode="full" title="Use the full width for the list (hides the canvas)">⇔</button>
+      </span></div>
+    <div id="orderList"></div>
+    <div class="help" style="margin-top:6px">Drag cards to reorder. Click the gap between two items to add or remove a pause.</div>
+  </div>
+  <div id="orderResize" title="Drag to resize the list · double-click to reset"></div>
+  <button id="orderTab" class="edgeTab" title="Show the sew order list" hidden>▸ Sew order</button>
   <div id="stage">
     <canvas id="cv"></canvas>
     <div id="drophint">Pick Rectangle, Oval, Line or Triangle and drag here to draw,<br>or drop a .JEF file to edit it.</div>
   </div>
 
-  <aside>
+  <button id="sideTab" class="edgeTab" title="Show the side panel" hidden>Side panel ◂</button>
+  <aside id="side">
     <!-- Shape properties (Select tool) -->
     <section id="shapeBox" class="card" hidden>
       <h2 id="shapeTitle">Shape</h2>
       <div id="geom">
-        <div class="row"><label class="lbl" id="shWLabel">Width</label><input id="shW" type="number" step="0.5" min="0.5"> mm</div>
-        <div class="row" id="shHRow"><label class="lbl">Height</label><input id="shH" type="number" step="0.5" min="0.5"> mm</div>
+        <div class="row"><label class="lbl" id="shWLabel">Width</label><input id="shW" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+        <div class="row" id="shHRow"><label class="lbl">Height</label><input id="shH" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
         <div class="row"><label class="lbl">Rotate</label><input id="shR" type="number" step="5"> °</div>
-        <div class="row"><label class="lbl">Center</label>X <input id="shX" class="sm" type="number" step="0.5"> Y <input id="shY" class="sm" type="number" step="0.5"></div>
+        <div class="row"><label class="lbl">Center</label>X <input id="shX" class="sm len" type="number" step="0.5"> Y <input id="shY" class="sm len" type="number" step="0.5"> <span class="unit">mm</span></div>
       </div>
       <div id="alignRow" class="row align" hidden>
         <span class="lbl">Align</span>
@@ -157,6 +240,7 @@
       <div class="row"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
         <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
       <div class="row"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
+      <div class="row"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
       <div class="row">
         <button id="shDup" title="Ctrl+D">Duplicate</button>
         <button id="shDel" title="Delete">Delete</button>
@@ -168,6 +252,26 @@
         <button id="shLater" title="Sew this shape later">Later ▶</button>
       </div>
       <div id="shInfo" class="help"></div>
+      <div id="centerRow" hidden>
+        <div id="centerInfo" class="help" style="margin-top:4px"></div>
+        <div class="row"><button id="shCenter" title="Move this shape so its center lines up with the center of everything inside it">Center on contents</button></div>
+      </div>
+    </section>
+
+    <!-- Stitch runs (Select tool) -->
+    <section id="runBox" class="card" hidden>
+      <h2 id="runTitle">Stitch run</h2>
+      <div class="row"><label class="lbl">Width</label><input id="rnW" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Height</label><input id="rnH" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Center</label>X <input id="rnX" class="sm len" type="number" step="0.5"> Y <input id="rnY" class="sm len" type="number" step="0.5"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Before it</label><select id="rnStop" style="flex:1;min-width:0"></select></div>
+      <div class="help" id="rnStopHelp"></div>
+      <div class="row">
+        <button id="rnDup" title="Ctrl+D">Duplicate</button>
+        <button id="rnDel" title="Delete">Delete</button>
+        <button id="rnPts" title="Switch to the Points tool with these stitches selected">Edit points</button>
+      </div>
+      <div id="rnInfo" class="help"></div>
     </section>
 
     <!-- Point editing (Points tool) -->
@@ -178,8 +282,8 @@
         <div class="row"><label class="lbl">Type</label>
           <select id="selType"><option value="s">Stitch</option><option value="j">Jump / trim</option></select>
         </div>
-        <div class="row"><label class="lbl">X</label><input id="selX" type="number" step="0.1"> mm</div>
-        <div class="row"><label class="lbl">Y</label><input id="selY" type="number" step="0.1"> mm</div>
+        <div class="row"><label class="lbl">X</label><input id="selX" class="ptlen" type="number" step="0.1"> <span class="unit">mm</span></div>
+        <div class="row"><label class="lbl">Y</label><input id="selY" class="ptlen" type="number" step="0.1"> <span class="unit">mm</span></div>
       </div>
       <div class="row">
         <button id="delBtn" disabled>Delete</button>
@@ -196,20 +300,25 @@
     <div id="threads"></div>
 
     <h2>View</h2>
+    <div class="row"><label class="lbl">Units</label>
+      <select id="units"><option value="mm">Metric (mm)</option><option value="in">Imperial (inches)</option></select></div>
     <div class="row"><label><input type="checkbox" id="showJumps" checked> Jumps</label>
       <label><input type="checkbox" id="showPts"> Needle points</label></div>
     <div class="row"><label class="lbl">Line</label><input type="range" id="lw" min="0.5" max="6" step="0.5" value="2"></div>
+    <div class="row"><label class="lbl">Hoop</label><select id="hoop" style="flex:1;min-width:0"></select></div>
+    <div class="row"><span class="lbl"></span><label><input type="checkbox" id="hoopRot"> Turn 90°</label></div>
+    <div class="row"><label class="lbl">Grid</label><input type="range" id="gridOp" min="0" max="100" step="5" value="100"><span class="val" id="gridOpV">100%</span></div>
     <div class="row"><label class="lbl">Sew-out</label><input type="range" id="sew" min="0" max="0" value="0" style="flex:1"></div>
     <div id="sewInfo" class="help"></div>
 
     <h2>Shapes (Select tool)</h2>
     <div class="help">
-      Pick a shape (<kbd>R</kbd> <kbd>O</kbd> <kbd>L</kbd> <kbd>T</kbd>) and drag to draw; click for a 20 mm shape.
+      Pick a shape (<kbd>R</kbd> <kbd>O</kbd> <kbd>L</kbd> <kbd>T</kbd>) and drag to draw; click for a default-size shape.
       Click a shape to select it, drag to move. Drag the corner/edge handles to resize, the round handle to rotate,
       the center dot to move. Shapes snap to the edges and centers of other shapes, the design and the 0" lines (blue guides).<br>
       <kbd>Shift</kbd> keep proportions / 15° · <kbd>Ctrl</kbd> resize from center · <kbd>Alt</kbd> no snapping ·
       <kbd>Shift</kbd>+click add to selection · drag on empty space to box-select ·
-      arrows nudge 0.5 mm (<kbd>Shift</kbd> 5 mm) · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> copy/paste/duplicate ·
+      arrows nudge (<kbd>Shift</kbd> = bigger step) · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> copy/paste/duplicate ·
       <kbd>Del</kbd> delete · <kbd>Space</kbd>/right-drag pan · wheel zoom.
     </div>
 
@@ -217,9 +326,22 @@
     <div class="help">
       Click a point to select · <kbd>Shift</kbd>+click/drag to add · drag to move · double-click to add a stitch ·
       <kbd>Del</kbd> delete · <kbd>I</kbd> insert · <kbd>J</kbd> stitch/jump · arrows nudge 0.1 mm.
-      Shapes become editable points after <b>To stitches</b>.
+      Shapes become editable points after <b>To stitches</b>.<br>
+      With the <b>Select</b> tool, each block of stitches between jumps is a <b>stitch run</b>: click it to select,
+      then move, resize, rotate, copy or delete it like a shape.
     </div>
   </aside>
+</div>
+
+<div id="ctxMenu" hidden>
+  <button data-act="group">Group <kbd>Ctrl+G</kbd></button>
+  <button data-act="ungroup">Ungroup <kbd>Ctrl+Shift+G</kbd></button>
+  <hr>
+  <button data-act="center">Center on contents</button>
+  <hr>
+  <button data-act="dup">Duplicate <kbd>Ctrl+D</kbd></button>
+  <button data-act="bake">To stitches</button>
+  <button data-act="del">Delete <kbd>Del</kbd></button>
 </div>
 
 <script>
@@ -253,6 +375,76 @@ function fabricPattern() {
   g.fillRect(0, 0, 6, 1); g.fillRect(0, 3, 6, 1); g.fillRect(0, 0, 1, 6); g.fillRect(3, 0, 1, 6);
   fabricCache = { color, pat: ctx.createPattern(c, "repeat") };
   return fabricCache.pat;
+}
+
+// ---------- Units ----------
+// Everything is stored in 0.1 mm. These only convert what the user sees and types.
+let units = (navigator.language || "").toLowerCase() === "en-us" ? "in" : "mm";
+try { const u = localStorage.getItem("jefUnits"); if (u === "mm" || u === "in") units = u; } catch (e) {}
+const UNIT = {
+  mm: { per: 10,  name: "mm", dec: 1, inStep: 0.5,  ptStep: 0.1,  snap: 5,        nudge: 5,        nudgeBig: 50,   click: 200 },
+  in: { per: 254, name: "in", dec: 3, inStep: 0.05, ptStep: 0.01, snap: 254 / 32, nudge: 254 / 32, nudgeBig: 63.5, click: 254 },
+};
+const U = () => UNIT[units];
+const toU = v => v / U().per;                 // 0.1 mm → user units
+const fromU = v => v * U().per;               // user units → 0.1 mm
+const trim = (v, d) => String(+v.toFixed(d));
+const fmtLen = (v, d = U().dec) => trim(toU(v), d) + (units === "in" ? '"' : " mm");
+const fmtSize = (w, h) => `${trim(toU(w), U().dec - (units === "in" ? 1 : 0))} × ${trim(toU(h), U().dec - (units === "in" ? 1 : 0))} ${U().name}`;
+
+// ---------- Hoops ----------
+// Sewing field width × height in mm. `code` = the hoop number stored in JEF headers, where known.
+// Names vary by machine model; check your machine's manual for which hoops it takes.
+const HOOPS = [
+  { id: "none", name: "No hoop" },
+  { id: "50x50",   w: 50,  h: 50,  name: "Hoop C, free-arm", code: 1 },
+  { id: "110x110", w: 110, h: 110, name: "", code: 0 },
+  { id: "110x126", w: 110, h: 126, name: "Hoop A, standard", code: 3 },
+  { id: "140x140", w: 140, h: 140, name: "SQ14" },
+  { id: "140x200", w: 140, h: 200, name: "Hoop B / RE20", code: 2 },
+  { id: "200x200", w: 200, h: 200, name: "SQ20", code: 4 },
+  { id: "200x280", w: 200, h: 280, name: "RE28" },
+  { id: "200x360", w: 200, h: 360, name: "RE36" },
+  { id: "230x300", w: 230, h: 300, name: "GR / Giga" },
+];
+const hoopLabel = h => !h.w ? h.name : fmtSize(h.w * 10, h.h * 10) + (h.name ? ` (${h.name})` : "");
+function currentHoop() {
+  const h = HOOPS.find(x => x.id === $("hoop").value);
+  if (!h || !h.w) return null;
+  const rot = $("hoopRot").checked;
+  return { ...h, W: (rot ? h.h : h.w) * 10, H: (rot ? h.w : h.h) * 10 };   // in 0.1 mm
+}
+function drawHoop(r) {
+  const hp = currentHoop();
+  if (!hp) return;
+  const [x0, y0] = toS(-hp.W / 2, hp.H / 2), [x1, y1] = toS(hp.W / 2, -hp.H / 2);
+  // shade everything outside the sewing field
+  ctx.save();
+  ctx.fillStyle = "rgba(40,50,70,.13)";
+  ctx.beginPath(); ctx.rect(0, 0, r.width, r.height); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill("evenodd");
+  // the plastic hoop frame, ~8 mm outside the sewing field, with rounded corners
+  const pad = 80 * view.s, rad = Math.min(250 * view.s, (x1 - x0) / 2);
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad, rad);
+  else ctx.rect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad);
+  ctx.strokeStyle = "rgba(90,100,120,.35)"; ctx.lineWidth = Math.max(3, 60 * view.s); ctx.stroke();
+  // sewing field boundary
+  ctx.strokeStyle = "rgba(60,80,120,.7)"; ctx.lineWidth = 1; ctx.setLineDash([6, 4]);
+  ctx.strokeRect(Math.round(x0) + .5, Math.round(y0) + .5, Math.round(x1 - x0), Math.round(y1 - y0));
+  ctx.setLineDash([]);
+  // center notches on the frame, like the marks on a real hoop
+  ctx.strokeStyle = "rgba(60,80,120,.6)"; ctx.lineWidth = 2;
+  const [cx, cy] = toS(0, 0);
+  ctx.beginPath();
+  ctx.moveTo(cx, y0 - pad - 6); ctx.lineTo(cx, y0 - pad + 6); ctx.moveTo(cx, y1 + pad - 6); ctx.lineTo(cx, y1 + pad + 6);
+  ctx.moveTo(x0 - pad - 6, cy); ctx.lineTo(x0 - pad + 6, cy); ctx.moveTo(x1 + pad - 6, cy); ctx.lineTo(x1 + pad + 6, cy);
+  ctx.stroke();
+  ctx.restore();
+}
+function hoopFits(all) {
+  const hp = currentHoop();
+  if (!hp) return true;
+  return all.every(c => Math.abs(c.x) <= hp.W / 2 && Math.abs(c.y) <= hp.H / 2);
 }
 
 // ---------- Fabric pull simulation ----------
@@ -555,9 +747,13 @@ function appendShape(list, th, s) {
   const st = stitchesFor(s);
   if (st.length < 2) return false;
   let changedThreads = false;
-  const cur = th.length - 1;
-  if (s.color !== "cur" && th[cur].idx !== s.color) {
-    if (!list.some(c => c.t !== "c")) th[cur] = { idx: s.color };       // nothing sewn yet: just set the thread
+  const cur = th.length - 1, sewn = list.some(c => c.t === "s");
+  if (s.stop && sewn && (s.color === "cur" || th[cur].idx === s.color)) {
+    // stop without changing thread: a color change to the same thread (the machine stops at every color change)
+    const l = list[list.length - 1]; list.push({ t: "c", x: l.x, y: l.y }); th.push({ idx: th[cur].idx });
+    changedThreads = true;
+  } else if (s.color !== "cur" && th[cur].idx !== s.color) {
+    if (!sewn) th[cur] = { idx: s.color };       // nothing sewn yet: just set the thread
     else { const l = list[list.length - 1]; list.push({ t: "c", x: l.x, y: l.y }); th.push({ idx: s.color }); }
     changedThreads = true;
   }
@@ -566,10 +762,46 @@ function appendShape(list, th, s) {
   return changedThreads;
 }
 // The full design as it will be saved: loaded stitches + all shapes, in sew order.
+// Live shapes can sit between stitch runs: shape.after = how many runs sew before it (null = at the end).
+// Also returns `marks`: where each sew-order item (run or shape) sits in the output, for the Sew order panel.
+function shapeSlot(s, nRuns) { return s.after == null || s.after >= nRuns ? nRuns : Math.max(0, s.after); }
 function compose() {
-  const all = cmds.slice(), th = threads.map(t => ({ ...t }));
-  for (const s of shapes) appendShape(all, th, s);
-  return { all, th };
+  const runs = getRuns(), n = runs.length, all = [], marks = [];
+  const th = [{ ...(threads[0] || { idx: 1 }) }];
+  let baseK = 0, pos = 0, afterShape = false;
+  const copyTo = end => {
+    for (; pos <= end; pos++) {
+      const c = cmds[pos];
+      if (c.t === "c") { baseK++; th.push({ ...(threads[baseK] || threads[threads.length - 1]) }); all.push(c); if (afterShape) afterShape = "colorOk"; continue; }
+      if (afterShape) {
+        // coming back to the loaded stitches after a live shape: restore their thread, and jump (never stitch) there
+        const want = threads[baseK] || threads[threads.length - 1];
+        if (afterShape !== "colorOk" && th[th.length - 1].idx !== want.idx) {
+          const l = all[all.length - 1]; all.push({ t: "c", x: l.x, y: l.y }); th.push({ ...want });
+        }
+        if (c.t === "s") all.push({ t: "j", x: c.x, y: c.y });
+        afterShape = false;
+      }
+      all.push(c);
+    }
+  };
+  const addShapes = k => {
+    for (const s of shapes) if (shapeSlot(s, n) === k) {
+      const from = all.length;
+      appendShape(all, th, s);
+      if (all.length > from) afterShape = true;
+      marks.push({ type: "shape", s, from, to: all.length - 1 });
+    }
+  };
+  for (let k = 0; k < n; k++) {
+    addShapes(k);
+    const from = all.length;
+    copyTo(runs[k].end);
+    marks.push({ type: "run", r: runs[k], k, from, to: all.length - 1 });
+  }
+  copyTo(cmds.length - 1);
+  addShapes(n);
+  return { all, th, marks };
 }
 
 // ---------- JEF write ----------
@@ -606,7 +838,10 @@ function buildJEF() {
   const d = new DataView(out.buffer), b = bounds(all);
   d.setInt32(0, off, true);
   d.setInt32(24, n, true);
-  if (meta.isNew) { // smallest standard Janome hoop that fits
+  const chosen = currentHoop();
+  // the hoop picked in the editor — for new designs, or once the user has changed it; otherwise keep the file's own
+  if (chosen && chosen.code !== undefined && (meta.isNew || meta.hoopTouched)) d.setInt32(32, chosen.code, true);
+  else if (meta.isNew) { // smallest standard Janome hoop that fits
     const W = b.maxX - b.minX, H = b.maxY - b.minY;
     d.setInt32(32, W <= 500 && H <= 500 ? 1 : W <= 1100 && H <= 1100 ? 0 : W <= 1260 && H <= 1100 ? 3 : W <= 1400 && H <= 2000 ? 2 : 4, true);
   }
@@ -636,6 +871,7 @@ function restore(from, to) {
   const s = JSON.parse(from.pop());
   cmds = s.cmds; threads = s.threads; threadsDirty = s.threadsDirty; shapes = s.shapes;
   ptSel = new Set([...ptSel].filter(i => i < cmds.length));
+  runSel.clear();
   shapeSel = new Set([...shapeSel].filter(id => shapes.some(x => x.id === id)));
   saved = false; changed();
 }
@@ -689,8 +925,7 @@ function handles(s) {
           ["c", 0, 0], ["rot", 0, hh + 26 / view.s]];
 }
 function handleAt(sx, sy) {
-  if (shapeSel.size !== 1 || tool !== "select") return null;
-  const s = selShapes()[0];
+  const s = selTarget();
   if (!s) return null;
   for (const [id, lx, ly] of handles(s)) {
     const [hx, hy] = toS(...toWorld(s, lx, ly));
@@ -707,37 +942,352 @@ function handleCursor(id, s) {
   return a < 22.5 || a >= 157.5 ? "ew-resize" : a < 67.5 ? "nesw-resize" : a < 112.5 ? "ns-resize" : "nwse-resize";
 }
 
-// ---------- Snapping (draw.io-style guides) ----------
-const GRID = 5; // 0.5 mm
-function snapTargets(excludeIds) {
-  const boxes = shapes.filter(s => !excludeIds.has(s.id)).map(aabb);
-  const base = cmds.filter(c => c.t !== "c");
-  if (base.length) {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const c of base) { minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); }
-    boxes.push({ minX, maxX, minY, maxY });
+// ---------- Stitch runs ----------
+// A run is a block of stitches between jumps / color changes, together with the jump(s) leading into it.
+// Runs are edited as objects with the Select tool: move, resize and rotate transform all of their points.
+let runSel = new Set(), hoverRun = null;   // runs are identified by the index of their first command
+function getRuns() {
+  const runs = [];
+  let cur = null;
+  for (let i = 0; i < cmds.length; i++) {
+    const t = cmds[i].t;
+    if (t === "s") { if (!cur) cur = { start: i, end: i, n: 0 }; cur.end = i; cur.n++; }
+    else if (t === "j") {
+      if (cur && cur.n) { runs.push(cur); cur = null; }
+      if (!cur) cur = { start: i, end: i, n: 0 }; else cur.end = i;
+    } else { if (cur && cur.n) runs.push(cur); cur = null; }
   }
-  const xs = [{ v: 0, box: null }], ys = [{ v: 0, box: null }];   // the 0" center lines
-  for (const b of boxes) {
-    for (const v of [b.minX, (b.minX + b.maxX) / 2, b.maxX]) xs.push({ v, box: b });
-    for (const v of [b.minY, (b.minY + b.maxY) / 2, b.maxY]) ys.push({ v, box: b });
+  if (cur && cur.n) runs.push(cur);
+  return runs;
+}
+const selRuns = () => getRuns().filter(r => runSel.has(r.start));
+function runBox(r) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = r.start; i <= r.end; i++) {
+    const c = cmds[i]; if (c.t !== "s") continue;
+    minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+  }
+  return { minX, maxX, minY, maxY };
+}
+function runAt(wx, wy) {
+  const pad = 5 / view.s, runs = getRuns();
+  for (let k = runs.length - 1; k >= 0; k--) {
+    const r = runs[k], b = runBox(r);
+    if (wx < b.minX - pad || wx > b.maxX + pad || wy < b.minY - pad || wy > b.maxY + pad) continue;
+    for (let i = r.start; i <= r.end; i++) {
+      const c = cmds[i]; if (c.t !== "s") continue;
+      const p = i > r.start ? cmds[i - 1] : c;
+      const dx = c.x - p.x, dy = c.y - p.y, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((wx - p.x) * dx + (wy - p.y) * dy) / L2)) : 0;
+      if (Math.hypot(wx - (p.x + t * dx), wy - (p.y + t * dy)) <= pad) return r.start;
+    }
+  }
+  return null;
+}
+// Command indices + original coordinates of every point in the selected runs (for transforms).
+function runPts0() {
+  const out = [];
+  for (const r of selRuns()) for (let i = r.start; i <= r.end; i++) out.push([i, cmds[i].x, cmds[i].y]);
+  return out;
+}
+// What the handles act on: one shape, or the selected runs as a group (an axis-aligned box).
+function selTarget() {
+  if (tool !== "select") return null;
+  if (shapeSel.size === 1 && !runSel.size) return selShapes()[0] || null;
+  if (!shapeSel.size && runSel.size) {
+    if (drag && drag.proxy) return drag.proxy;
+    const b = unionBox(selRuns().map(runBox));
+    if (!isFinite(b.minX)) return null;
+    return { kind: "rect", isRuns: true, cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2,
+             w: Math.max(1, b.maxX - b.minX), h: Math.max(1, b.maxY - b.minY), rot: 0 };
+  }
+  return null;
+}
+// Re-place the run points from their originals using the group box before (orig) and now (proxy).
+function applyRunXform(d) {
+  const o = d.orig, p = d.proxy;
+  const kx = o.w < 2 ? 1 : p.w / o.w, ky = o.h < 2 ? 1 : p.h / o.h;
+  for (const [i, x0, y0] of d.pts0) {
+    const [x, y] = toWorld(p, (x0 - o.cx) * kx, (y0 - o.cy) * ky);
+    cmds[i].x = Math.round(x); cmds[i].y = Math.round(y);
+  }
+}
+function transformRuns(fn) {
+  for (const [i, x, y] of runPts0()) { const [nx, ny] = fn(x, y); cmds[i].x = Math.round(nx); cmds[i].y = Math.round(ny); }
+}
+function deleteRuns() {
+  if (!runSel.size) return;
+  const rs = selRuns().sort((a, b) => b.start - a.start);
+  for (const r of rs) cmds.splice(r.start, r.end - r.start + 1);
+  runSel.clear();
+}
+// ---- Stops between runs ----
+// JEF has no separate "stop": the machine stops at every color change. A stop that keeps the same thread is
+// a color change to the same thread number (the usual trick for appliqué: stop, place fabric, continue).
+const countC = (end) => { let k = 0; for (let i = 0; i < end; i++) if (cmds[i].t === "c") k++; return k; };
+const hasStitchBefore = r => { for (let i = 0; i < r.start; i++) if (cmds[i].t === "s") return true; return false; };
+// "none" | "same" | "<palette index>"
+function runStop(r) {
+  if (r.start === 0 || cmds[r.start - 1].t !== "c") return "none";
+  const k = countC(r.start - 1);                // thread before the stop
+  const before = threads[k], after = threads[k + 1];
+  if (!after) return "none";
+  return before && after.idx === before.idx ? "same" : String(after.idx);
+}
+function setRunStop(v) {
+  const rs = selRuns().sort((a, b) => b.start - a.start);
+  if (!rs.length) return;
+  snapshot();
+  const deltas = [];
+  for (const r of rs) {
+    let d = 0;
+    if (hasStitchBefore(r)) {
+      const has = cmds[r.start - 1].t === "c";
+      if (v === "none") {
+        if (has) { const p = r.start - 1; threads.splice(countC(p) + 1, 1); cmds.splice(p, 1); d = -1; }
+      } else {
+        const k = countC(has ? r.start - 1 : r.start);
+        const idx = v === "same" ? threads[k].idx : +v;
+        if (has) threads[k + 1] = { idx };
+        else {
+          const p = cmds[r.start - 1];
+          cmds.splice(r.start, 0, { t: "c", x: p.x, y: p.y });
+          threads.splice(k + 1, 0, { idx });
+          d = 1;
+        }
+      }
+      threadsDirty = true;
+    }
+    deltas.push([r.start, d]);
+  }
+  // runs after an inserted/removed color change shift by one
+  runSel = new Set(deltas.map(([s]) => s + deltas.filter(([t]) => t <= s).reduce((a, [, d]) => a + d, 0)));
+  changed();
+}
+
+// ---- Sew order (the KSP-style list) ----
+// Each run as a movable object: its commands, the thread it sews with, and whether it has a same-thread pause before it.
+function runObjects() {
+  const runs = getRuns();
+  return runs.map((r, k) => {
+    const thread = threads[countC(r.start)] || threads[threads.length - 1];
+    const prev = k ? runs[k - 1] : null;
+    let hasC = false;
+    if (prev) for (let i = prev.end + 1; i < r.start; i++) if (cmds[i].t === "c") hasC = true;
+    const prevThread = prev ? threads[countC(prev.start)] : null;
+    // (a color change before the very first run is a pause after any live shapes sewn before it)
+    const pause = prev ? !!(hasC && prevThread && prevThread.idx === thread.idx) : cmds.slice(0, r.start).some(c => c.t === "c");
+    return { cmds: cmds.slice(r.start, r.end + 1).map(c => ({ ...c })), thread: { ...thread }, pause, start: r.start };
+  });
+}
+// ---- Groups ----
+// A group id is stored on every command of a grouped run (c.g) and on grouped shapes (s.group).
+// Group members always sit next to each other in the sew order.
+const runGroupOf = r => { for (let i = r.start; i <= r.end; i++) if (cmds[i].g != null) return cmds[i].g; return null; };
+const itemGroup = it => it.type === "run" ? (it.obj.cmds.find(c => c.g != null)?.g ?? null) : (it.s.group ?? null);
+function setItemGroup(it, g) {
+  if (it.type === "run") it.obj.cmds.forEach(c => { if (g == null) delete c.g; else c.g = g; });
+  else if (g == null) delete it.s.group; else it.s.group = g;
+}
+function newGroupId() {
+  let m = 0;
+  for (const c of cmds) if (c.g != null) m = Math.max(m, c.g);
+  for (const s of shapes) if (s.group != null) m = Math.max(m, s.group);
+  return m + 1;
+}
+// Pull each group's members together (at the first member's place) and dissolve groups of one.
+function normalizeGroups(order) {
+  const count = new Map();
+  for (const it of order) { const g = itemGroup(it); if (g != null) count.set(g, (count.get(g) || 0) + 1); }
+  for (const it of order) { const g = itemGroup(it); if (g != null && count.get(g) < 2) setItemGroup(it, null); }
+  const out = [], done = new Set();
+  for (const it of order) {
+    const g = itemGroup(it);
+    if (g == null) { out.push(it); continue; }
+    if (done.has(g)) continue;
+    done.add(g);
+    out.push(...order.filter(x => itemGroup(x) === g));
+  }
+  return out;
+}
+const isSelItem = it => it.type === "run" ? runSel.has(it.obj.start) : shapeSel.has(it.s.id);
+function reselect(items, starts) {
+  runSel = new Set(items.filter(it => it.type === "run").map(it => starts.get(it.obj)));
+  shapeSel = new Set(items.filter(it => it.type === "shape").map(it => it.s.id));
+}
+// Selecting any member of a group selects the whole group.
+function expandGroups() {
+  const gs = new Set(), runs = getRuns();
+  for (const r of runs) if (runSel.has(r.start)) { const g = runGroupOf(r); if (g != null) gs.add(g); }
+  for (const s of shapes) if (shapeSel.has(s.id) && s.group != null) gs.add(s.group);
+  if (!gs.size) return;
+  for (const r of runs) if (gs.has(runGroupOf(r))) runSel.add(r.start);
+  for (const s of shapes) if (gs.has(s.group)) shapeSel.add(s.id);
+}
+// Shift+click: add or remove an item (a whole group if it's grouped).
+function toggleSel(kind, key) {
+  const selSet = kind === "run" ? runSel : shapeSel;
+  if (!selSet.has(key)) { selSet.add(key); expandGroups(); return; }
+  const g = kind === "run" ? runGroupOf(getRuns().find(r => r.start === key)) : byId(key).group;
+  if (g == null) { selSet.delete(key); return; }
+  for (const r of getRuns()) if (runGroupOf(r) === g) runSel.delete(r.start);
+  for (const s of shapes) if (s.group === g) shapeSel.delete(s.id);
+}
+function groupSelection() {
+  const order = orderList(), sel = order.filter(isSelItem);
+  if (sel.length < 2) return;
+  const gs = new Set(sel.map(itemGroup));
+  if (gs.size === 1 && !gs.has(null) && order.filter(it => itemGroup(it) === [...gs][0]).length === sel.length) return;   // already one group
+  snapshot();
+  const g = newGroupId();
+  sel.forEach(it => setItemGroup(it, g));
+  const starts = applyOrder(normalizeGroups(order));
+  reselect(sel, starts); changed();
+}
+function ungroupSelection() {
+  const order = orderList(), sel = order.filter(isSelItem);
+  if (!sel.some(it => itemGroup(it) != null)) return;
+  snapshot();
+  sel.forEach(it => setItemGroup(it, null));
+  const starts = applyOrder(order);
+  reselect(sel, starts); changed();
+}
+// Drag & drop in the Sew order list. drag = {index} for one item or {group} for a whole group.
+function dropOrder(dragInfo, tIndex, below, onHeader) {
+  const order = orderList(), anchor0 = order[tIndex];
+  if (!anchor0) return;
+  const tg = itemGroup(anchor0);
+  const edgeOf = g => { const idx = order.map((it, i) => itemGroup(it) === g ? i : -1).filter(i => i >= 0); return below ? Math.max(...idx) : Math.min(...idx); };
+  let moving, newGroup;
+  if (dragInfo.group != null) {
+    if (tg === dragInfo.group) return;
+    moving = order.filter(it => itemGroup(it) === dragInfo.group);
+    if (tg != null) tIndex = edgeOf(tg);                 // a group never lands inside another group
+  } else {
+    moving = [order[dragInfo.index]];
+    if (onHeader && tg != null) { tIndex = edgeOf(tg); newGroup = null; }   // on a group's title: just outside it
+    else newGroup = tg;                                  // onto a member: join that group; onto a loose item: leave any group
+  }
+  const anchor = order[tIndex];
+  if (!moving[0] || moving.includes(anchor)) return;   // dropped onto itself
+  snapshot();
+  if (newGroup !== undefined) moving.forEach(it => setItemGroup(it, newGroup));
+  const rest = order.filter(it => !moving.includes(it));
+  rest.splice(rest.indexOf(anchor) + (below ? 1 : 0), 0, ...moving);
+  const starts = applyOrder(normalizeGroups(rest));
+  shapeSel.clear(); runSel.clear(); ptSel.clear();
+  reselect(moving, starts); expandGroups(); changed();
+}
+
+// Current sew order as a list of {type:"run", obj} / {type:"shape", s}.
+function orderList() {
+  const objs = runObjects(), n = objs.length, out = [];
+  for (let k = 0; k <= n; k++) {
+    for (const s of shapes) if (shapeSlot(s, n) === k) out.push({ type: "shape", s });
+    if (k < n) out.push({ type: "run", obj: objs[k] });
+  }
+  return out;
+}
+// Rebuild the stitch list, threads and shape positions from an order list. Each run keeps its own thread;
+// color changes are added wherever the thread changes, plus wherever a run has a pause.
+function applyOrder(order) {
+  const newCmds = [], newThreads = [], newShapes = [], starts = new Map();
+  let runCount = 0, anything = false;
+  for (const it of order) {
+    if (it.type === "shape") { it.s.after = runCount; newShapes.push(it.s); anything = true; continue; }
+    const o = it.obj, cur = newThreads[newThreads.length - 1];
+    if (!cur) {
+      newThreads.push({ ...o.thread });
+      if (o.pause && anything) { newCmds.push({ t: "c", x: o.cmds[0].x, y: o.cmds[0].y }); newThreads.push({ ...o.thread }); }
+    } else if (cur.idx !== o.thread.idx || o.pause) {
+      const l = newCmds[newCmds.length - 1]; newCmds.push({ t: "c", x: l.x, y: l.y }); newThreads.push({ ...o.thread });
+    }
+    anything = true;
+    const run = o.cmds.map(c => ({ ...c }));
+    if (run[0].t !== "j") run.unshift({ t: "j", x: run[0].x, y: run[0].y });
+    starts.set(o, newCmds.length);
+    newCmds.push(...run);
+    runCount++;
+  }
+  for (const s of newShapes) if (s.after >= runCount) s.after = null;   // last ones: "at the end"
+  if (!newThreads.length) newThreads.push({ ...(threads[0] || { idx: 1 }) });
+  if (newThreads.map(t => t.idx).join() !== threads.map(t => t.idx).join()) threadsDirty = true;
+  cmds = newCmds; threads = newThreads; shapes = newShapes;
+  return starts;
+}
+// Move an item in the sew order, keeping it selected.
+function moveOrderItem(from, to) {
+  const order = orderList();
+  if (from === to || from < 0 || from >= order.length) return;
+  snapshot();
+  const [it] = order.splice(from, 1);
+  order.splice(Math.max(0, Math.min(order.length, to)), 0, it);
+  const starts = applyOrder(normalizeGroups(order));
+  shapeSel.clear(); runSel.clear(); ptSel.clear();
+  if (it.type === "shape") shapeSel.add(it.s.id); else runSel.add(starts.get(it.obj));
+  changed();
+}
+// Click a gap between items: add or remove a same-thread pause before item i.
+function togglePause(i) {
+  const order = orderList(), it = order[i];
+  if (!it || i === 0) return;
+  snapshot();
+  if (it.type === "shape") it.s.stop = !it.s.stop;
+  else { it.obj.pause = !it.obj.pause; applyOrder(order); runSel.clear(); }
+  changed();
+}
+
+function runCmds(r) { return cmds.slice(r.start, r.end + 1).map(c => ({ ...c })); }
+// Add copies of runs at the end of the loaded stitches; returns the new runs' start indices.
+function appendRuns(list, dx, dy) {
+  const starts = [];
+  for (const run of list) {
+    const moved = run.map(c => ({ ...c, x: Math.round(c.x + dx), y: Math.round(c.y + dy) }));
+    if (moved[0].t !== "j") moved.unshift({ t: "j", x: moved[0].x, y: moved[0].y });
+    starts.push(cmds.length);
+    cmds.push(...moved);
+  }
+  return starts;
+}
+
+// ---------- Snapping (draw.io-style guides) ----------
+let GRID = U().snap; // 0.5 mm, or 1/32" in imperial
+// Snap targets: edges and centers of every other shape and stitch run, of every group as a whole, and the 0 lines.
+// kind: 0 = left/bottom edge, 1 = center, 2 = right/top edge.
+function snapTargets(excludeIds) {
+  // each box remembers what it belongs to (src), so the canvas can spotlight the item being centered on
+  const boxes = [], groups = new Map();
+  const addG = (g, b) => { if (g == null) return; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(b); };
+  for (const s of shapes) if (!excludeIds.has(s.id)) { const b = aabb(s); boxes.push({ b, src: { shape: s.id } }); addG(s.group, b); }
+  for (const r of getRuns()) if (!runSel.has(r.start)) { const b = runBox(r); boxes.push({ b, src: { run: r.start } }); addG(runGroupOf(r), b); }
+  for (const [g, list] of groups) if (list.length > 1) boxes.push({ b: unionBox(list), group: true, src: { group: g } });
+  const xs = [{ v: 0, box: null, kind: 1, src: { origin: true } }], ys = [{ v: 0, box: null, kind: 1, src: { origin: true } }];
+  for (const { b, group, src } of boxes) {
+    [b.minX, (b.minX + b.maxX) / 2, b.maxX].forEach((v, kind) => xs.push({ v, box: b, kind, group, src }));
+    [b.minY, (b.minY + b.maxY) / 2, b.maxY].forEach((v, kind) => ys.push({ v, box: b, kind, group, src }));
   }
   return { xs, ys };
 }
-// Find the closest target to any of `vals`. Returns {d, v, box} or null.
+// Find the best target for any of `vals` (a box's [min, center, max], or a single point).
+// Center-to-center matches and whole groups win ties, so a frame drawn around a group locks onto its center.
 function bestSnap(vals, targets) {
   const thr = 7 / view.s;
-  let best = null;
-  for (const val of vals) for (const t of targets) {
-    const d = t.v - val;
-    if (Math.abs(d) <= thr && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, v: t.v, box: t.box };
-  }
+  let best = null, bestScore = Infinity;
+  vals.forEach((val, vk) => {
+    for (const t of targets) {
+      const d = t.v - val;
+      if (Math.abs(d) > thr) continue;
+      const center = vals.length === 3 && vk === 1 && t.kind === 1;
+      const score = Math.abs(d) - (center ? 3 / view.s : 0) - (t.group ? 1.5 / view.s : 0);
+      if (score < bestScore) { bestScore = score; best = { d, v: t.v, box: t.box, center, group: !!t.group, src: t.src }; }
+    }
+  });
   return best;
 }
 function guide(axis, hit, box) {
-  const other = hit.box || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-  if (axis === "x") return { axis, v: hit.v, a: Math.min(box.minY, other.minY), b: Math.max(box.maxY, other.maxY), full: !hit.box };
-  return { axis, v: hit.v, a: Math.min(box.minX, other.minX), b: Math.max(box.maxX, other.maxX), full: !hit.box };
+  const other = hit.box || { minX: 0, maxX: 0, minY: 0, maxY: 0 }, extra = { center: hit.center, group: hit.group, src: hit.src };
+  if (axis === "x") return { axis, v: hit.v, a: Math.min(box.minY, other.minY), b: Math.max(box.maxY, other.maxY), full: !hit.box, ...extra };
+  return { axis, v: hit.v, a: Math.min(box.minX, other.minX), b: Math.max(box.maxX, other.maxX), full: !hit.box, ...extra };
 }
 // Snap a moving box: returns adjusted dx, dy and guides.
 function snapBox(box, excl, off) {
@@ -766,6 +1316,27 @@ function snapPoint(x, y, excl, off, axes = "xy") {
   return [nx, ny];
 }
 
+// While dragging with a "center" guide active, give every command a spotlight level:
+//   2 = centered on both axes (or being dragged) → full color
+//   1 = centered on one axis only               → half faded
+//   0 = not a centering target                  → mostly faded
+// Returns null when nothing should fade.
+function spotlight(all, marks) {
+  if (!drag || !["move", "resize", "rotate", "create", "endpoint"].includes(drag.mode)) return null;
+  const hits = guides.filter(g => g.center && g.src);
+  if (!hits.length) return null;
+  const matches = (src, m) => m.type === "run"
+    ? src.run === m.r.start || (src.group != null && src.group === runGroupOf(m.r))
+    : src.shape === m.s.id || (src.group != null && src.group === m.s.group);
+  const level = new Uint8Array(all.length);   // anything outside every item (stray jumps) stays at 0
+  for (const m of marks) {
+    const dragged = m.type === "run" ? runSel.has(m.r.start) : shapeSel.has(m.s.id);
+    const lv = dragged ? 2 : Math.min(2, hits.filter(g => matches(g.src, m)).length);
+    if (lv) level.fill(lv, m.from, m.to + 1);
+  }
+  return level;
+}
+
 // ---------- Drawing ----------
 function draw() {
   const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
@@ -779,21 +1350,29 @@ function draw() {
     for (let gy = Math.ceil(wy0 / step) * step; gy <= wy1; gy += step) { const sy = Math.round(toS(0, gy)[1]) + .5; ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
     ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
   };
-  // 10 mm grid, then inch lines measured from the center (1" = 254 units)
-  const IN = 254;
-  let inchStep = 1; while (inchStep * IN * view.s < 45) inchStep *= 2;
-  const inchUnit = IN * view.s >= 120 ? IN / 2 : IN * inchStep;
-  if (!real) {
-    if (100 * view.s >= 12) vLines(100, "#eef0f3");
-    vLines(inchUnit, "#c9d6ea");
+  // Grid in the chosen units, measured from the center: labeled major lines plus lighter subdivisions.
+  const STEPS = units === "in"
+    ? [254 / 16, 254 / 8, 254 / 4, 254 / 2, 254, 508, 1016, 2032, 4064]   // 1/16" … 16"
+    : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];                       // 1 mm … 500 mm
+  const major = STEPS.find(s => s * view.s >= 50) || STEPS[STEPS.length - 1];
+  const minor = (units === "in" ? [8, 4, 2] : [10, 5, 2]).map(k => major / k).find(s => s * view.s >= 10);
+  const gridAlpha = +$("gridOp").value / 100;
+  if (!real && gridAlpha > 0) {
+    ctx.save(); ctx.globalAlpha = gridAlpha;
+    if (minor) vLines(minor, "#eef0f3");
+    vLines(major, "#c9d6ea");
     const [cx0, cy0] = toS(0, 0);
     ctx.strokeStyle = "#9fb3cf"; ctx.beginPath();
     ctx.moveTo(cx0 - 14, cy0 + .5); ctx.lineTo(cx0 + 14, cy0 + .5); ctx.moveTo(cx0 + .5, cy0 - 14); ctx.lineTo(cx0 + .5, cy0 + 14); ctx.stroke();
+    ctx.restore();
   }
 
   // stitches (loaded design + shapes), batched by color
-  const { all, th } = compose();
+  const { all, th, marks } = compose();
   const limit = sewAll ? all.length : Math.min(sewN, all.length);
+  // while centering: full color for both-axis targets, half for one-axis targets, faded for everything else
+  const spot = spotlight(all, marks), SPOT_ALPHA = [0.15, 0.5, 1];
+  const alphaAt = i => spot ? SPOT_ALPHA[spot[i]] : 1;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
   const lw = +$("lw").value, showJ = $("showJumps").checked;
   if (real) {
@@ -830,6 +1409,7 @@ function draw() {
       else if (c.t === "s" && (c.x !== px || c.y !== py)) {
         const [ax, ay] = toS(qx, qy), [bx, by] = toS(P[i][0], P[i][1]);
         const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * off, ny = (bx - ax) / L * off;
+        ctx.globalAlpha = alphaAt(i);
         ctx.strokeStyle = cols[0]; ctx.lineWidth = tpx;
         ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
         ctx.strokeStyle = cols[1]; ctx.lineWidth = tpx * 0.72;
@@ -841,10 +1421,11 @@ function draw() {
       }
       px = c.x; py = c.y; qx = P[i][0]; qy = P[i][1];
     }
+    ctx.globalAlpha = 1;
     $("pullInfo").textContent = lastPull > 0.05
-      ? `Holes pulled up to ${(lastPull / 10).toFixed(2)} mm${$("exag").checked ? " (×3)" : ""}` : "No visible pull";
+      ? `Holes pulled up to ${fmtLen(lastPull, U().dec + 1)}${$("exag").checked ? " (×3)" : ""}` : "No visible pull";
   } else {
-  let px = 0, py = 0, ci = 0, open = false;
+  let px = 0, py = 0, ci = 0, open = false, openAlpha = 1;
   const flush = () => { if (open) { ctx.stroke(); open = false; } };
   for (let i = 0; i < limit; i++) {
     const c = all[i];
@@ -852,11 +1433,14 @@ function draw() {
     else if (c.t === "j") {
       flush();
       if (showJ && (c.x !== px || c.y !== py)) {
-        ctx.save(); ctx.strokeStyle = "rgba(220,0,0,.5)"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+        ctx.save(); ctx.globalAlpha = alphaAt(i); ctx.strokeStyle = "rgba(220,0,0,.5)"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
         ctx.beginPath(); ctx.moveTo(...toS(px, py)); ctx.lineTo(...toS(c.x, c.y)); ctx.stroke(); ctx.restore();
       }
     } else {
+      const a = alphaAt(i);
+      if (open && a !== openAlpha) flush();   // faded and normal stitches go in separate strokes
       if (!open) {
+        ctx.globalAlpha = openAlpha = a;
         ctx.strokeStyle = threadCSS(th[ci] || { idx: -1 }, ci); ctx.lineWidth = lw;
         ctx.beginPath(); ctx.moveTo(...toS(px, py)); open = true;
       }
@@ -865,12 +1449,13 @@ function draw() {
     px = c.x; py = c.y;
   }
   flush();
+  ctx.globalAlpha = 1;
   }
   if ((!real && $("showPts").checked) || tool === "points") {
     ctx.fillStyle = "rgba(0,0,0,.6)";
-    const upto = tool === "points" ? Math.min(limit, cmds.length) : limit;
+    const src = tool === "points" ? cmds : all, upto = tool === "points" ? cmds.length : limit;
     for (let i = 0; i < upto; i++) {
-      const c = all[i]; if (c.t === "c") continue;
+      const c = src[i]; if (c.t === "c") continue;
       const [sx, sy] = toS(c.x, c.y); ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
     }
   }
@@ -879,6 +1464,29 @@ function draw() {
     ctx.strokeStyle = "#06c"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(sx - 9, sy); ctx.lineTo(sx + 9, sy); ctx.moveTo(sx, sy - 9); ctx.lineTo(sx, sy + 9); ctx.stroke();
   }
+
+  // stops: a pause badge where sewing resumes after each color change, with the next thread's color
+  let stopNo = 0;
+  ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  for (let i = 0; i < limit; i++) {
+    if (all[i].t !== "c") continue;
+    stopNo++;
+    let j = i + 1; while (j < all.length - 1 && all[j].t !== "s") j++;
+    const [sx, sy0] = toS(all[j].x, all[j].y), sy = sy0 - 16;
+    const same = th[stopNo] && th[stopNo - 1] && th[stopNo].idx === th[stopNo - 1].idx;
+    ctx.strokeStyle = "rgba(30,30,30,.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx, sy0); ctx.lineTo(sx, sy + 9); ctx.stroke();
+    ctx.fillStyle = "rgba(30,30,30,.88)"; ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillRect(sx - 4, sy - 4, 2.5, 8); ctx.fillRect(sx + 1.5, sy - 4, 2.5, 8);
+    ctx.fillStyle = threadCSS(th[stopNo] || { idx: -1 }, stopNo);
+    ctx.beginPath(); ctx.arc(sx + 8, sy + 7, 4.5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    const label = same ? "Stop" : "Stop · thread " + (stopNo + 1);
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillRect(sx + 13, sy - 7, tw + 6, 13);
+    ctx.fillStyle = "#222"; ctx.fillText(label, sx + 16, sy);
+  }
+
+  drawHoop(r);
 
   // point selection
   ctx.strokeStyle = "#e07a00"; ctx.lineWidth = 2;
@@ -900,8 +1508,39 @@ function draw() {
     const hs = hoverId != null && !shapeSel.has(hoverId) && byId(hoverId);
     if (hs) outlineBox(hs, "rgba(41,182,242,.7)", []);
     for (const s of selShapes()) outlineBox(s, "#29b6f2", [4, 3]);
-    if (shapeSel.size === 1) {
-      const s = selShapes()[0];
+    // stitch runs: trace the hovered / selected ones in blue
+    const traceRun = (r, color, width) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      for (let i = r.start; i <= r.end; i++) {
+        const c = cmds[i], p = toS(c.x, c.y);
+        c.t === "s" && i > r.start ? ctx.lineTo(...p) : ctx.moveTo(...p);
+      }
+      ctx.stroke();
+    };
+    const runs = getRuns();
+    const hr = hoverRun != null && !runSel.has(hoverRun) && runs.find(r => r.start === hoverRun);
+    if (hr) traceRun(hr, "rgba(41,182,242,.75)", 2);
+    for (const r of runs) if (runSel.has(r.start)) {
+      traceRun(r, "rgba(41,182,242,.55)", 1.5);
+      if (runSel.size > 1 || shapeSel.size) {
+        const b = runBox(r);
+        outlineBox({ kind: "rect", cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, w: b.maxX - b.minX, h: b.maxY - b.minY, rot: 0 }, "#29b6f2", [2, 3]);
+      }
+    }
+    // groups: a purple box around each selected group
+    const selGroups = new Set();
+    for (const r of runs) if (runSel.has(r.start)) { const g = runGroupOf(r); if (g != null) selGroups.add(g); }
+    for (const s of selShapes()) if (s.group != null) selGroups.add(s.group);
+    for (const g of selGroups) {
+      const b = unionBox([...runs.filter(r => runGroupOf(r) === g).map(runBox), ...shapes.filter(s => s.group === g).map(aabb)]);
+      const pad = 8 / view.s, [x0, y0] = toS(b.minX - pad, b.maxY + pad), [x1, y1] = toS(b.maxX + pad, b.minY - pad);
+      ctx.strokeStyle = "#7e57c2"; ctx.lineWidth = 1.5; ctx.setLineDash([7, 3]);
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
+    }
+    const tg = selTarget();
+    if (tg) {
+      const s = tg;
+      if (s.isRuns) outlineBox(s, "#29b6f2", [4, 3]);
       if (s.kind !== "line") {   // stem to the rotate handle
         const a = toS(...toWorld(s, 0, s.h / 2)), b = toS(...toWorld(s, 0, s.h / 2 + 26 / view.s));
         ctx.strokeStyle = "#29b6f2"; ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
@@ -937,6 +1576,16 @@ function draw() {
     ctx.stroke();
   }
   ctx.setLineDash([]);
+  // label center-to-center matches, so it's clear when something is centered on a group
+  ctx.font = "bold 11px system-ui, sans-serif"; ctx.textBaseline = "middle";
+  for (const g of guides) {
+    if (!g.center) continue;
+    const text = g.group ? "center of group" : "center";
+    const [px, py] = g.axis === "x" ? [Math.round(toS(g.v, 0)[0]) + 6, toS(0, g.b)[1] - 6] : [toS(g.b, 0)[0] + 16, Math.round(toS(0, g.v)[1]) - 9];
+    const w = ctx.measureText(text).width + 8;
+    ctx.fillStyle = "#0a84ff"; ctx.fillRect(px, py - 8, w, 16);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText(text, px + 4, py);
+  }
   // rubber band
   if (drag && drag.mode === "box") {
     ctx.fillStyle = "rgba(41,182,242,.08)"; ctx.strokeStyle = "#29b6f2"; ctx.lineWidth = 1;
@@ -946,11 +1595,12 @@ function draw() {
   // rulers on top
   ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(0, 0, r.width, 18); ctx.fillRect(0, 0, 34, r.height);
   ctx.fillStyle = "#4a6890"; ctx.font = "11px system-ui, sans-serif"; ctx.textBaseline = "middle";
-  const fmt = v => { const s = Math.round(v * 2) / 2; return (Number.isInteger(s) ? s : s.toFixed(1)) + '"'; };
+  const fmt = v => units === "in" ? trim(v / 254, 3) + '"' : trim(v / 10, 1);
   ctx.textAlign = "center";
-  for (let gx = Math.ceil(wx0 / inchUnit) * inchUnit; gx <= wx1; gx += inchUnit) { const sx = toS(gx, 0)[0]; if (sx >= 40) ctx.fillText(fmt(gx / IN), sx, 9); }
+  for (let k = Math.ceil(wx0 / major); k * major <= wx1; k++) { const sx = toS(k * major, 0)[0]; if (sx >= 40) ctx.fillText(fmt(k * major), sx, 9); }
   ctx.textAlign = "right";
-  for (let gy = Math.ceil(wy0 / inchUnit) * inchUnit; gy <= wy1; gy += inchUnit) { const sy = toS(0, gy)[1]; if (sy >= 24) ctx.fillText(fmt(gy / IN), 31, sy); }
+  for (let k = Math.ceil(wy0 / major); k * major <= wy1; k++) { const sy = toS(0, k * major)[1]; if (sy >= 24) ctx.fillText(fmt(k * major), 31, sy); }
+  ctx.textAlign = "center"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.fillText(U().name, 17, 9);   // unit in the corner
   ctx.strokeStyle = "#d6dbe2"; ctx.lineWidth = 1; ctx.beginPath();
   ctx.moveTo(0, 18.5); ctx.lineTo(r.width, 18.5); ctx.moveTo(34.5, 0); ctx.lineTo(34.5, r.height); ctx.stroke();
 }
@@ -964,11 +1614,17 @@ function changed() {
   const real = all.filter(c => c.t !== "c"), b = bounds(real.length ? real : [{ x: 0, y: 0 }]);
   const st = all.filter(c => c.t === "s").length, jm = all.filter(c => c.t === "j").length;
   const W = (b.maxX - b.minX) / 10, H = (b.maxY - b.minY) / 10;
-  $("info").innerHTML = `<b>${fileName}</b><br>Size: ${W.toFixed(1)} × ${H.toFixed(1)} mm (${(W / 25.4).toFixed(2)} × ${(H / 25.4).toFixed(2)} in)<br>` +
-    `Stitches: ${st} · Jumps: ${jm} · Colors: ${th.length} · Shapes: ${shapes.length}`;
+  $("info").innerHTML = `<b>${fileName}</b><br>Size: ${fmtSize(W * 10, H * 10)}<br>` +
+    `Stitches: ${st} · Jumps: ${jm} · Colors: ${th.length} · Shapes: ${shapes.length}` +
+    (hoopFits(real) ? "" : `<br><b style="color:#c0392b">⚠ Design goes outside the ${fmtSize(currentHoop().W, currentHoop().H)} hoop</b>`);
   $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
   renderThreads(th);
+  const validRuns = new Set(getRuns().map(r => r.start));   // drop selections that no longer exist
+  runSel = new Set([...runSel].filter(s => validRuns.has(s)));
+  if (hoverRun != null && !validRuns.has(hoverRun)) hoverRun = null;
   renderShapePanel();
+  renderRunPanel();
+  if (!drag) renderOrder();   // (not while dragging on the canvas; it refreshes on release)
   renderPointPanel();
   $("undoBtn").disabled = !undoStack.length; $("redoBtn").disabled = !redoStack.length;
   $("status").textContent = saved ? "" : "Unsaved changes";
@@ -995,6 +1651,9 @@ function renderThreads(th) {
       n.textContent = (PALETTE[t.idx] ? PALETTE[t.idx][0] : "#" + t.idx) + (k < threads.length ? " (starting thread)" : " (from shape)");
       row.append(n);
     }
+    if (k > 0 && th[k - 1].idx === t.idx) {
+      const n = document.createElement("span"); n.textContent = "⏸ stop, same thread"; n.style.color = "#a85a00"; row.append(n);
+    }
     box.append(row);
   });
 }
@@ -1008,26 +1667,221 @@ function renderShapePanel() {
   $("shapeTitle").textContent = single ? SHAPE_NAMES[s.kind] : `${sel.length} shapes`;
   $("geom").hidden = !single; $("alignRow").hidden = single;
   $("shBake").disabled = false;
-  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = typeof v === "number" ? +v.toFixed(1) : v; };
+  const set = (id, v, d = 1) => { if (document.activeElement !== $(id)) $(id).value = typeof v === "number" ? +v.toFixed(d) : v; };
   if (single) {
     $("shWLabel").textContent = s.kind === "line" ? "Length" : "Width";
     $("shHRow").hidden = s.kind === "line";
-    set("shW", s.w / 10); set("shH", s.h / 10); set("shR", s.rot); set("shX", s.cx / 10); set("shY", s.cy / 10);
+    const d = U().dec;
+    set("shW", toU(s.w), d); set("shH", toU(s.h), d); set("shR", s.rot); set("shX", toU(s.cx), d); set("shY", toU(s.cy), d);
   }
   set("shStyle", s.style); set("shThick", s.thick / 10); set("shDens", s.dens / 10); set("shLen", s.len / 10);
   $("shUnder").checked = s.under; $("shLock").checked = s.lock; set("shColor", String(s.color));
+  $("shStop").checked = !!s.stop;
   document.querySelectorAll(".satinOnly").forEach(el => el.hidden = s.style !== "satin");
   document.querySelectorAll(".runOnly").forEach(el => el.hidden = s.style === "satin");
   set("shCorner", s.corner ?? 100);
   document.querySelectorAll(".cornerOnly").forEach(el => el.hidden = !(s.style === "satin" && sel.some(x => x.kind === "rect" || x.kind === "tri")));
-  $("shThickV").textContent = (s.thick / 10).toFixed(1) + " mm";
-  $("shDensV").textContent = (s.dens / 10).toFixed(1) + " mm";
-  $("shLenV").textContent = (s.len / 10).toFixed(1) + " mm";
+  $("shThickV").textContent = fmtLen(s.thick);
+  $("shDensV").textContent = fmtLen(s.dens);
+  $("shLenV").textContent = fmtLen(s.len);
   const n = sel.reduce((a, x) => a + stitchesFor(x).length, 0);
   const bb = unionBox(sel.map(aabb));
-  $("shInfo").textContent = `${n} stitches · outer size ${((bb.maxX - bb.minX) / 10).toFixed(1)} × ${((bb.maxY - bb.minY) / 10).toFixed(1)} mm`;
-  const i = shapes.indexOf(s);
-  $("shEarlier").disabled = !single || i === 0; $("shLater").disabled = !single || i === shapes.length - 1;
+  $("shInfo").textContent = `${n} stitches · outer size ${fmtSize(bb.maxX - bb.minX, bb.maxY - bb.minY)}`;
+  // is the frame centered on what's inside it?
+  const c = single ? contentsOf(s) : null, tol = 0.5;   // within 0.05 mm counts as centered
+  $("centerRow").hidden = !c;
+  if (c) {
+    const ok = Math.abs(c.dx) <= tol && Math.abs(c.dy) <= tol;
+    const what = c.n === 1 ? "the item inside" : `the ${c.n} items inside`;
+    $("centerInfo").innerHTML = ok
+      ? `<b style="color:#2e7d32">✓ Centered</b> on ${what}`
+      : `<b style="color:#c0392b">Off-center</b> from ${what}: ` +
+        `${c.dx > 0 ? "→" : "←"} ${fmtLen(Math.abs(c.dx), U().dec + 1)}, ${c.dy > 0 ? "↑" : "↓"} ${fmtLen(Math.abs(c.dy), U().dec + 1)}`;
+    $("shCenter").disabled = ok;
+  }
+  const i = orderIndexOfShape(s.id), total = getRuns().length + shapes.length;
+  $("shEarlier").disabled = !single || i === 0; $("shLater").disabled = !single || i === total - 1;
+}
+
+// ---------- Sew order panel ----------
+let orderDragFrom = null;          // {index} while dragging one card, {group} while dragging a whole group
+const collapsedGroups = new Set();  // groups folded closed in the list
+function drawThumb(cvs, all, th, m, k0) {
+  const g = cvs.getContext("2d"), W = cvs.width, H = cvs.height;
+  g.fillStyle = "#ecebe6"; g.fillRect(0, 0, W, H);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = m.from; i <= m.to; i++) {
+    const c = all[i]; if (c.t !== "s") continue;
+    minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+  }
+  if (!isFinite(minX)) return;
+  const pad = 8, sc = Math.min((W - 2 * pad) / Math.max(1, maxX - minX), (H - 2 * pad) / Math.max(1, maxY - minY));
+  const ox = W / 2 - (minX + maxX) / 2 * sc, oy = H / 2 + (minY + maxY) / 2 * sc;
+  let k = k0, started = false;
+  g.lineWidth = 1.6; g.lineJoin = "round"; g.lineCap = "round";
+  g.strokeStyle = threadCSS(th[k] || { idx: -1 }, k); g.beginPath();
+  for (let i = m.from; i <= m.to; i++) {
+    const c = all[i];
+    if (c.t === "c") { g.stroke(); k++; g.strokeStyle = threadCSS(th[k] || { idx: -1 }, k); g.beginPath(); started = false; continue; }
+    const X = ox + c.x * sc, Y = oy - c.y * sc;
+    if (c.t === "s" && started) g.lineTo(X, Y); else { g.moveTo(X, Y); started = true; }
+  }
+  g.stroke();
+}
+function renderOrder() {
+  const box = $("orderList");
+  if ($("orderPanel").hidden) return;
+  const { all, th, marks } = compose();
+  box.innerHTML = "";
+  if (!marks.length) { box.innerHTML = '<div class="help">Nothing to sew yet. Draw a shape or open a JEF file.</div>'; return; }
+  // number of color changes before index i (= which thread is in use)
+  const cAt = new Int32Array(all.length + 1);
+  for (let i = 0; i < all.length; i++) cAt[i + 1] = cAt[i] + (all[i].t === "c" ? 1 : 0);
+  const firstS = m => { for (let i = m.from; i <= m.to; i++) if (all[i].t === "s") return i; return m.from; };
+  const gOf = m => m.type === "run" ? runGroupOf(m.r) : (m.s.group ?? null);
+  const isSelMark = m => m.type === "run" ? runSel.has(m.r.start) : shapeSel.has(m.s.id);
+  const clearDropMarks = () => box.querySelectorAll(".drop-before,.drop-after,.dragging").forEach(el => el.classList.remove("drop-before", "drop-after", "dragging"));
+  // "after" half of a drop target: right half for cards in a (horizontal) group, bottom half otherwise
+  const below = (el, e) => {
+    const r = el.getBoundingClientRect();
+    return el.closest && el.closest(".ogrp-row") ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+  };
+  const openMenu = (m, e) => {   // right-click on a card: select it (unless already selected), then show the menu
+    e.preventDefault();
+    if (tool !== "select") setTool("select");
+    if (!isSelMark(m)) {
+      if (m.type === "run") { runSel = new Set([m.r.start]); shapeSel.clear(); } else { shapeSel = new Set([m.s.id]); runSel.clear(); }
+      expandGroups(); changed();
+    }
+    showMenu(e.clientX, e.clientY);
+  };
+  let parent = box, curG = null;
+  marks.forEach((m, i) => {
+    const g = gOf(m);
+    let sep = null;
+    if (i > 0) {   // the gap before this item: nothing, a pause, or a thread change
+      const p = marks[i - 1], fs = firstS(m), kPrev = cAt[firstS(p)], kCur = cAt[fs];
+      const stop = kCur > cAt[p.to + 1] || cAt[fs] > cAt[m.from] || kCur > kPrev;
+      const same = th[kCur] && th[kPrev] && th[kCur].idx === th[kPrev].idx;
+      sep = document.createElement("div");
+      // each gap has a long label (vertical list) and a short one (inside a horizontal group)
+      const lab = (cls, ...parts) => { const s = document.createElement("span"); s.className = cls; s.append(...parts); return s; };
+      if (!stop) {
+        sep.className = "sep"; sep.append(lab("long", "+ add pause"), lab("short", "+"));
+        sep.title = "Click to make the machine stop here (same thread)"; sep.onclick = () => togglePause(i);
+      } else if (same) {
+        sep.className = "sep pause"; sep.append(lab("long", "⏸ Pause — same thread"), lab("short", "⏸"));
+        sep.title = "The machine stops here (same thread). Click to remove the pause."; sep.onclick = () => togglePause(i);
+      } else {
+        sep.className = "sep change";
+        const sw = () => { const s = document.createElement("span"); s.className = "sw"; s.style.background = threadCSS(th[kCur], kCur); return s; };
+        const nm = th[kCur].name || (PALETTE[th[kCur].idx] ? PALETTE[th[kCur].idx][0] : "#" + th[kCur].idx);
+        sep.append(lab("long", "⏸ Stop · change to", sw(), nm), lab("short", "⏸", sw()));
+        sep.title = `The thread changes to ${nm} here, so the machine always stops`;
+      }
+    }
+    if (g !== curG || g == null) {   // leaving / entering a group: gaps between groups sit outside the containers
+      if (sep) box.append(sep);
+      parent = box; curG = g;
+      if (g != null) {
+        const members = marks.map((x, j) => [x, j]).filter(([x]) => gOf(x) === g);
+        const grp = document.createElement("div");
+        grp.className = "ogrp" + (collapsedGroups.has(g) ? " collapsed" : "") + (members.every(([x]) => isSelMark(x)) ? " sel" : "");
+        const head = document.createElement("div"); head.className = "ogrp-h"; head.draggable = true;
+        const caret = document.createElement("span"); caret.className = "caret"; caret.textContent = collapsedGroups.has(g) ? "▸" : "▾";
+        caret.onclick = e => { e.stopPropagation(); collapsedGroups.has(g) ? collapsedGroups.delete(g) : collapsedGroups.add(g); renderOrder(); };
+        const n = members.reduce((a, [x]) => { let c = 0; for (let q = x.from; q <= x.to; q++) if (all[q].t === "s") c++; return a + c; }, 0);
+        head.append(caret, `Group · ${members.length} items · ${n} st`);
+        head.title = "Drag to move the whole group. Click to select it.";
+        head.onclick = e => {
+          if (tool !== "select") setTool("select");
+          if (!e.shiftKey) { runSel.clear(); shapeSel.clear(); }
+          const m0 = members[0][0];
+          if (m0.type === "run") runSel.add(m0.r.start); else shapeSel.add(m0.s.id);
+          expandGroups(); changed();
+        };
+        head.oncontextmenu = e => openMenu(members[0][0], e);
+        head.addEventListener("dragstart", e => { orderDragFrom = { group: g }; grp.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "g" + g); });
+        head.addEventListener("dragend", () => { orderDragFrom = null; clearDropMarks(); });
+        head.addEventListener("dragover", e => {
+          if (!orderDragFrom) return;
+          e.preventDefault(); clearDropMarks(); head.classList.add(below(head, e) ? "drop-after" : "drop-before");
+        });
+        head.addEventListener("drop", e => {
+          e.preventDefault(); e.stopPropagation();
+          if (!orderDragFrom) return;
+          const d = orderDragFrom; orderDragFrom = null;
+          dropOrder(d, members[0][1], below(head, e), true);
+        });
+        const row = document.createElement("div"); row.className = "ogrp-row";
+        grp.append(head, row);
+        box.append(grp);
+        parent = row;
+      }
+    } else if (sep) parent.append(sep);
+    const row = document.createElement("div");
+    const selected = isSelMark(m);
+    row.className = "oi" + (selected ? " sel" : "");
+    row.draggable = true;
+    const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
+    const cvs = document.createElement("canvas"); cvs.width = 128; cvs.height = 88;
+    drawThumb(cvs, all, th, m, cAt[m.from]);
+    const lab = document.createElement("div"); lab.className = "lab";
+    const nSt = (() => { let n = 0; for (let q = m.from; q <= m.to; q++) if (all[q].t === "s") n++; return n; })();
+    lab.innerHTML = m.type === "run" ? `Stitch run<br><small>${nSt} stitches</small>`
+                                     : `${SHAPE_NAMES[m.s.kind]}<br><small>live shape · ${nSt} st</small>`;
+    row.append(num, cvs, lab);
+    row.onclick = e => {
+      if (tool !== "select") setTool("select");
+      const key = m.type === "run" ? m.r.start : m.s.id;
+      if (e.shiftKey) toggleSel(m.type, key);
+      else { runSel.clear(); shapeSel.clear(); (m.type === "run" ? runSel : shapeSel).add(key); expandGroups(); }
+      changed();
+    };
+    row.oncontextmenu = e => openMenu(m, e);
+    row.onmouseenter = () => { hoverRun = m.type === "run" ? m.r.start : null; hoverId = m.type === "shape" ? m.s.id : null; draw(); };
+    row.onmouseleave = () => { hoverRun = null; hoverId = null; draw(); };
+    row.addEventListener("dragstart", e => {
+      e.stopPropagation();
+      orderDragFrom = { index: i }; row.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i));
+    });
+    row.addEventListener("dragend", () => { orderDragFrom = null; clearDropMarks(); });
+    row.addEventListener("dragover", e => {
+      if (!orderDragFrom) return;
+      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move";
+      clearDropMarks(); row.classList.add(below(row, e) ? "drop-after" : "drop-before");
+    });
+    row.addEventListener("drop", e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!orderDragFrom) return;
+      const d = orderDragFrom; orderDragFrom = null;
+      dropOrder(d, i, below(row, e), false);   // onto a group member = into that group; onto a loose card = out of any group
+    });
+    parent.append(row);
+  });
+}
+
+function renderRunPanel() {
+  const rs = tool === "select" && !shapeSel.size ? selRuns() : [];
+  $("runBox").hidden = !rs.length;
+  if (!rs.length) return;
+  const b = unionBox(rs.map(runBox)), d = U().dec;
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = trim(v, d); };
+  $("runTitle").textContent = rs.length === 1 ? "Stitch run" : `${rs.length} stitch runs`;
+  set("rnW", toU(b.maxX - b.minX)); set("rnH", toU(b.maxY - b.minY));
+  set("rnX", toU((b.minX + b.maxX) / 2)); set("rnY", toU((b.minY + b.maxY) / 2));
+  const n = rs.reduce((a, r) => a + r.n, 0);
+  $("rnInfo").textContent = `${n} stitches · drag the handles to resize or rotate`;
+  // stop / color change before the (first) selected run
+  const first = rs.slice().sort((a, b) => a.start - b.start)[0], canStop = rs.some(hasStitchBefore);
+  if (document.activeElement !== $("rnStop")) $("rnStop").value = runStop(first);
+  $("rnStop").disabled = !canStop;
+  const v = $("rnStop").value;
+  $("rnStopHelp").textContent = !canStop ? "This is the first run in the design, so the machine is already stopped here."
+    : v === "none" ? "The machine sews straight on into this run."
+    : v === "same" ? "The machine stops here with the same thread, so you can add fabric (appliqué), trim, or check alignment, then press Start."
+    : "The machine stops here so you can change to this thread color.";
 }
 
 function renderPointPanel() {
@@ -1042,8 +1896,8 @@ function renderPointPanel() {
   $("selInfo").textContent = `#${i + 1} of ${cmds.length}` + (c.t === "c" ? " (color change)" : "");
   $("selEdit").hidden = c.t === "c";
   $("selType").value = c.t === "j" ? "j" : "s";
-  if (document.activeElement !== $("selX")) $("selX").value = (c.x / 10).toFixed(1);
-  if (document.activeElement !== $("selY")) $("selY").value = (c.y / 10).toFixed(1);
+  if (document.activeElement !== $("selX")) $("selX").value = trim(toU(c.x), U().dec);
+  if (document.activeElement !== $("selY")) $("selY").value = trim(toU(c.y), U().dec);
 }
 
 // ---------- Shape operations ----------
@@ -1052,25 +1906,59 @@ function newShape(kind, cx, cy, w, h, rot = 0) {
   shapes.push(s);
   return s;
 }
+// These act on everything selected with the Select tool: shapes and stitch runs.
 function deleteShapes() {
-  if (!shapeSel.size) return;
+  if (!shapeSel.size && !runSel.size) return;
   snapshot();
-  shapes = shapes.filter(s => !shapeSel.has(s.id));
-  shapeSel.clear(); changed();
+  if (runSel.size) applyOrder(normalizeGroups(orderList().filter(it => it.type === "shape" ? !shapeSel.has(it.s.id) : !runSel.has(it.obj.start))));
+  else shapes = shapes.filter(s => !shapeSel.has(s.id));
+  shapeSel.clear(); runSel.clear(); changed();
 }
-function copyShapes() { clipboard = selShapes().map(s => JSON.parse(JSON.stringify(s))); }
+function copyShapes() {
+  if (!shapeSel.size && !runSel.size) return;
+  clipboard = { shapes: selShapes().map(s => JSON.parse(JSON.stringify(s))), runs: selRuns().map(runCmds) };
+}
 function pasteShapes(offset = 50) {
-  if (!clipboard.length) return;
+  if (!clipboard.shapes) return;
   snapshot();
-  shapeSel.clear();
-  clipboard = clipboard.map(c => ({ ...c, cx: c.cx + offset, cy: c.cy - offset }));
-  for (const c of clipboard) { const s = { ...c, id: nextId++ }; shapes.push(s); shapeSel.add(s.id); }
+  shapeSel.clear(); runSel.clear();
+  clipboard.shapes = clipboard.shapes.map(c => ({ ...c, cx: c.cx + offset, cy: c.cy - offset }));
+  clipboard.runs = clipboard.runs.map(run => run.map(c => ({ ...c, x: c.x + offset, y: c.y - offset })));
+  // pasted copies get their own groups (a copy of a group is a new group)
+  const gmap = new Map(); let gNext = newGroupId();
+  const remap = g => { if (g == null) return undefined; if (!gmap.has(g)) gmap.set(g, gNext++); return gmap.get(g); };
+  for (const c of clipboard.shapes) { const s = { ...c, id: nextId++, group: remap(c.group) }; if (s.group == null) delete s.group; shapes.push(s); shapeSel.add(s.id); }
+  const runs = clipboard.runs.map(run => run.map(c => { const n = { ...c, g: remap(c.g) }; if (n.g == null) delete n.g; return n; }));
+  for (const st of appendRuns(runs, 0, 0)) runSel.add(st);
+  if (gmap.size) {   // keep each new group together in the sew order
+    const order = orderList(), sel = order.filter(isSelItem), starts = applyOrder(normalizeGroups(order));
+    reselect(sel, starts);
+  }
   setTool("select"); changed();
 }
 function nudgeShapes(dx, dy) {
-  if (!shapeSel.size) return;
+  if (!shapeSel.size && !runSel.size) return;
   snapshot();
   for (const s of selShapes()) { s.cx += dx; s.cy += dy; }
+  transformRuns((x, y) => [x + dx, y + dy]);
+  changed();
+}
+// Everything (stitch runs and other shapes) lying fully inside a shape's outline box — e.g. the text inside a frame.
+function contentsOf(s) {
+  const b = aabb(s), inside = x => x.minX >= b.minX && x.maxX <= b.maxX && x.minY >= b.minY && x.maxY <= b.maxY;
+  const boxes = [];
+  for (const r of getRuns()) { const rb = runBox(r); if (inside(rb)) boxes.push(rb); }
+  for (const o of shapes) if (o !== s) { const ob = aabb(o); if (inside(ob)) boxes.push(ob); }
+  if (!boxes.length) return null;
+  const u = unionBox(boxes);
+  // offset of the shape's center from the contents' center
+  return { n: boxes.length, box: u, dx: (b.minX + b.maxX) / 2 - (u.minX + u.maxX) / 2, dy: (b.minY + b.maxY) / 2 - (u.minY + u.maxY) / 2 };
+}
+function centerOnContents() {
+  const sel = selShapes().filter(s => contentsOf(s));
+  if (!sel.length) return;
+  snapshot();
+  for (const s of sel) { const c = contentsOf(s); s.cx -= c.dx; s.cy -= c.dy; }
   changed();
 }
 function alignShapes(how) {
@@ -1089,21 +1977,32 @@ function alignShapes(how) {
   }
   changed();
 }
+const orderIndexOfShape = id => orderList().findIndex(it => it.type === "shape" && it.s.id === id);
 function reorder(dir) {
   if (shapeSel.size !== 1) return;
-  const i = shapes.indexOf(selShapes()[0]), j = i + dir;
-  if (j < 0 || j >= shapes.length) return;
-  snapshot();
-  [shapes[i], shapes[j]] = [shapes[j], shapes[i]];
-  changed();
+  const i = orderIndexOfShape(selShapes()[0].id);
+  moveOrderItem(i, i + dir);
 }
 // Turn selected shapes into ordinary stitches (so single points can be edited).
 function bakeShapes() {
   if (!shapeSel.size) return;
   snapshot();
-  for (const s of selShapes()) if (appendShape(cmds, threads, s)) threadsDirty = true;
-  shapes = shapes.filter(s => !shapeSel.has(s.id));
-  shapeSel.clear(); changed();
+  // each selected shape becomes a stitch run at the same place in the sew order, with the same thread and pause
+  let last = { ...(threads[0] || { idx: 1 }) };
+  const order = orderList().map(it => {
+    if (it.type === "run") { last = it.obj.thread; return it; }
+    const s = it.s, thread = s.color === "cur" ? { ...last } : { idx: s.color };
+    last = thread;
+    if (!shapeSel.has(s.id)) return it;
+    const st = stitchesFor(s);
+    if (st.length < 2) return null;
+    const g = s.group != null ? { g: s.group } : {};   // stays in its group
+    return { type: "run", baked: true, obj: { cmds: [{ t: "j", x: st[0][0], y: st[0][1], ...g }, ...st.map(([x, y]) => ({ t: "s", x, y, ...g }))], thread, pause: !!s.stop } };
+  }).filter(Boolean);
+  const starts = applyOrder(order);
+  shapeSel.clear();
+  runSel = new Set(order.filter(it => it.baked).map(it => starts.get(it.obj)));   // keep them selected and editable
+  changed();
 }
 
 // ---------- Point operations (Points tool) ----------
@@ -1182,9 +2081,12 @@ cv.addEventListener("pointerdown", e => {
   cv.setPointerCapture(e.pointerId);
   editing = false;
   const [x, y] = mpos(e), [wx, wy] = toW(x, y);
+  hideMenu();
   if (e.button === 1 || e.button === 2 || spaceDown) {
     e.preventDefault();
-    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: true }; return;
+    // right button: drag to pan, or click (no drag) for the context menu
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: e.button !== 2, menu: e.button === 2 && !spaceDown, wx, wy };
+    return;
   }
   if (e.button !== 0) return;
 
@@ -1197,20 +2099,32 @@ cv.addEventListener("pointerdown", e => {
 
   // --- Select tool ---
   if (tool === "select") {
+    // moving everything selected (shapes and stitch runs together)
+    const startMove = () => {
+      const rb = runSel.size ? unionBox(selRuns().map(runBox)) : null;
+      drag = { mode: "move", x0: x, y0: y, w0: [wx, wy], started: false,
+               origs: selShapes().map(q => [q.id, q.cx, q.cy]), pts0: runPts0(), runBox0: rb };
+    };
     const h = handleAt(x, y);
     if (h) {
-      const s = selShapes()[0];
-      drag = { mode: h === "c" ? "move" : h === "rot" ? "rotate" : h[0] === "p" ? "endpoint" : "resize",
-               handle: h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(s)), id: s.id, started: false,
-               w0: [wx, wy], origs: [[s.id, s.cx, s.cy]] };
+      const s = selTarget();
+      if (h === "c") return startMove();
+      const mode = h === "rot" ? "rotate" : h[0] === "p" ? "endpoint" : "resize";
+      if (s.isRuns) drag = { mode, handle: h, x0: x, y0: y, orig: { ...s }, proxy: { ...s }, runs: true, pts0: runPts0(), started: false, w0: [wx, wy] };
+      else drag = { mode, handle: h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(s)), id: s.id, started: false, w0: [wx, wy] };
       return;
     }
     const s = shapeAt(wx, wy);
     if (s) {
-      if (e.shiftKey) { shapeSel.has(s.id) ? shapeSel.delete(s.id) : shapeSel.add(s.id); changed(); return; }
-      if (!shapeSel.has(s.id)) { shapeSel = new Set([s.id]); changed(); }
-      drag = { mode: "move", x0: x, y0: y, w0: [wx, wy], started: false, origs: selShapes().map(q => [q.id, q.cx, q.cy]) };
-      return;
+      if (e.shiftKey) { toggleSel("shape", s.id); changed(); return; }
+      if (!shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); changed(); }
+      return startMove();
+    }
+    const r = runAt(wx, wy);
+    if (r != null) {
+      if (e.shiftKey) { toggleSel("run", r); changed(); return; }
+      if (!runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); changed(); }
+      return startMove();
     }
     drag = { mode: "box", x0: x, y0: y, x, y, add: e.shiftKey };
     return;
@@ -1234,10 +2148,10 @@ cv.addEventListener("pointermove", e => {
   const [x, y] = mpos(e), [wx, wy] = toW(x, y);
   if (!drag) {   // hover feedback
     if (tool === "select") {
-      const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy);
-      cv.style.cursor = h ? handleCursor(h, selShapes()[0]) : s ? "move" : "default";
+      const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy), r = h || s ? null : runAt(wx, wy);
+      cv.style.cursor = h ? handleCursor(h, selTarget()) : s || r != null ? "move" : "default";
       const id = s ? s.id : null;
-      if (id !== hoverId) { hoverId = id; draw(); }
+      if (id !== hoverId || r !== hoverRun) { hoverId = id; hoverRun = r; draw(); }
     }
     return;
   }
@@ -1252,7 +2166,7 @@ cv.addEventListener("pointermove", e => {
       if (!drag.shape && !moved(e, drag)) return;
       const [ax, ay] = drag.start;
       let [bx, by] = snapPoint(wx, wy, new Set(drag.shape ? [drag.shape.id] : []), alt);
-      if (!drag.shape) { snapshot(); drag.shape = newShape(drag.kind, ax, ay, 5, 5); shapeSel = new Set([drag.shape.id]); }
+      if (!drag.shape) { snapshot(); drag.shape = newShape(drag.kind, ax, ay, 5, 5); shapeSel = new Set([drag.shape.id]); runSel.clear(); }
       const s = drag.shape;
       if (s.kind === "line") {
         let ang = Math.atan2(by - ay, bx - ax), L = Math.hypot(bx - ax, by - ay);
@@ -1272,14 +2186,18 @@ cv.addEventListener("pointermove", e => {
       const rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = cx + rdx; s.cy = cy + rdy; }
       const ids = new Set(drag.origs.map(o => o[0]));
-      const { dx, dy } = snapBox(unionBox([...ids].map(id => aabb(byId(id)))), ids, alt);
+      const boxes = [...ids].map(id => aabb(byId(id)));
+      const rb = drag.runBox0;
+      if (rb) boxes.push({ minX: rb.minX + rdx, maxX: rb.maxX + rdx, minY: rb.minY + rdy, maxY: rb.maxY + rdy });
+      const { dx, dy } = snapBox(unionBox(boxes), ids, alt);
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = Math.round(cx + rdx + dx); s.cy = Math.round(cy + rdy + dy); }
+      for (const [i, x0, y0] of drag.pts0) { cmds[i].x = Math.round(x0 + rdx + dx); cmds[i].y = Math.round(y0 + rdy + dy); }
       changed(); return;
     }
 
     case "resize": {
       if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
-      const o = drag.orig, s = byId(drag.id), [hx, hy] = HSIGN[drag.handle];
+      const o = drag.orig, s = drag.runs ? drag.proxy : byId(drag.id), [hx, hy] = HSIGN[drag.handle];
       const fromCenter = e.ctrlKey, keepRatio = e.shiftKey;
       let [mx, my] = [wx, wy];
       // snap the moving edge(s) to guides — only when the shape isn't rotated
@@ -1300,16 +2218,18 @@ cv.addEventListener("pointermove", e => {
       const cly = fromCenter ? 0 : hy ? hy * (h - o.h) / 2 : 0;
       const [ncx, ncy] = toWorld(o, clx, cly);
       Object.assign(s, { w: Math.round(w), h: Math.round(h), cx: ncx, cy: ncy });   // center may sit on a half unit so edges land exactly
+      if (drag.runs) applyRunXform(drag);
       changed(); return;
     }
 
     case "rotate": {
       if (!drag.started) { snapshot(); drag.started = true; }
-      const s = byId(drag.id);
+      const s = drag.runs ? drag.proxy : byId(drag.id);
       let a = Math.atan2(wy - s.cy, wx - s.cx) * 180 / Math.PI - 90;
       a = e.shiftKey ? Math.round(a / 15) * 15 : Math.round(a);
       if (!e.shiftKey && !alt) for (const q of [0, 90, 180, 270, -90, -180, -270]) if (Math.abs(a - q) <= 3) a = q;  // stick to square angles
       s.rot = ((a % 360) + 540) % 360 - 180;
+      if (drag.runs) applyRunXform(drag);
       changed(); return;
     }
 
@@ -1344,17 +2264,28 @@ cv.addEventListener("pointerup", e => {
   const d = drag; drag = null; guides = [];
   if (d.mode === "create" && !d.shape) {   // plain click: drop a 20 mm shape centered there
     snapshot();
-    const s = newShape(d.kind, d.start[0], d.start[1], 200, 200);
-    shapeSel = new Set([s.id]);
+    const s = newShape(d.kind, d.start[0], d.start[1], U().click, U().click);   // 20 mm, or 1" in imperial
+    shapeSel = new Set([s.id]); runSel.clear();
   }
   if (d.mode === "create") { setTool("select"); return; }
+  if (d.mode === "pan" && !d.moved && d.menu) {   // right-click: select what's under the mouse, then show the menu
+    if (tool === "points") setTool("select");
+    const s = shapeAt(d.wx, d.wy), r = s ? null : runAt(d.wx, d.wy);
+    if (s && !shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); }
+    else if (r != null && !runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); }
+    changed(); showMenu(e.clientX, e.clientY);
+    return;
+  }
   if (d.mode === "pan" && !d.moved) { ptSel.clear(); }
   if (d.mode === "box") {
     const ax = Math.min(d.x0, d.x), bx = Math.max(d.x0, d.x), ay = Math.min(d.y0, d.y), by = Math.max(d.y0, d.y);
-    if (!d.add) shapeSel.clear();
+    if (!d.add) { shapeSel.clear(); runSel.clear(); }
     if (bx - ax > 3 || by - ay > 3) {
       const [w0x, w0y] = toW(ax, by), [w1x, w1y] = toW(bx, ay);
-      for (const s of shapes) { const b = aabb(s); if (b.minX >= w0x && b.maxX <= w1x && b.minY >= w0y && b.maxY <= w1y) shapeSel.add(s.id); }
+      const inside = b => b.minX >= w0x && b.maxX <= w1x && b.minY >= w0y && b.maxY <= w1y;
+      for (const s of shapes) if (inside(aabb(s))) shapeSel.add(s.id);
+      for (const r of getRuns()) if (inside(runBox(r))) runSel.add(r.start);
+      expandGroups();
     }
   }
   if (d.mode === "ptbox") {
@@ -1391,22 +2322,24 @@ document.addEventListener("keydown", e => {
   else if (mod && k === "a") {
     e.preventDefault();
     if (pts) ptSel = new Set(cmds.map((c, i) => i).filter(i => cmds[i].t !== "c"));
-    else { setTool("select"); shapeSel = new Set(shapes.map(s => s.id)); }
+    else { setTool("select"); shapeSel = new Set(shapes.map(s => s.id)); runSel = new Set(getRuns().map(r => r.start)); }
     changed();
   }
   else if (mod && k === "c") { if (!pts) copyShapes(); }
   else if (mod && k === "x") { if (!pts) { copyShapes(); deleteShapes(); } }
   else if (mod && k === "v") { e.preventDefault(); pasteShapes(); }
   else if (mod && k === "d") { e.preventDefault(); copyShapes(); pasteShapes(); }
+  else if (mod && k === "g") { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); }
   else if (mod) return;
   else if (k === "delete" || k === "backspace") { e.preventDefault(); pts ? deletePoints() : deleteShapes(); }
-  else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); ptSel.clear(); changed(); }
+  else if (k === "escape" && !$("ctxMenu").hidden) hideMenu();
+  else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); runSel.clear(); ptSel.clear(); changed(); }
   else if (toolKeys[k]) setTool(toolKeys[k]);
   else if (pts && k === "i") insertStitch();
   else if (pts && k === "j") toggleType();
   else if (k.startsWith("arrow")) {
     e.preventDefault();
-    const step = pts ? (e.shiftKey ? 10 : 1) : (e.shiftKey ? 50 : 5);
+    const step = pts ? (e.shiftKey ? 10 : 1) : (e.shiftKey ? U().nudgeBig : U().nudge);
     const dx = k === "arrowleft" ? -step : k === "arrowright" ? step : 0, dy = k === "arrowup" ? step : k === "arrowdown" ? -step : 0;
     pts ? nudgePoints(dx, dy) : nudgeShapes(dx, dy);
   }
@@ -1422,11 +2355,11 @@ function editShapes(fn) {
   changed();
 }
 const num = id => parseFloat($(id).value);
-$("shW").addEventListener("input", () => num("shW") > 0 && editShapes(([s]) => s.w = Math.round(num("shW") * 10)));
-$("shH").addEventListener("input", () => num("shH") > 0 && editShapes(([s]) => s.h = Math.round(num("shH") * 10)));
+$("shW").addEventListener("input", () => num("shW") > 0 && editShapes(([s]) => s.w = Math.max(5, fromU(num("shW")))));
+$("shH").addEventListener("input", () => num("shH") > 0 && editShapes(([s]) => s.h = Math.max(5, fromU(num("shH")))));
 $("shR").addEventListener("input", () => !isNaN(num("shR")) && editShapes(([s]) => s.rot = num("shR")));
-$("shX").addEventListener("input", () => !isNaN(num("shX")) && editShapes(([s]) => s.cx = Math.round(num("shX") * 10)));
-$("shY").addEventListener("input", () => !isNaN(num("shY")) && editShapes(([s]) => s.cy = Math.round(num("shY") * 10)));
+$("shX").addEventListener("input", () => !isNaN(num("shX")) && editShapes(([s]) => s.cx = fromU(num("shX"))));
+$("shY").addEventListener("input", () => !isNaN(num("shY")) && editShapes(([s]) => s.cy = fromU(num("shY"))));
 const styleField = (id, key, read) => $(id).addEventListener("input", () => editShapes(sel => {
   const v = read(); for (const s of sel) s[key] = v; defaults[key] = v;
 }));
@@ -1442,6 +2375,37 @@ $("shColor").add(new Option("Keep current thread", "cur"));
 PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`, i)); });
 document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
 $("shDup").onclick = () => { copyShapes(); pasteShapes(); };
+$("shCenter").onclick = centerOnContents;
+// stitch-run panel: typed size scales around the group's center; typed center moves it
+function editRunsBox(fn) {
+  if (!runSel.size) return;
+  if (!editing) { snapshot(); editing = true; }
+  const b = unionBox(selRuns().map(runBox));
+  fn(b, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+  changed();
+}
+$("rnW").addEventListener("input", () => num("rnW") > 0 && editRunsBox((b, cx) => {
+  const k = b.maxX - b.minX < 2 ? 1 : fromU(num("rnW")) / (b.maxX - b.minX);
+  transformRuns((x, y) => [cx + (x - cx) * k, y]);
+}));
+$("rnH").addEventListener("input", () => num("rnH") > 0 && editRunsBox((b, cx, cy) => {
+  const k = b.maxY - b.minY < 2 ? 1 : fromU(num("rnH")) / (b.maxY - b.minY);
+  transformRuns((x, y) => [x, cy + (y - cy) * k]);
+}));
+$("rnX").addEventListener("input", () => !isNaN(num("rnX")) && editRunsBox((b, cx) => { const d = fromU(num("rnX")) - cx; transformRuns((x, y) => [x + d, y]); }));
+$("rnY").addEventListener("input", () => !isNaN(num("rnY")) && editRunsBox((b, cx, cy) => { const d = fromU(num("rnY")) - cy; transformRuns((x, y) => [x, y + d]); }));
+$("rnStop").add(new Option("Keep sewing (no stop)", "none"));
+$("rnStop").add(new Option("Stop — keep the same thread (add fabric…)", "same"));
+PALETTE.forEach((p, i) => { if (i) $("rnStop").add(new Option(`Stop & change to ${i} · ${p[0]}`, i)); });
+$("rnStop").addEventListener("input", () => setRunStop($("rnStop").value));
+$("shStop").addEventListener("input", () => editShapes(sel => { for (const s of sel) s.stop = $("shStop").checked; }));
+$("rnDup").onclick = () => { copyShapes(); pasteShapes(); };
+$("rnDel").onclick = deleteShapes;
+$("rnPts").onclick = () => {
+  const idx = [];
+  for (const r of selRuns()) for (let i = r.start; i <= r.end; i++) if (cmds[i].t === "s") idx.push(i);
+  setTool("points"); ptSel = new Set(idx); changed();
+};
 $("shDel").onclick = deleteShapes;
 $("shBake").onclick = bakeShapes;
 $("shEarlier").onclick = () => reorder(-1);
@@ -1453,7 +2417,7 @@ $("togBtn").onclick = toggleType;
 $("ccBtn").onclick = insertColorChange;
 $("selType").onchange = () => { const i = [...ptSel][0]; snapshot(); cmds[i].t = $("selType").value; changed(); };
 ["selX", "selY"].forEach((id, axis) => $(id).onchange = () => {
-  const i = [...ptSel][0], v = Math.round(num(id) * 10);
+  const i = [...ptSel][0], v = Math.round(fromU(num(id)));
   if (isNaN(v)) return renderPointPanel();
   snapshot(); cmds[i][axis ? "y" : "x"] = v; changed();
 });
@@ -1463,6 +2427,117 @@ $("redoBtn").onclick = () => restore(redoStack, undoStack);
 $("fitBtn").onclick = fit;
 document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
 ["showJumps", "showPts", "lw", "tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", draw));
+// Right-click menu (canvas and Sew order list)
+function showMenu(x, y) {
+  const order = orderList(), sel = order.filter(isSelItem);
+  const gs = new Set(sel.map(itemGroup));
+  const oneGroup = gs.size === 1 && !gs.has(null) && order.filter(it => itemGroup(it) === [...gs][0]).length === sel.length;
+  const m = $("ctxMenu"), btn = a => m.querySelector(`[data-act="${a}"]`);
+  btn("group").disabled = sel.length < 2 || oneGroup;
+  btn("ungroup").disabled = !sel.some(it => itemGroup(it) != null);
+  btn("dup").disabled = btn("del").disabled = !sel.length;
+  btn("bake").disabled = !shapeSel.size;
+  btn("center").disabled = !selShapes().some(s => contentsOf(s));
+  m.hidden = false;
+  const r = m.getBoundingClientRect ? m.getBoundingClientRect() : { width: 200, height: 200 };
+  m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
+  m.style.top = Math.min(y, innerHeight - r.height - 8) + "px";
+}
+function hideMenu() { $("ctxMenu").hidden = true; }
+$("ctxMenu").querySelectorAll("button").forEach(b => b.onclick = () => {
+  hideMenu();
+  ({ group: groupSelection, ungroup: ungroupSelection, center: centerOnContents, dup: () => { copyShapes(); pasteShapes(); }, bake: bakeShapes, del: deleteShapes })[b.dataset.act]();
+});
+document.addEventListener("pointerdown", e => { if (!$("ctxMenu").contains(e.target)) hideMenu(); }, true);
+
+// Sew order list width (hidden / normal / full) and the right-hand panel — remembered in this browser
+let orderMode = "normal";
+function setOrderMode(m) {
+  orderMode = m;
+  $("orderPanel").hidden = m === "hidden";
+  $("orderResize").hidden = m === "hidden";
+  $("orderTab").hidden = m !== "hidden";
+  $("wrap").classList.toggle("order-full", m === "full");
+  document.querySelectorAll("[data-omode]").forEach(b => b.classList.toggle("active", b.dataset.omode === m));
+  $("orderBtn").classList.toggle("active", m !== "hidden");
+  try { localStorage.setItem("jefOrderMode", m); } catch (e) {}
+  renderOrder();
+}
+document.querySelectorAll("[data-omode]").forEach(b => b.onclick = () => setOrderMode(b.dataset.omode));
+$("orderBtn").onclick = () => setOrderMode(orderMode === "hidden" ? "normal" : "hidden");
+function setSide(show) {
+  $("side").hidden = !show;
+  $("sideTab").hidden = show;
+  try { localStorage.setItem("jefSide", show ? "shown" : "hidden"); } catch (e) {}
+}
+$("sideBtn").onclick = () => setSide($("side").hidden);
+$("orderTab").onclick = () => setOrderMode("normal");
+// Drag the list's right edge to resize it (remembered in this browser); double-click resets to the default width.
+const ORDER_W = 250;
+function setOrderWidth(w, save = true) {
+  w = Math.round(Math.max(160, Math.min(w, (innerWidth || 1200) * 0.75)));
+  $("orderPanel").style.width = w + "px";
+  if (save) try { localStorage.setItem("jefOrderWidth", String(w)); } catch (e) {}
+}
+try { const w = +localStorage.getItem("jefOrderWidth"); if (w) setOrderWidth(w, false); } catch (e) {}
+$("orderResize").addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const h = $("orderResize"), left = $("orderPanel").getBoundingClientRect().left;
+  h.setPointerCapture(e.pointerId); h.classList.add("active"); document.body.classList.add("resizing");
+  const move = ev => setOrderWidth(ev.clientX - left, false);
+  const up = ev => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+    h.classList.remove("active"); document.body.classList.remove("resizing");
+    setOrderWidth(ev.clientX - left);
+  };
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+});
+$("orderResize").addEventListener("dblclick", () => setOrderWidth(ORDER_W));
+$("sideTab").onclick = () => setSide(true);
+try {
+  const m = localStorage.getItem("jefOrderMode"); if (m === "hidden" || m === "normal" || m === "full") orderMode = m;
+  if (localStorage.getItem("jefSide") === "hidden") setSide(false);
+} catch (e) {}
+$("sideTab").hidden = !$("side").hidden;
+setOrderMode(orderMode);
+
+// Hoop choice (remembered in this browser)
+// Units choice (remembered in this browser)
+function applyUnits() {
+  GRID = U().snap;
+  $("units").value = units;
+  document.querySelectorAll(".unit").forEach(el => el.textContent = U().name);
+  document.querySelectorAll("input.len").forEach(el => el.step = U().inStep);
+  document.querySelectorAll("input.ptlen").forEach(el => el.step = U().ptStep);
+  const keep = $("hoop").value;                        // relabel hoop sizes in the new units
+  $("hoop").options.length = 0;
+  HOOPS.forEach(h => $("hoop").add(new Option(hoopLabel(h), h.id)));
+  if (keep) $("hoop").value = keep;
+}
+$("units").addEventListener("input", () => {
+  units = $("units").value;
+  try { localStorage.setItem("jefUnits", units); } catch (e) {}
+  applyUnits(); changed();
+});
+applyUnits();
+$("hoop").value = "110x126";
+try {
+  const h = JSON.parse(localStorage.getItem("jefHoop") || "null");
+  if (h && HOOPS.some(x => x.id === h.id)) { $("hoop").value = h.id; $("hoopRot").checked = !!h.rot; }
+} catch (e) {}
+function saveHoop() { try { localStorage.setItem("jefHoop", JSON.stringify({ id: $("hoop").value, rot: $("hoopRot").checked })); } catch (e) {} }
+["hoop", "hoopRot"].forEach(id => $(id).addEventListener("input", () => { saveHoop(); if (meta) meta.hoopTouched = true; changed(); }));
+
+// Grid opacity (remembered in this browser)
+try { const g = localStorage.getItem("jefGridOpacity"); if (g !== null) $("gridOp").value = g; } catch (e) {}
+const syncGrid = () => { $("gridOpV").textContent = $("gridOp").value + "%"; };
+$("gridOp").addEventListener("input", () => {
+  syncGrid(); draw();
+  try { localStorage.setItem("jefGridOpacity", $("gridOp").value); } catch (e) {}
+});
+syncGrid();
+
 function syncRealBar() {
   const on = $("real").checked, t = +$("tight").value;
   $("realBar").classList.toggle("off", !on);
@@ -1492,7 +2567,7 @@ function newDesign() {
   h.fill(0xff, 0x34, 0x74);
   meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
   cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
-  shapeSel.clear(); ptSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+  shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
   const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
   view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
   changed();
@@ -1502,7 +2577,10 @@ function load(file) {
     try {
       const r = parseJEF(buf);
       cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
-      shapeSel.clear(); ptSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+      // show the hoop the file was made for, if it's one we know
+      const code = new DataView(buf).getInt32(32, true), known = HOOPS.find(h => h.code === code);
+      if (known) { $("hoop").value = known.id; $("hoopRot").checked = false; saveHoop(); }
+      shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
       changed(); fit();
     } catch (err) { alert("Could not read file: " + err.message); }
   });
