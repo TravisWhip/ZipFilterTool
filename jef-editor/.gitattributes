@@ -1,0 +1,4 @@
+# Embroidery files are binary
+*.JEF binary
+*.jef binary
+*.html text eol=lf

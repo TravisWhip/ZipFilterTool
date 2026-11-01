@@ -1,0 +1,3187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JEF Stitch Editor</title>
+<style>
+  :root { --bg:#f2f2ef; --panel:#fff; --line:#d8d8d4; --fg:#222; --muted:#666; --sel:#29b6f2; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }   /* make the hidden attribute win over display:flex rules */
+  html, body { height:100%; margin:0; }
+  body { font:13px system-ui, sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0 12px 0 0; }
+  #wrap { flex:1; display:flex; min-height:0; }
+  #stage { flex:1; position:relative; min-width:0; }
+  #cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  #drophint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:16px; pointer-events:none; text-align:center; padding:16px; }
+  #stage.over { outline:3px dashed #2a7; outline-offset:-8px; }
+  aside { width:300px; overflow:auto; background:var(--panel); border-left:1px solid var(--line); padding:10px 12px; }
+  aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 0 6px; }
+  aside > :first-child h2, aside > h2:first-child { margin-top:0; }
+  .row { display:flex; gap:6px; align-items:center; margin:4px 0; flex-wrap:wrap; }
+  input[type=number] { width:80px; }
+  button { padding:4px 9px; cursor:pointer; }
+  button:disabled { cursor:default; }
+  .sw { display:inline-block; width:16px; height:16px; border:1px solid #888; border-radius:3px; flex:none; }
+  .thread { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  .thread select { flex:1; min-width:0; }
+  #info, .help { color:var(--muted); line-height:1.55; }
+  .help kbd { background:#eee; border:1px solid #ccc; border-radius:3px; padding:0 4px; font-size:11px; }
+  #status { color:var(--muted); margin-left:auto; }
+  .tools { display:flex; }
+  .tools button { border-radius:0; margin-left:-1px; }
+  .tools button:first-child { border-radius:4px 0 0 4px; }
+  .tools button:last-child { border-radius:0 4px 4px 0; }
+  .tools button.active { background:#333; color:#fff; border-color:#333; }
+  .lbl { width:68px; flex:none; }
+  input.sm { width:60px; }
+  .card { background:#f3faff; border:1px solid #bfe3f7; border-radius:8px; padding:8px 10px; margin-bottom:8px; }
+  .card h2 { margin-top:0 !important; color:#1477a8; }
+  .val { color:var(--muted); min-width:44px; }
+  .align button { padding:3px 7px; font-size:12px; }
+  #realBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:7px 12px;
+             background:#fbf8f1; border-bottom:1px solid var(--line); }
+  #realBar .grp { display:flex; align-items:center; gap:6px; }
+  #realBar .cap { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+  #realBar .end { font-size:11px; color:var(--muted); }
+  #realBar input[type=range] { width:130px; }
+  #realBar.off .grp, #realBar.off #pullInfo { opacity:.45; }
+  #realBar .swatches { display:flex; gap:3px; }
+  #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
+  #realBar input[type=color] { width:30px; height:22px; padding:0 2px; }
+  .realToggle { padding:3px 8px; border:1px solid #e3d6b8; border-radius:6px; background:#fff; }
+  /* Sew-out player */
+  #playBar { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:4; display:flex; flex-direction:column; gap:6px;
+             width:min(620px, calc(100% - 24px)); background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px;
+             box-shadow:0 3px 14px rgba(0,0,0,.12); white-space:nowrap; }
+  #playBar .pb-row { display:flex; gap:8px; align-items:center; }
+  #playBar .pb-row > .pb-more { display:flex; gap:8px; align-items:center; flex:1; min-width:0; }
+  #playBar .pb-slide input { flex:1; min-width:80px; }
+  #playBar .pb-fold { margin-left:auto; padding:2px 8px; }
+  #playBar #playInfo { overflow:hidden; text-overflow:ellipsis; }
+  /* collapsed: just a small pill with Play (and Stop) */
+  #playBar.folded { width:auto; padding:5px 6px; }
+  #playBar.folded .pb-more { display:none !important; }
+  #playBtn { font-weight:600; }
+  /* stop / finished message, inside the sew-out bar */
+  #playPause { display:flex; align-items:center; gap:12px; padding:8px 10px; border-radius:8px;
+               background:#fff4e0; border:1px solid #f0c27a; white-space:normal; }
+  #playPause .pp-text { flex:1; min-width:0; }
+  #playPause .pp-btns { display:flex; gap:6px; flex:none; }
+  #ppTitle { font-weight:700; color:#8a4b00; }
+  #ppMsg { color:#444; line-height:1.45; }
+  #ppMsg .sw { width:16px; height:16px; vertical-align:middle; margin:0 3px; }
+  #playBar.folded:has(#playPause:not([hidden])) { width:min(620px, calc(100% - 24px)); }
+  .pp-go { background:#1477a8; color:#fff; border:1px solid #1477a8; border-radius:6px; padding:6px 16px; font-weight:600; }
+  /* Right-click menu */
+  #ctxMenu { position:fixed; z-index:50; min-width:190px; background:#fff; border:1px solid #ccd; border-radius:8px;
+             box-shadow:0 6px 24px rgba(0,0,0,.18); padding:4px; }
+  #ctxMenu button { display:flex; justify-content:space-between; gap:16px; width:100%; border:0; background:none; text-align:left; padding:6px 10px; border-radius:5px; font:inherit; }
+  #ctxMenu button:hover:not(:disabled) { background:#eef8fe; }
+  #ctxMenu button:disabled { color:#bbb; }
+  #ctxMenu kbd { font-size:11px; color:#999; background:none; border:0; }
+  #ctxMenu hr { border:0; border-top:1px solid #eee; margin:4px 0; }
+  /* Groups in the sew order list */
+  .ogrp { border:1px solid #c9b8ea; background:#f7f3fd; border-radius:9px; padding:0 4px 4px; margin:2px 0; }
+  .ogrp.sel { border-color:#7e57c2; box-shadow:0 0 0 1px #7e57c2; }
+  .ogrp-h { display:flex; align-items:center; gap:6px; padding:5px 4px; font-size:12px; color:#5e35b1; cursor:grab; user-select:none; }
+  .ogrp-h .caret { cursor:pointer; width:14px; text-align:center; }
+  .ogrp-h.drop-before { box-shadow:0 -3px 0 #29b6f2; }
+  .ogrp-h.drop-after { box-shadow:0 3px 0 #29b6f2; }
+  .ogrp.collapsed .ogrp-row { display:none; }
+  /* groups lay their members out left-to-right; the list scrolls sideways when a group is wide */
+  .ogrp { width:max-content; min-width:100%; }
+  .ogrp-row { display:flex; align-items:stretch; }
+  .ogrp .oi { flex-direction:column; width:92px; flex:none; gap:3px; text-align:center; }
+  .ogrp .oi .num { width:auto; text-align:center; }
+  .ogrp .oi.drop-before { box-shadow:-3px 0 0 #29b6f2; }
+  .ogrp .oi.drop-after { box-shadow:3px 0 0 #29b6f2; }
+  .sep .short { display:none; }
+  .ogrp .sep { margin:0 2px; min-width:18px; padding:2px; flex-direction:column; }
+  .ogrp .sep .long { display:none; }
+  .ogrp .sep .short { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  /* slim tabs that bring back a collapsed panel */
+  .edgeTab { flex:none; width:24px; padding:10px 0; border:0; border-radius:0; background:#eceae4; color:#444;
+             writing-mode:vertical-rl; font-size:12px; letter-spacing:.04em; cursor:pointer; }
+  #orderTab { border-right:1px solid var(--line); transform:rotate(180deg); }
+  #sideTab { border-left:1px solid var(--line); }
+  .edgeTab:hover { background:#dfeef8; color:#1477a8; }
+  /* list width modes */
+  .opmodes { display:flex; gap:2px; }
+  .opmodes button { padding:1px 6px; font-size:12px; }
+  .opmodes button.active { background:#333; color:#fff; border-color:#333; }
+  #wrap.order-full #orderPanel { flex:1; width:auto !important; }
+  /* drag handle on the list's right edge */
+  #orderResize { flex:none; width:6px; margin-left:-3px; margin-right:-3px; z-index:5; cursor:col-resize; position:relative; touch-action:none; }
+  #orderResize::after { content:""; position:absolute; top:0; bottom:0; left:2px; width:2px; background:transparent; transition:background .15s; }
+  #orderResize:hover::after, #orderResize.active::after { background:#29b6f2; }
+  #wrap.order-full #orderResize { display:none; }
+  body.resizing, body.resizing * { cursor:col-resize !important; user-select:none !important; }
+  #wrap.order-full #stage { display:none; }
+  /* Sew order list */
+  #orderPanel { width:250px; flex:none; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:8px; }
+  .ophead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+  .oi { display:flex; gap:6px; align-items:center; padding:4px; border:1px solid #ddd; border-radius:7px; background:#fff; cursor:grab; user-select:none; }
+  .oi:hover { border-color:#9fd6f3; }
+  .oi.sel { border-color:#29b6f2; background:#eef8fe; box-shadow:0 0 0 1px #29b6f2; }
+  .oi.dragging { opacity:.4; }
+  .oi.drop-before { box-shadow:0 -3px 0 #29b6f2; }
+  .oi.drop-after { box-shadow:0 3px 0 #29b6f2; }
+  .oi canvas { width:64px; height:44px; border-radius:4px; flex:none; }
+  .oi .num { font-weight:bold; color:#999; width:18px; text-align:right; flex:none; }
+  .oi .lab { font-size:12px; line-height:1.3; min-width:0; }
+  .oi .lab small { color:var(--muted); }
+  .sep { min-height:14px; margin:2px 0; display:flex; gap:5px; align-items:center; justify-content:center; font-size:11px;
+         color:transparent; cursor:pointer; border-radius:4px; }
+  .sep:hover { background:#f3f3f0; color:#888; }
+  .sep.pause { padding:3px; background:#fff3e0; color:#a85a00; border:1px dashed #f0b060; }
+  .sep.change { padding:3px; background:#f1f2f6; color:#556; border:1px solid #dde; cursor:default; }
+  .sep .sw { width:12px; height:12px; }
+  @media (max-width: 760px) {
+    .edgeTab, #orderTab { width:auto; writing-mode:horizontal-tb; transform:none; padding:6px; }
+    #orderResize { display:none; }
+    #orderPanel { width:auto !important; }
+    #orderPanel { width:auto; max-height:160px; border-right:0; border-bottom:1px solid var(--line); }
+    #wrap { flex-direction:column; }
+    #stage { min-height:55vh; }
+    aside { width:auto; border-left:0; border-top:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>JEF Stitch Editor</h1>
+  <button id="newBtn">New</button>
+  <button id="openBtn">Open…</button>
+  <input id="file" type="file" accept=".jef,.JEF" hidden>
+  <button id="saveBtn">Save JEF</button>
+  <button id="pngBtn">Save PNG</button>
+  <button id="undoBtn" disabled title="Ctrl+Z">Undo</button>
+  <button id="redoBtn" disabled title="Ctrl+Y">Redo</button>
+  <button id="fitBtn">Fit</button>
+  <button id="orderBtn" title="Show or hide the sew order list">Sew order</button>
+  <button id="sideBtn" title="Show or hide the right-hand panel">Side panel</button>
+  <span class="tools">
+    <button data-tool="select" class="active" title="Select, move and resize shapes (V)">Select</button>
+    <button data-tool="points" title="Edit individual stitch points of the loaded design (P)">Points</button>
+  </span>
+  <span class="tools">
+    <button data-tool="line" title="Line (L)">Line</button>
+    <button data-tool="rect" title="Rectangle (R)">Rectangle</button>
+    <button data-tool="oval" title="Oval / circle (O)">Oval</button>
+    <button data-tool="tri" title="Triangle (T)">Triangle</button>
+  </span>
+  <span class="tools">
+    <button data-tool="measure" title="Measure distances and gaps (M)">📏 Measure</button>
+  </span>
+  <span id="status"></span>
+</header>
+
+<div id="realBar" class="off">
+  <label class="realToggle"><input type="checkbox" id="real"> <b>Realistic preview</b></label>
+  <div class="grp"><span class="cap">Thread</span>
+    <select id="tw">
+      <option value="0.3">60 wt · 0.3 mm</option>
+      <option value="0.4" selected>40 wt · 0.4 mm (standard)</option>
+      <option value="0.5">30 wt · 0.5 mm</option>
+      <option value="0.8">12 wt · 0.8 mm</option>
+    </select></div>
+  <div class="grp"><span class="cap">Fabric</span>
+    <select id="fabricType" title="Sets a typical tightness for this fabric">
+      <option value="">Custom</option>
+      <option value="25">Stretch knit (T-shirt)</option>
+      <option value="35">Fleece / sweatshirt</option>
+      <option value="55">Polo pique</option>
+      <option value="75" selected>Woven cotton</option>
+      <option value="90">Denim / canvas</option>
+      <option value="100">Rigid (cap, leather)</option>
+    </select>
+    <input type="color" id="fabric" value="#f4f1ea" title="Fabric color">
+    <span class="swatches">
+      <button data-fabric="#f4f1ea" style="background:#f4f1ea" title="Cream"></button>
+      <button data-fabric="#ffffff" style="background:#fff" title="White"></button>
+      <button data-fabric="#9aa3ad" style="background:#9aa3ad" title="Heather gray"></button>
+      <button data-fabric="#2c3e66" style="background:#2c3e66" title="Navy"></button>
+      <button data-fabric="#2b2b2b" style="background:#2b2b2b" title="Black"></button>
+    </span></div>
+  <div class="grp"><span class="cap">Fabric tightness</span>
+    <span class="end">Loose</span><input type="range" id="tight" min="0" max="100" step="5" value="75"><span class="end">Rigid</span>
+    <span id="tightV" class="val"></span></div>
+  <div class="grp">
+    <label title="See-through copy of the stitches at 100% tightness, drawn underneath, so you can see how far they pulled in"><input type="checkbox" id="ghost" checked> Ghost of 100%</label>
+    <label title="Multiply the pull ×3 to make it easier to see"><input type="checkbox" id="exag"> Exaggerate ×3</label></div>
+  <span id="pullInfo" class="val"></span>
+</div>
+
+<div id="wrap">
+  <div id="orderPanel">
+    <div class="ophead"><b>Sew order</b>
+      <span class="opmodes">
+        <button data-omode="hidden" title="Hide the list">⇤</button>
+        <button data-omode="normal" title="Normal width">▥</button>
+        <button data-omode="full" title="Use the full width for the list (hides the canvas)">⇔</button>
+      </span></div>
+    <div id="orderList"></div>
+    <div class="help" style="margin-top:6px">Drag cards to reorder. Click the gap between two items to add or remove a pause.</div>
+  </div>
+  <div id="orderResize" title="Drag to resize the list · double-click to reset"></div>
+  <button id="orderTab" class="edgeTab" title="Show the sew order list" hidden>▸ Sew order</button>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="drophint">Pick Rectangle, Oval, Line or Triangle and drag here to draw,<br>or drop a .JEF file to edit it.</div>
+    <!-- sew-out player -->
+    <div id="playBar" hidden>
+      <!-- shown when the simulated machine stops (or finishes) -->
+      <div id="playPause" hidden>
+        <div class="pp-text"><div id="ppTitle"></div><div id="ppMsg"></div></div>
+        <div class="pp-btns">
+          <button id="ppContinue" class="pp-go">Continue ▶</button>
+          <button id="ppStop">Stop</button>
+        </div>
+      </div>
+      <div class="pb-row">
+        <button id="playBtn" title="Simulate the machine sewing the design, stopping at each pause / thread change">▶ Play sew-out</button>
+        <button id="playStopBtn" title="Stop the simulation and show the whole design" hidden>⏹ Stop</button>
+        <span class="pb-more">
+          <select id="playSpeed" title="Simulation speed">
+            <option value="12">Real speed (~700 st/min)</option>
+            <option value="60">5×</option>
+            <option value="250" selected>20×</option>
+            <option value="1000">80×</option>
+            <option value="5000">Very fast</option>
+          </select>
+          <span id="playInfo" class="val"></span>
+        </span>
+        <button id="playFold" class="pb-fold" title="Collapse / expand the sew-out player">▾</button>
+      </div>
+      <div class="pb-row pb-more pb-slide">
+        <span class="val">Sew-out</span>
+        <input type="range" id="sew" min="0" max="0" value="0" title="Drag to show the design up to any point in the sewing order">
+        <span id="sewInfo" class="val"></span>
+      </div>
+    </div>
+  </div>
+
+  <button id="sideTab" class="edgeTab" title="Show the side panel" hidden>Side panel ◂</button>
+  <aside id="side">
+    <!-- Shape properties (Select tool) -->
+    <section id="shapeBox" class="card" hidden>
+      <h2 id="shapeTitle">Shape</h2>
+      <div id="geom">
+        <div class="row"><label class="lbl" id="shWLabel">Width</label><input id="shW" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+        <div class="row" id="shHRow"><label class="lbl">Height</label><input id="shH" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+        <div class="row"><label class="lbl">Rotate</label><input id="shR" type="number" step="5"> °</div>
+        <div class="row"><label class="lbl">Center</label>X <input id="shX" class="sm len" type="number" step="0.5"> Y <input id="shY" class="sm len" type="number" step="0.5"> <span class="unit">mm</span></div>
+      </div>
+      <div id="alignRow" class="row align" hidden>
+        <span class="lbl">Align</span>
+        <button data-align="left" title="Align left edges">⇤</button>
+        <button data-align="cx" title="Align centers (horizontal)">↔</button>
+        <button data-align="right" title="Align right edges">⇥</button>
+        <button data-align="top" title="Align top edges">⤒</button>
+        <button data-align="cy" title="Align middles (vertical)">↕</button>
+        <button data-align="bottom" title="Align bottom edges">⤓</button>
+      </div>
+      <div class="row"><label class="lbl">Stitch</label>
+        <select id="shStyle">
+          <option value="satin">Satin (zigzag)</option>
+          <option value="run">Running (thin line)</option>
+          <option value="triple">Triple running (bold line)</option>
+        </select></div>
+      <div class="row satinOnly"><label class="lbl">Thickness</label><input id="shThick" type="range" min="0.5" max="10" step="0.5"><span class="val" id="shThickV"></span></div>
+      <div class="row satinOnly"><label class="lbl">Spacing</label><input id="shDens" type="range" min="0.2" max="3" step="0.1"><span class="val" id="shDensV"></span></div>
+      <div class="row cornerOnly"><label class="lbl">Corners</label><span class="val" style="min-width:0">Sharp</span><input id="shCorner" type="range" min="0" max="100" step="5" style="width:90px"><span class="val" style="min-width:0">Round</span></div>
+      <div class="row runOnly"><label class="lbl">Stitch len</label><input id="shLen" type="range" min="1" max="7" step="0.5"><span class="val" id="shLenV"></span></div>
+      <div class="row"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
+        <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
+      <div class="row liveOnly"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
+      <div class="row liveOnly"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
+      <div class="row appOnly"><span class="lbl">Appliqué</span>
+        <label title="Sew a tack-down line, stop so you can trim the fabric, then sew the cover stitches"><input type="checkbox" id="shApp"> Appliqué</label></div>
+      <div class="row appSub"><span class="lbl"></span>
+        <label title="First sew a placement line and stop, so you know where to lay the fabric"><input type="checkbox" id="shAppPlace"> Placement line first</label></div>
+      <div class="help appSub" id="shAppHelp"></div>
+      <div class="row liveOnly">
+        <button id="shDup" title="Ctrl+D">Duplicate</button>
+        <button id="shDel" title="Delete">Delete</button>
+        <button id="shBake" title="Turn into plain stitches so you can edit single points">To stitches</button>
+      </div>
+      <div class="row liveOnly">
+        <span class="lbl">Sew order</span>
+        <button id="shEarlier" title="Sew this shape earlier">◀ Earlier</button>
+        <button id="shLater" title="Sew this shape later">Later ▶</button>
+      </div>
+      <div id="shInfo" class="help"></div>
+      <div id="centerRow" hidden>
+        <div id="centerInfo" class="help" style="margin-top:4px"></div>
+        <div class="row"><button id="shCenter" title="Move this shape so its center lines up with the center of everything inside it">Center on contents</button></div>
+      </div>
+    </section>
+
+    <!-- Stitch runs (Select tool) -->
+    <section id="runBox" class="card" hidden>
+      <h2 id="runTitle">Stitch run</h2>
+      <div class="row"><label class="lbl">Width</label><input id="rnW" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Height</label><input id="rnH" class="len" type="number" step="0.5" min="0"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Center</label>X <input id="rnX" class="sm len" type="number" step="0.5"> Y <input id="rnY" class="sm len" type="number" step="0.5"> <span class="unit">mm</span></div>
+      <div class="row"><label class="lbl">Before it</label><select id="rnStop" style="flex:1;min-width:0"></select></div>
+      <div class="help" id="rnStopHelp"></div>
+      <div class="row">
+        <button id="rnDup" title="Ctrl+D">Duplicate</button>
+        <button id="rnDel" title="Delete">Delete</button>
+        <button id="rnPts" title="Switch to the Points tool with these stitches selected">Edit points</button>
+      </div>
+      <div id="rnInfo" class="help"></div>
+    </section>
+
+    <!-- Point editing (Points tool) -->
+    <section id="pointBox" class="card" hidden>
+      <h2>Stitch points</h2>
+      <div id="selInfo">Nothing selected.</div>
+      <div id="selEdit" hidden>
+        <div class="row"><label class="lbl">Type</label>
+          <select id="selType"><option value="s">Stitch</option><option value="j">Jump / trim</option></select>
+        </div>
+        <div class="row"><label class="lbl">X</label><input id="selX" class="ptlen" type="number" step="0.1"> <span class="unit">mm</span></div>
+        <div class="row"><label class="lbl">Y</label><input id="selY" class="ptlen" type="number" step="0.1"> <span class="unit">mm</span></div>
+      </div>
+      <div class="row">
+        <button id="delBtn" disabled>Delete</button>
+        <button id="insBtn" disabled>Insert stitch</button>
+        <button id="togBtn" disabled>Stitch ⇄ Jump</button>
+      </div>
+      <div class="row"><button id="ccBtn" disabled>Insert color change after</button></div>
+    </section>
+
+    <h2>Design</h2>
+    <div id="info"></div>
+
+    <h2>Threads</h2>
+    <div id="threads"></div>
+
+    <h2>View</h2>
+    <div class="row"><label class="lbl">Units</label>
+      <select id="units"><option value="mm">Metric (mm)</option><option value="in">Imperial (inches)</option></select></div>
+    <div class="row"><label><input type="checkbox" id="showJumps" checked> Jumps</label>
+      <label><input type="checkbox" id="showPts"> Needle points</label></div>
+    <div class="row"><label class="lbl">Line</label><input type="range" id="lw" min="0.5" max="6" step="0.5" value="2"></div>
+    <div class="row"><label><input type="checkbox" id="showMeas" checked> Measurements</label><button id="measClear" title="Remove all measurements">Clear all</button></div>
+    <div class="row"><label class="lbl">Hoop</label><select id="hoop" style="flex:1;min-width:0"></select></div>
+    <div class="row"><span class="lbl"></span><label><input type="checkbox" id="hoopRot"> Turn 90°</label></div>
+    <div class="row"><label class="lbl">Grid</label><input type="range" id="gridOp" min="0" max="100" step="5" value="100"><span class="val" id="gridOpV">100%</span></div>
+
+    <h2>Shapes (Select tool)</h2>
+    <div class="help">
+      Pick a shape (<kbd>R</kbd> <kbd>O</kbd> <kbd>L</kbd> <kbd>T</kbd>) and drag to draw; click for a default-size shape.
+      Click a shape to select it, drag to move. Drag the corner/edge handles to resize, the round handle to rotate,
+      the center dot to move. Shapes snap to the edges and centers of other shapes, the design and the 0" lines (blue guides).<br>
+      <kbd>Shift</kbd> keep proportions / 15° · <kbd>Ctrl</kbd> resize from center · <kbd>Alt</kbd> no snapping ·
+      <kbd>Shift</kbd>+click add to selection · drag on empty space to box-select ·
+      arrows nudge (<kbd>Shift</kbd> = bigger step) · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd>/<kbd>D</kbd> copy/paste/duplicate ·
+      <kbd>Del</kbd> delete · <kbd>Space</kbd>/right-drag pan · wheel zoom.
+    </div>
+
+    <h2>Measure tool</h2>
+    <div class="help">
+      Press <kbd>M</kbd>. <b>Drag</b> between two points to measure; the ends snap to edges and centers
+      (<kbd>Shift</kbd> = straight across / up-down / 45°, <kbd>Alt</kbd> = no snapping).
+      Or <b>click one element, then another</b> to measure the gap between them — or all four margins if one is inside the other.
+      Click a measurement to select it, drag its ends to adjust, <kbd>Del</kbd> to remove. Measurements aren't saved in the JEF file.
+    </div>
+
+    <h2>Stitch points (Points tool)</h2>
+    <div class="help">
+      Click a point to select · <kbd>Shift</kbd>+click/drag to add · drag to move · double-click to add a stitch ·
+      <kbd>Del</kbd> delete · <kbd>I</kbd> insert · <kbd>J</kbd> stitch/jump · arrows nudge 0.1 mm.
+      Shapes become editable points after <b>To stitches</b>.<br>
+      With the <b>Select</b> tool, each block of stitches between jumps is a <b>stitch run</b>: click it to select,
+      then move, resize, rotate, copy or delete it like a shape.
+    </div>
+  </aside>
+</div>
+
+<div id="ctxMenu" hidden>
+  <button data-act="group">Group <kbd>Ctrl+G</kbd></button>
+  <button data-act="ungroup">Ungroup <kbd>Ctrl+Shift+G</kbd></button>
+  <hr>
+  <button data-act="center">Center on contents</button>
+  <hr>
+  <button data-act="dup">Duplicate <kbd>Ctrl+D</kbd></button>
+  <button data-act="bake">To stitches</button>
+  <button data-act="del">Delete <kbd>Del</kbd></button>
+</div>
+
+<script>
+// ---------- Janome thread palette (approximate) ----------
+const PALETTE = [
+  ["(none)",0,0,0],["Black",0,0,0],["White",255,255,255],["Yellow",255,255,23],["Orange",255,102,0],
+  ["Olive Green",47,89,51],["Green",35,115,54],["Sky",101,194,200],["Purple",171,90,150],
+  ["Pink",246,105,160],["Red",255,0,0],["Brown",177,112,78],["Blue",11,47,132],["Gold",228,195,93],
+  ["Dark Brown",72,26,5],["Pale Violet",172,156,199],["Pale Yellow",252,242,148],["Pale Pink",249,153,183],
+  ["Peach",250,179,129],["Beige",201,164,128],["Wine Red",151,5,51],["Pale Sky",160,184,204],
+  ["Yellow Green",127,194,28],["Silver Gray",229,229,229],["Gray",136,155,155],["Pale Aqua",152,214,189],
+  ["Baby Blue",178,225,227],["Powder Blue",54,139,160],["Bright Blue",79,131,171],["Slate Blue",56,106,145],
+  ["Navy Blue",7,22,80]
+];
+const threadCSS = (t, n) => t.rgb ? `rgb(${t.rgb.join(",")})`
+  : PALETTE[t.idx] ? `rgb(${PALETTE[t.idx].slice(1).join(",")})`
+  : `hsl(${(n * 67) % 360} 70% 45%)`;
+
+const threadRGB = (t, n) => t.rgb || (PALETTE[t.idx] ? PALETTE[t.idx].slice(1) : [[200,60,60],[60,140,200],[90,170,80],[220,160,40]][n % 4]);
+
+// Fabric background for the realistic preview: base color with a faint woven texture.
+let fabricCache = { color: null, pat: null };
+function fabricPattern() {
+  const color = $("fabric").value;
+  if (fabricCache.color === color) return fabricCache.pat;
+  const c = document.createElement("canvas"); c.width = c.height = 6;
+  const g = c.getContext("2d");
+  g.fillStyle = color; g.fillRect(0, 0, 6, 6);
+  const v = parseInt(color.slice(1), 16), lum = ((v >> 16) * 0.3 + ((v >> 8) & 255) * 0.59 + (v & 255) * 0.11);
+  g.fillStyle = lum > 128 ? "rgba(0,0,0,.05)" : "rgba(255,255,255,.06)";
+  g.fillRect(0, 0, 6, 1); g.fillRect(0, 3, 6, 1); g.fillRect(0, 0, 1, 6); g.fillRect(3, 0, 1, 6);
+  fabricCache = { color, pat: ctx.createPattern(c, "repeat") };
+  return fabricCache.pat;
+}
+
+// ---------- Units ----------
+// Everything is stored in 0.1 mm. These only convert what the user sees and types.
+let units = (navigator.language || "").toLowerCase() === "en-us" ? "in" : "mm";
+try { const u = localStorage.getItem("jefUnits"); if (u === "mm" || u === "in") units = u; } catch (e) {}
+const UNIT = {
+  mm: { per: 10,  name: "mm", dec: 1, inStep: 0.5,  ptStep: 0.1,  snap: 5,        nudge: 5,        nudgeBig: 50,   click: 200 },
+  in: { per: 254, name: "in", dec: 3, inStep: 0.05, ptStep: 0.01, snap: 254 / 32, nudge: 254 / 32, nudgeBig: 63.5, click: 254 },
+};
+const U = () => UNIT[units];
+const toU = v => v / U().per;                 // 0.1 mm → user units
+const fromU = v => v * U().per;               // user units → 0.1 mm
+const trim = (v, d) => String(+v.toFixed(d));
+const fmtLen = (v, d = U().dec) => trim(toU(v), d) + (units === "in" ? '"' : " mm");
+const fmtSize = (w, h) => `${trim(toU(w), U().dec - (units === "in" ? 1 : 0))} × ${trim(toU(h), U().dec - (units === "in" ? 1 : 0))} ${U().name}`;
+
+// ---------- Hoops ----------
+// Sewing field width × height in mm. `code` = the hoop number stored in JEF headers, where known.
+// Names vary by machine model; check your machine's manual for which hoops it takes.
+const HOOPS = [
+  { id: "none", name: "No hoop" },
+  { id: "50x50",   w: 50,  h: 50,  name: "Hoop C, free-arm", code: 1 },
+  { id: "110x110", w: 110, h: 110, name: "", code: 0 },
+  { id: "110x126", w: 110, h: 126, name: "Hoop A, standard", code: 3 },
+  { id: "140x140", w: 140, h: 140, name: "SQ14" },
+  { id: "140x200", w: 140, h: 200, name: "Hoop B / RE20", code: 2 },
+  { id: "200x200", w: 200, h: 200, name: "SQ20", code: 4 },
+  { id: "200x280", w: 200, h: 280, name: "RE28" },
+  { id: "200x360", w: 200, h: 360, name: "RE36" },
+  { id: "230x300", w: 230, h: 300, name: "GR / Giga" },
+];
+const hoopLabel = h => !h.w ? h.name : fmtSize(h.w * 10, h.h * 10) + (h.name ? ` (${h.name})` : "");
+function currentHoop() {
+  const h = HOOPS.find(x => x.id === $("hoop").value);
+  if (!h || !h.w) return null;
+  const rot = $("hoopRot").checked;
+  return { ...h, W: (rot ? h.h : h.w) * 10, H: (rot ? h.w : h.h) * 10 };   // in 0.1 mm
+}
+function drawHoop(r) {
+  const hp = currentHoop();
+  if (!hp) return;
+  const [x0, y0] = toS(-hp.W / 2, hp.H / 2), [x1, y1] = toS(hp.W / 2, -hp.H / 2);
+  // shade everything outside the sewing field
+  ctx.save();
+  ctx.fillStyle = "rgba(40,50,70,.13)";
+  ctx.beginPath(); ctx.rect(0, 0, r.width, r.height); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill("evenodd");
+  // the plastic hoop frame, ~8 mm outside the sewing field, with rounded corners
+  const pad = 80 * view.s, rad = Math.min(250 * view.s, (x1 - x0) / 2);
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad, rad);
+  else ctx.rect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad);
+  ctx.strokeStyle = "rgba(90,100,120,.35)"; ctx.lineWidth = Math.max(3, 60 * view.s); ctx.stroke();
+  // sewing field boundary
+  ctx.strokeStyle = "rgba(60,80,120,.7)"; ctx.lineWidth = 1; ctx.setLineDash([6, 4]);
+  ctx.strokeRect(Math.round(x0) + .5, Math.round(y0) + .5, Math.round(x1 - x0), Math.round(y1 - y0));
+  ctx.setLineDash([]);
+  // center notches on the frame, like the marks on a real hoop
+  ctx.strokeStyle = "rgba(60,80,120,.6)"; ctx.lineWidth = 2;
+  const [cx, cy] = toS(0, 0);
+  ctx.beginPath();
+  ctx.moveTo(cx, y0 - pad - 6); ctx.lineTo(cx, y0 - pad + 6); ctx.moveTo(cx, y1 + pad - 6); ctx.lineTo(cx, y1 + pad + 6);
+  ctx.moveTo(x0 - pad - 6, cy); ctx.lineTo(x0 - pad + 6, cy); ctx.moveTo(x1 + pad - 6, cy); ctx.lineTo(x1 + pad + 6, cy);
+  ctx.stroke();
+  ctx.restore();
+}
+function hoopFits(all) {
+  const hp = currentHoop();
+  if (!hp) return true;
+  return all.every(c => Math.abs(c.x) <= hp.W / 2 && Math.abs(c.y) <= hp.H / 2);
+}
+
+// ---------- Fabric pull simulation ----------
+// Every sewn stitch is thread under tension: it pulls the two needle holes at its ends toward each other.
+// How far a hole moves depends on how loose the fabric is. Holes the needle uses more than once move as one.
+// Satin columns therefore narrow (each side is pulled toward the other); running lines only shorten slightly
+// at their ends (pulls in the middle cancel out). Jumps are trimmed, so they don't pull.
+const MAX_PULL = 4;          // 0.4 mm: pull per stitch end on the loosest fabric, for a long stitch
+let lastPull = 0;            // largest hole movement in the last computed field, in 0.1 mm
+function pullField(all) {
+  const loose = (1 - +$("tight").value / 100) * ($("exag").checked ? 3 : 1);
+  if (loose <= 0) { lastPull = 0; return all.map(c => [c.x, c.y]); }
+  const holes = new Map(), keyOf = c => c.x + "," + c.y;
+  const hole = c => { const k = keyOf(c); let h = holes.get(k); if (!h) holes.set(k, h = { dx: 0, dy: 0, minLen: Infinity }); return h; };
+  for (let i = 1; i < all.length; i++) {
+    const c = all[i], p = all[i - 1];
+    if (c.t !== "s") continue;
+    const dx = c.x - p.x, dy = c.y - p.y, L = Math.hypot(dx, dy);
+    if (L < 1) continue;
+    // longer stitches pull a little harder, leveling off after ~3 mm
+    const f = MAX_PULL * loose * (1 - Math.exp(-L / 15)) / 2;
+    const a = hole(p), b = hole(c);
+    a.dx += dx / L * f; a.dy += dy / L * f; b.dx -= dx / L * f; b.dy -= dy / L * f;
+    a.minLen = Math.min(a.minLen, L); b.minLen = Math.min(b.minLen, L);
+  }
+  lastPull = 0;
+  for (const h of holes.values()) {   // a hole can't be pulled past its neighbors
+    const m = Math.hypot(h.dx, h.dy), cap = 0.35 * h.minLen;
+    if (m > cap) { h.dx *= cap / m; h.dy *= cap / m; }
+    lastPull = Math.max(lastPull, Math.min(m, cap));
+  }
+  return all.map(c => { const h = holes.get(keyOf(c)); return h ? [c.x + h.dx, c.y + h.dy] : [c.x, c.y]; });
+}
+
+// ---------- State ----------
+// All coordinates are in 0.1 mm, +Y = up (JEF convention).
+// cmds: stitches of the loaded design ({t:'s'|'j'|'c', x, y}); shapes: live shape objects, turned into stitches on save.
+let cmds = [], threads = [], meta = null, fileName = "design.JEF", threadsDirty = false;
+let shapes = [], nextId = 1, shapeSel = new Set(), clipboard = [];
+// Stitch runs made from shapes ("To stitches") remember the shape they came from, so its settings stay editable:
+// every command of such a run carries c.sid, and runSources[sid] = { def: the shape's settings, stage, xf }.
+let runSources = {};
+// measurements: on-canvas dimension lines {id, a:[x,y], b:[x,y]} (editor only — not part of the JEF)
+let measures = [], measSel = null, measPick = null, nextMeasId = 1;
+let ptSel = new Set(), undoStack = [], redoStack = [], saved = true;
+let view = { s: 1, ox: 0, oy: 0 };
+let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
+let sewAll = true, sewN = 0;
+let defaults = { style: "satin", thick: 30, dens: 4, len: 25, under: true, lock: true, color: "cur", corner: 100 };
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+
+// ---------- JEF read ----------
+function parseJEF(buf) {
+  const d = new DataView(buf), bytes = new Uint8Array(buf);
+  const off = d.getInt32(0, true);
+  const n = d.getInt32(24, true);
+  if (off < 0x74 || off > buf.byteLength || n < 0 || n > 255) throw new Error("not a valid JEF file");
+  const out = [], th = [], types = [];
+  for (let k = 0; k < n; k++) {
+    th.push({ idx: d.getInt32(0x74 + 4 * k, true) });
+    types.push(0x74 + 4 * n + 4 * k + 4 <= off ? d.getInt32(0x74 + 4 * n + 4 * k, true) : 13);
+  }
+  let x = 0, y = 0, i = off, endAt = buf.byteLength;
+  while (i + 1 < buf.byteLength) {
+    if (bytes[i] === 0x80) {
+      const c = bytes[i + 1];
+      if (c === 0x10) { endAt = i; break; }
+      if (i + 3 >= buf.byteLength) break;
+      x += d.getInt8(i + 2); y += d.getInt8(i + 3);
+      out.push({ t: c === 0x01 ? "c" : "j", x, y });
+      i += 4;
+    } else {
+      x += d.getInt8(i); y += d.getInt8(i + 1);
+      out.push({ t: "s", x, y });
+      i += 2;
+    }
+  }
+  if (!th.length) th.push({ idx: 1 });
+  const trailer = bytes.slice(Math.min(endAt + 4, buf.byteLength));
+  readEnhance(trailer, th);
+  return { cmds: out, threads: th, meta: { header: bytes.slice(0, 0x74), types, trailer } };
+}
+
+// Some Janome software appends an "ENHANCE" block with real thread RGB + names. Read it if present.
+function readEnhance(tr, th) {
+  const s = new TextDecoder("latin1").decode(tr);
+  const p = s.indexOf("ENHANCE");
+  if (p < 0 || p + 20 > tr.length) return;
+  const d = new DataView(tr.buffer, tr.byteOffset, tr.byteLength);
+  const count = d.getInt32(p + 16, true);
+  if (count !== th.length) return;
+  for (let k = 0; k < count; k++) {
+    const r = p + 20 + k * 44;
+    if (r + 12 > tr.length) return;
+    let name = "";
+    for (let q = r + 12; q < Math.min(tr.length, r + 44) && tr[q]; q++) name += String.fromCharCode(tr[q]);
+    if (!/^[\x20-\x7e]*$/.test(name)) return;
+    th[k].rgb = [tr[r + 4], tr[r + 5], tr[r + 6]];
+    th[k].name = name;
+  }
+}
+
+// ---------- Shapes → stitches ----------
+function shapeOutline(p) {
+  const { kind, w, h } = p;
+  let pts = [], closed = true;
+  if (kind === "line") { pts = [[-w / 2, 0], [w / 2, 0]]; closed = false; }
+  else if (kind === "rect") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+  else if (kind === "tri") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [0, h / 2]];
+  else {
+    const n = Math.max(32, Math.ceil(Math.PI * (w + h) / 2 / 3));
+    for (let k = 0; k < n; k++) { const a = 2 * Math.PI * k / n; pts.push([w / 2 * Math.cos(a), h / 2 * Math.sin(a)]); }
+  }
+  pts = pts.map(([x, y]) => toWorld(p, x, y));
+  if (closed) pts.push(pts[0].slice());
+  return { pts, smooth: kind === "oval", closed };
+}
+// shape-local → world, and back
+function toWorld(p, x, y) { const r = p.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [p.cx + x * c - y * s, p.cy + x * s + y * c]; }
+function toLocal(p, x, y) { const r = -p.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), dx = x - p.cx, dy = y - p.cy; return [dx * c - dy * s, dx * s + dy * c]; }
+
+function resample(pts, step, smooth) {
+  const out = [pts[0]];
+  if (!smooth) {
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1], [bx, by] = pts[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / step));
+      for (let k = 1; k <= n; k++) out.push([ax + (bx - ax) * k / n, ay + (by - ay) * k / n]);
+    }
+    return out;
+  }
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const total = cum[cum.length - 1], n = Math.max(1, Math.round(total / step));
+  let seg = 1;
+  for (let k = 1; k <= n; k++) {
+    const d = total * k / n;
+    while (seg < pts.length - 1 && cum[seg] < d) seg++;
+    const t = (d - cum[seg - 1]) / ((cum[seg] - cum[seg - 1]) || 1), a = pts[seg - 1], b = pts[seg];
+    out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+  }
+  return out;
+}
+function zigzag(samples, width, closed) {
+  const n = samples.length, m = closed ? n - 1 : n, out = [];
+  for (let i = 0; i < n; i++) {
+    let a, b;
+    if (closed) { const j = i % m; a = samples[(j - 1 + m) % m]; b = samples[(j + 1) % m]; }
+    else { a = samples[Math.max(0, i - 1)]; b = samples[Math.min(n - 1, i + 1)]; }
+    const tx = b[0] - a[0], ty = b[1] - a[1], L = Math.hypot(tx, ty) || 1, side = i % 2 ? 1 : -1;
+    out.push([samples[i][0] - ty / L * width / 2 * side, samples[i][1] + tx / L * width / 2 * side]);
+  }
+  return out;
+}
+// Satin column along a path. Zigzags are spaced so that neither edge gets gaps wider than `dens`
+// (the outside of a curve gets as many stitches as it needs), and on the compressed inside of a curve
+// every other stitch is shortened ("short stitch") so needle holes don't pile up in one spot.
+// `sharp` (optional): the original sharp-cornered convex polygon. `round` 0..1 blends the outside of each
+// corner between a pointed miter (0) and the smooth arc (1).
+function satinColumn(pts, width, dens, closed, smooth, sharp = null, round = 1) {
+  const step = Math.min(1, dens / 4);
+  const f = resample(pts, step, smooth), n = f.length, m = closed ? n - 1 : n;
+  const outer = sharp && round < 1 ? outerMiter(sharp, width / 2) : null;
+  const L = [], R = [];
+  for (let i = 0; i < n; i++) {
+    let a, b;
+    if (closed) { const j = i % m; a = f[(j - 1 + m) % m]; b = f[(j + 1) % m]; }
+    else { a = f[Math.max(0, i - 1)]; b = f[Math.min(n - 1, i + 1)]; }
+    const tx = b[0] - a[0], ty = b[1] - a[1], l = Math.hypot(tx, ty) || 1, ux = -ty / l, uy = tx / l;
+    let dl = width / 2, dr = width / 2;
+    if (outer) {
+      // push the outside end out toward the sharp corner
+      const [cx, cy] = outer.center, p = f[i];
+      const leftIsOut = (ux * (p[0] - cx) + uy * (p[1] - cy)) > 0;
+      const hit = rayHit(p, leftIsOut ? [ux, uy] : [-ux, -uy], outer.poly);
+      if (hit > width / 2) {
+        const d = width / 2 + (1 - round) * (hit - width / 2);
+        if (leftIsOut) dl = d; else dr = d;
+      }
+    }
+    L.push([f[i][0] + ux * dl, f[i][1] + uy * dl]); R.push([f[i][0] - ux * dr, f[i][1] - uy * dr]);
+  }
+  const picks = [0];
+  let dl = 0, dr = 0;
+  for (let i = 1; i < n; i++) {
+    dl += Math.hypot(L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]);
+    dr += Math.hypot(R[i][0] - R[i - 1][0], R[i][1] - R[i - 1][1]);
+    if (Math.max(dl, dr) >= dens - step / 2) { picks.push(i); dl = dr = 0; }
+  }
+  if (picks[picks.length - 1] !== n - 1) picks.push(n - 1);
+  const minGap = Math.max(1.5, dens * 0.5), last = [null, null], out = [];
+  picks.forEach((i, k) => {
+    const side = k % 2, e = side ? L[i] : R[i];
+    let p = e;
+    const prev = last[side];
+    if (prev && Math.hypot(e[0] - prev[0], e[1] - prev[1]) < minGap) {
+      p = [f[i][0] + (e[0] - f[i][0]) * 0.3, f[i][1] + (e[1] - f[i][1]) * 0.3];   // short stitch
+    } else last[side] = e;
+    out.push(p);
+  });
+  return out;
+}
+
+// Outward offset of a convex polygon with mitered (pointed) corners.
+function outerMiter(poly, d) {
+  const n = poly.length;
+  const center = [poly.reduce((a, p) => a + p[0], 0) / n, poly.reduce((a, p) => a + p[1], 0) / n];
+  const lines = poly.map((p, i) => {
+    const q = poly[(i + 1) % n], l = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+    let nx = -(q[1] - p[1]) / l, ny = (q[0] - p[0]) / l;
+    if (nx * (p[0] - center[0]) + ny * (p[1] - center[1]) < 0) { nx = -nx; ny = -ny; }   // point outward
+    return [[p[0] + nx * d, p[1] + ny * d], [q[0] + nx * d, q[1] + ny * d]];
+  });
+  const meet = (A, B) => {   // intersection of two infinite lines
+    const [p, p2] = A, [q, q2] = B, r = [p2[0] - p[0], p2[1] - p[1]], s = [q2[0] - q[0], q2[1] - q[1]];
+    const den = r[0] * s[1] - r[1] * s[0];
+    if (Math.abs(den) < 1e-9) return p2;
+    const t = ((q[0] - p[0]) * s[1] - (q[1] - p[1]) * s[0]) / den;
+    return [p[0] + r[0] * t, p[1] + r[1] * t];
+  };
+  return { center, poly: lines.map((ln, i) => meet(lines[(i - 1 + n) % n], ln)) };
+}
+// Distance along a ray from p in direction d to the first edge of a polygon (Infinity if none).
+function rayHit(p, d, poly) {
+  let best = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length], e = [b[0] - a[0], b[1] - a[1]];
+    const den = d[0] * e[1] - d[1] * e[0];
+    if (Math.abs(den) < 1e-9) continue;
+    const w = [a[0] - p[0], a[1] - p[1]];
+    const t = (w[0] * e[1] - w[1] * e[0]) / den, u = (w[0] * d[1] - w[1] * d[0]) / den;
+    if (t > 0 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, t);
+  }
+  return best;
+}
+
+function lockAt(path, atEnd) {
+  const p = atEnd ? path[path.length - 1] : path[0], q = atEnd ? path[path.length - 2] : path[1];
+  const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1;
+  const a = [p[0] + dx / L * 4, p[1] + dy / L * 4];
+  return [a, p, a, p];
+}
+// Round the corners of a closed polygon (pts without the repeated last point) with radius R.
+// Used for satin: when the centerline turns along an arc of radius R ≥ half the satin width, every zigzag stays
+// square to the path, so the inner ends bunch up near the inside corner and the outer ends fan out around it.
+function filletPolygon(pts, R) {
+  const n = pts.length, out = [];
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  out.push(mid(pts[n - 1], pts[0]));                       // start mid-edge, not in a corner
+  for (let i = 0; i < n; i++) {
+    const A = pts[(i - 1 + n) % n], B = pts[i], C = pts[(i + 1) % n];
+    const la = Math.hypot(A[0] - B[0], A[1] - B[1]), lc = Math.hypot(C[0] - B[0], C[1] - B[1]);
+    const u1 = [(A[0] - B[0]) / la, (A[1] - B[1]) / la], u2 = [(C[0] - B[0]) / lc, (C[1] - B[1]) / lc];
+    const phi = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));   // interior angle
+    if (phi > Math.PI - 0.01) { out.push(B); continue; }                                // straight, no corner
+    let d = R / Math.tan(phi / 2);
+    d = Math.min(d, 0.5 * Math.min(la, lc));               // don't run past the middle of an edge
+    const r = d * Math.tan(phi / 2);
+    const T1 = [B[0] + u1[0] * d, B[1] + u1[1] * d], T2 = [B[0] + u2[0] * d, B[1] + u2[1] * d];
+    const bl = Math.hypot(u1[0] + u2[0], u1[1] + u2[1]), dist = r / Math.sin(phi / 2);
+    const Ce = [B[0] + (u1[0] + u2[0]) / bl * dist, B[1] + (u1[1] + u2[1]) / bl * dist];
+    const a1 = Math.atan2(T1[1] - Ce[1], T1[0] - Ce[0]);
+    let sweep = Math.atan2(T2[1] - Ce[1], T2[0] - Ce[0]) - a1;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const steps = Math.max(6, Math.ceil(Math.abs(sweep) * r / 2));
+    for (let k = 0; k <= steps; k++) { const a = a1 + sweep * k / steps; out.push([Ce[0] + r * Math.cos(a), Ce[1] + r * Math.sin(a)]); }
+  }
+  out.push(out[0].slice());
+  return out;
+}
+
+const stitchCache = new Map();
+function stitchesFor(s) {
+  const key = JSON.stringify([s.kind, s.cx, s.cy, s.w, s.h, s.rot, s.style, s.thick, s.dens, s.len, s.under, s.lock, s.corner]);
+  if (stitchCache.has(key)) return stitchCache.get(key);
+  let { pts, smooth, closed } = shapeOutline(s);
+  let path, sharp = null;
+  if (s.style === "satin" && closed && !smooth) {
+    sharp = pts.slice(0, -1);
+    // inner corner radius ≈ 0.5 mm (or less on tiny satin), outer radius = that + full width
+    pts = filletPolygon(pts.slice(0, -1), s.thick / 2 + Math.min(5, s.thick / 4));
+    smooth = true;
+  }
+  if (s.style === "satin") {
+    const zz = satinColumn(pts, s.thick, s.dens, closed, smooth, sharp, (s.corner ?? 100) / 100);
+    path = [];
+    if (s.under) { path.push(...resample(pts, 20, smooth)); if (!closed) zz.reverse(); }
+    path.push(...zz);
+  } else {
+    const run = resample(pts, s.len, smooth);
+    if (s.style === "triple") { path = [run[0]]; for (let i = 1; i < run.length; i++) path.push(run[i], run[i - 1], run[i]); }
+    else path = run;
+  }
+  if (s.lock && path.length > 1) path = [path[0], ...lockAt(path, false), ...path.slice(1), ...lockAt(path, true)];
+  const out = path.map(([x, y]) => [Math.round(x), Math.round(y)]);
+  if (stitchCache.size > 500) stitchCache.clear();
+  stitchCache.set(key, out);
+  return out;
+}
+
+// Append a shape's stitches (with a jump to its start and a color change if needed) to a command list.
+// ---- Appliqué ----
+// An appliqué shape sews in stages with a same-thread stop between them:
+//   [placement line → stop: place fabric] → tack-down (underlay) → stop: trim fabric → cover stitches.
+const canApplique = s => s.kind === "rect" || s.kind === "oval" || s.kind === "tri";
+const APP_NOTES = { place: "Place the appliqué fabric over the placement line", trim: "Trim the fabric close to the tack-down stitches" };
+function runningOutline(s, len = 20) {   // a locked running stitch along the shape's outline
+  const { pts, smooth } = shapeOutline(s);
+  let path = resample(pts, len, smooth);
+  if (path.length > 1) path = [path[0], ...lockAt(path, false), ...path.slice(1), ...lockAt(path, true)];
+  return path.map(([x, y]) => [Math.round(x), Math.round(y)]);
+}
+// The shape's stitches as stages: [{ st, note }] where note (if any) is the stop before that stage.
+function shapeStages(s) {
+  if (!(s.applique && canApplique(s))) return [{ st: stitchesFor(s) }];
+  const stages = [];
+  if (s.appPlace) stages.push({ st: runningOutline(s) });
+  stages.push({ st: runningOutline(s), note: s.appPlace ? APP_NOTES.place : null });          // tack-down
+  stages.push({ st: stitchesFor({ ...s, under: false }), note: APP_NOTES.trim });             // cover (tack-down already holds it)
+  return stages;
+}
+
+function appendShape(list, th, s) {
+  const stages = shapeStages(s), st = stages[0].st;
+  if (st.length < 2) return false;
+  let changedThreads = false;
+  const cur = th.length - 1, sewn = list.some(c => c.t === "s");
+  if (s.stop && sewn && (s.color === "cur" || th[cur].idx === s.color)) {
+    // stop without changing thread: a color change to the same thread (the machine stops at every color change)
+    const l = list[list.length - 1]; list.push({ t: "c", x: l.x, y: l.y }); th.push({ idx: th[cur].idx });
+    changedThreads = true;
+  } else if (s.color !== "cur" && th[cur].idx !== s.color) {
+    if (!sewn) th[cur] = { idx: s.color };       // nothing sewn yet: just set the thread
+    else { const l = list[list.length - 1]; list.push({ t: "c", x: l.x, y: l.y }); th.push({ idx: s.color }); }
+    changedThreads = true;
+  }
+  list.push({ t: "j", x: st[0][0], y: st[0][1] });
+  for (const [x, y] of st) list.push({ t: "s", x, y });
+  // appliqué: each further stage starts with a same-thread stop (carrying what to do) and a jump to its start
+  for (const stage of stages.slice(1)) {
+    if (stage.st.length < 2) continue;
+    const l = list[list.length - 1];
+    list.push({ t: "c", x: l.x, y: l.y, ...(stage.note ? { note: stage.note } : {}) });
+    th.push({ idx: th[th.length - 1].idx });
+    list.push({ t: "j", x: stage.st[0][0], y: stage.st[0][1] });
+    for (const [x, y] of stage.st) list.push({ t: "s", x, y });
+    changedThreads = true;
+  }
+  return changedThreads;
+}
+// The full design as it will be saved: loaded stitches + all shapes, in sew order.
+// Live shapes can sit between stitch runs: shape.after = how many runs sew before it (null = at the end).
+// Also returns `marks`: where each sew-order item (run or shape) sits in the output, for the Sew order panel.
+function shapeSlot(s, nRuns) { return s.after == null || s.after >= nRuns ? nRuns : Math.max(0, s.after); }
+function compose() {
+  const runs = getRuns(), n = runs.length, all = [], marks = [];
+  const th = [{ ...(threads[0] || { idx: 1 }) }];
+  let baseK = 0, pos = 0, afterShape = false;
+  const copyTo = end => {
+    for (; pos <= end; pos++) {
+      const c = cmds[pos];
+      if (c.t === "c") { baseK++; th.push({ ...(threads[baseK] || threads[threads.length - 1]) }); all.push(c); if (afterShape) afterShape = "colorOk"; continue; }
+      if (afterShape) {
+        // coming back to the loaded stitches after a live shape: restore their thread, and jump (never stitch) there
+        const want = threads[baseK] || threads[threads.length - 1];
+        if (afterShape !== "colorOk" && th[th.length - 1].idx !== want.idx) {
+          const l = all[all.length - 1]; all.push({ t: "c", x: l.x, y: l.y }); th.push({ ...want });
+        }
+        if (c.t === "s") all.push({ t: "j", x: c.x, y: c.y });
+        afterShape = false;
+      }
+      all.push(c);
+    }
+  };
+  const addShapes = k => {
+    for (const s of shapes) if (shapeSlot(s, n) === k) {
+      const from = all.length;
+      appendShape(all, th, s);
+      if (all.length > from) afterShape = true;
+      marks.push({ type: "shape", s, from, to: all.length - 1 });
+    }
+  };
+  for (let k = 0; k < n; k++) {
+    addShapes(k);
+    const from = all.length;
+    copyTo(runs[k].end);
+    marks.push({ type: "run", r: runs[k], k, from, to: all.length - 1 });
+  }
+  copyTo(cmds.length - 1);
+  addShapes(n);
+  return { all, th, marks };
+}
+
+// ---------- JEF write ----------
+function bounds(list) {
+  let minX = 0, maxX = 0, minY = 0, maxY = 0;
+  for (const c of list) { minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y); }
+  return { minX, maxX, minY, maxY };
+}
+function buildJEF() {
+  const { all, th } = compose();
+  const st = [];
+  let px = 0, py = 0;
+  const emit = (t, dx, dy) => t === "s" ? st.push(dx & 255, dy & 255) : st.push(0x80, t === "j" ? 2 : 1, dx & 255, dy & 255);
+  for (const c of all) {
+    const dx = c.x - px, dy = c.y - py;
+    if (c.t === "c") emit("c", 0, 0);
+    if (!(c.t === "c" && dx === 0 && dy === 0)) {
+      const t = c.t === "c" ? "j" : c.t;
+      // single moves are limited to ±127 (0x80 is the command marker), so split long ones
+      const n = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 127));
+      let ax = 0, ay = 0;
+      for (let k = 1; k <= n; k++) {
+        const tx = Math.round(dx * k / n), ty = Math.round(dy * k / n);
+        emit(t, tx - ax, ty - ay); ax = tx; ay = ty;
+      }
+    }
+    px = c.x; py = c.y;
+  }
+  const n = th.length, off = 0x74 + 8 * n;
+  const dirty = threadsDirty || th.length !== threads.length || th.some((t, k) => t.idx !== threads[k].idx);
+  const trailer = dirty ? new Uint8Array(0) : meta.trailer;
+  const out = new Uint8Array(off + st.length + 4 + trailer.length);
+  out.set(meta.header.slice(0, 0x74), 0);
+  const d = new DataView(out.buffer), b = bounds(all);
+  d.setInt32(0, off, true);
+  d.setInt32(24, n, true);
+  const chosen = currentHoop();
+  // the hoop picked in the editor — for new designs, or once the user has changed it; otherwise keep the file's own
+  if (chosen && chosen.code !== undefined && (meta.isNew || meta.hoopTouched)) d.setInt32(32, chosen.code, true);
+  else if (meta.isNew) { // smallest standard Janome hoop that fits
+    const W = b.maxX - b.minX, H = b.maxY - b.minY;
+    d.setInt32(32, W <= 500 && H <= 500 ? 1 : W <= 1100 && H <= 1100 ? 0 : W <= 1260 && H <= 1100 ? 3 : W <= 1400 && H <= 2000 ? 2 : 4, true);
+  }
+  d.setInt32(28, st.length / 2 + 1, true);
+  d.setInt32(36, -b.minX, true); d.setInt32(40, b.maxY, true);
+  d.setInt32(44, b.maxX, true);  d.setInt32(48, -b.minY, true);
+  th.forEach((t, k) => {
+    d.setInt32(0x74 + 4 * k, t.idx, true);
+    d.setInt32(0x74 + 4 * n + 4 * k, meta.types[k] ?? 13, true);
+  });
+  out.set(st, off);
+  out.set([0x80, 0x10, 0, 0], off + st.length);
+  out.set(trailer, off + st.length + 4);
+  return out;
+}
+
+// ---------- Undo ----------
+const state = () => JSON.stringify({ cmds, threads, threadsDirty, shapes, measures, runSources });
+function snapshot() {
+  undoStack.push(state());
+  if (undoStack.length > 200) undoStack.shift();
+  redoStack = []; saved = false;
+}
+function restore(from, to) {
+  if (!from.length) return;
+  to.push(state());
+  const s = JSON.parse(from.pop());
+  cmds = s.cmds; threads = s.threads; threadsDirty = s.threadsDirty; shapes = s.shapes;
+  measures = s.measures || []; if (!measures.some(m => m.id === measSel)) measSel = null; measPick = null;
+  runSources = s.runSources || {};
+  ptSel = new Set([...ptSel].filter(i => i < cmds.length));
+  runSel.clear();
+  shapeSel = new Set([...shapeSel].filter(id => shapes.some(x => x.id === id)));
+  saved = false; changed();
+}
+
+// ---------- View ----------
+const toS = (x, y) => [view.ox + x * view.s, view.oy - y * view.s];
+const toW = (sx, sy) => [(sx - view.ox) / view.s, (view.oy - sy) / view.s];
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  draw();
+}
+function fit() {
+  const { all } = compose();
+  if (!all.length) return;
+  const b = bounds(all), r = cv.getBoundingClientRect(), pad = 50;
+  const w = Math.max(10, b.maxX - b.minX), h = Math.max(10, b.maxY - b.minY);
+  view.s = Math.min((r.width - 2 * pad) / w, (r.height - 2 * pad) / h);
+  view.ox = r.width / 2 - (b.minX + w / 2) * view.s;
+  view.oy = r.height / 2 + (b.minY + h / 2) * view.s;
+  draw();
+}
+
+// ---------- Shape geometry helpers ----------
+const byId = id => shapes.find(s => s.id === id);
+const selShapes = () => shapes.filter(s => shapeSel.has(s.id));
+function aabb(s) {
+  const { pts } = shapeOutline(s);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  return { minX, maxX, minY, maxY };
+}
+function unionBox(boxes) {
+  return boxes.reduce((a, b) => ({ minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minY: Math.min(a.minY, b.minY), maxY: Math.max(a.maxY, b.maxY) }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+}
+// Shapes are outlines, so they're hit near their stitched outline only — clicking inside a frame reaches
+// whatever is inside it (e.g. the text in a border).
+function shapeAt(wx, wy) {
+  const pad = 6 / view.s;
+  for (let i = shapes.length - 1; i >= 0; i--) {
+    const s = shapes[i], reach = pad + (s.style === "satin" ? s.thick / 2 : 0);
+    const [lx, ly] = toLocal(s, wx, wy);
+    if (Math.abs(lx) > s.w / 2 + reach || Math.abs(ly) > s.h / 2 + reach) continue;   // quick reject
+    const { pts } = shapeOutline(s);
+    for (let k = 1; k < pts.length; k++) {
+      const [ax, ay] = pts[k - 1], [bx, by] = pts[k], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((wx - ax) * dx + (wy - ay) * dy) / L2)) : 0;
+      if (Math.hypot(wx - (ax + t * dx), wy - (ay + t * dy)) <= reach) return s;
+    }
+  }
+  return null;
+}
+// Handles of a single selected shape, in shape-local coordinates.
+function handles(s) {
+  const hw = s.w / 2, hh = s.h / 2;
+  if (s.kind === "line") return [["p1", -hw, 0], ["p2", hw, 0], ["c", 0, 0]];
+  return [["nw", -hw, hh], ["n", 0, hh], ["ne", hw, hh], ["e", hw, 0], ["se", hw, -hh], ["s", 0, -hh], ["sw", -hw, -hh], ["w", -hw, 0],
+          ["c", 0, 0], ["rot", 0, hh + 26 / view.s]];
+}
+function handleAt(sx, sy) {
+  const s = selTarget();
+  if (!s) return null;
+  for (const [id, lx, ly] of handles(s)) {
+    const [hx, hy] = toS(...toWorld(s, lx, ly));
+    if (Math.abs(hx - sx) <= 7 && Math.abs(hy - sy) <= 7) return id;
+  }
+  return null;
+}
+const HSIGN = { nw: [-1, 1], n: [0, 1], ne: [1, 1], e: [1, 0], se: [1, -1], s: [0, -1], sw: [-1, -1], w: [-1, 0] };
+function handleCursor(id, s) {
+  if (id === "c") return "move";
+  if (id === "rot") return "grab";
+  if (id === "p1" || id === "p2") return "crosshair";
+  const [hx, hy] = HSIGN[id], a = ((Math.atan2(hy, hx) * 180 / Math.PI + s.rot) % 180 + 180) % 180;
+  return a < 22.5 || a >= 157.5 ? "ew-resize" : a < 67.5 ? "nesw-resize" : a < 112.5 ? "ns-resize" : "nwse-resize";
+}
+
+// ---------- Stitch runs ----------
+// A run is a block of stitches between jumps / color changes, together with the jump(s) leading into it.
+// Runs are edited as objects with the Select tool: move, resize and rotate transform all of their points.
+let runSel = new Set(), hoverRun = null;   // runs are identified by the index of their first command
+function getRuns() {
+  const runs = [];
+  let cur = null;
+  for (let i = 0; i < cmds.length; i++) {
+    const t = cmds[i].t;
+    if (t === "s") { if (!cur) cur = { start: i, end: i, n: 0 }; cur.end = i; cur.n++; }
+    else if (t === "j") {
+      if (cur && cur.n) { runs.push(cur); cur = null; }
+      if (!cur) cur = { start: i, end: i, n: 0 }; else cur.end = i;
+    } else { if (cur && cur.n) runs.push(cur); cur = null; }
+  }
+  if (cur && cur.n) runs.push(cur);
+  return runs;
+}
+const selRuns = () => getRuns().filter(r => runSel.has(r.start));
+function runBox(r) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = r.start; i <= r.end; i++) {
+    const c = cmds[i]; if (c.t !== "s") continue;
+    minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+  }
+  return { minX, maxX, minY, maxY };
+}
+function runAt(wx, wy) {
+  const pad = 5 / view.s, runs = getRuns();
+  for (let k = runs.length - 1; k >= 0; k--) {
+    const r = runs[k], b = runBox(r);
+    if (wx < b.minX - pad || wx > b.maxX + pad || wy < b.minY - pad || wy > b.maxY + pad) continue;
+    for (let i = r.start; i <= r.end; i++) {
+      const c = cmds[i]; if (c.t !== "s") continue;
+      const p = i > r.start ? cmds[i - 1] : c;
+      const dx = c.x - p.x, dy = c.y - p.y, L2 = dx * dx + dy * dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((wx - p.x) * dx + (wy - p.y) * dy) / L2)) : 0;
+      if (Math.hypot(wx - (p.x + t * dx), wy - (p.y + t * dy)) <= pad) return r.start;
+    }
+  }
+  return null;
+}
+// Command indices + original coordinates of every point in the selected runs (for transforms).
+function runPts0() {
+  const out = [];
+  for (const r of selRuns()) for (let i = r.start; i <= r.end; i++) out.push([i, cmds[i].x, cmds[i].y]);
+  return out;
+}
+// What the handles act on: one shape, or the selected runs as a group (an axis-aligned box).
+function selTarget() {
+  if (tool !== "select") return null;
+  if (shapeSel.size === 1 && !runSel.size) return selShapes()[0] || null;
+  if (!shapeSel.size && runSel.size) {
+    if (drag && drag.proxy) return drag.proxy;
+    const b = unionBox(selRuns().map(runBox));
+    if (!isFinite(b.minX)) return null;
+    return { kind: "rect", isRuns: true, cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2,
+             w: Math.max(1, b.maxX - b.minX), h: Math.max(1, b.maxY - b.minY), rot: 0 };
+  }
+  return null;
+}
+// Re-place the run points from their originals using the group box before (orig) and now (proxy).
+function applyRunXform(d) {
+  const o = d.orig, p = d.proxy;
+  const kx = o.w < 2 ? 1 : p.w / o.w, ky = o.h < 2 ? 1 : p.h / o.h;
+  for (const [i, x0, y0] of d.pts0) {
+    const [x, y] = toWorld(p, (x0 - o.cx) * kx, (y0 - o.cy) * ky);
+    cmds[i].x = Math.round(x); cmds[i].y = Math.round(y);
+  }
+}
+function transformRuns(fn) {
+  for (const [i, x, y] of runPts0()) { const [nx, ny] = fn(x, y); cmds[i].x = Math.round(nx); cmds[i].y = Math.round(ny); }
+}
+function deleteRuns() {
+  if (!runSel.size) return;
+  const rs = selRuns().sort((a, b) => b.start - a.start);
+  for (const r of rs) cmds.splice(r.start, r.end - r.start + 1);
+  runSel.clear();
+}
+// ---- Stops between runs ----
+// JEF has no separate "stop": the machine stops at every color change. A stop that keeps the same thread is
+// a color change to the same thread number (the usual trick for appliqué: stop, place fabric, continue).
+const countC = (end) => { let k = 0; for (let i = 0; i < end; i++) if (cmds[i].t === "c") k++; return k; };
+const hasStitchBefore = r => { for (let i = 0; i < r.start; i++) if (cmds[i].t === "s") return true; return false; };
+// "none" | "same" | "<palette index>"
+function runStop(r) {
+  if (r.start === 0 || cmds[r.start - 1].t !== "c") return "none";
+  const k = countC(r.start - 1);                // thread before the stop
+  const before = threads[k], after = threads[k + 1];
+  if (!after) return "none";
+  return before && after.idx === before.idx ? "same" : String(after.idx);
+}
+function setRunStop(v) {
+  const rs = selRuns().sort((a, b) => b.start - a.start);
+  if (!rs.length) return;
+  snapshot();
+  const deltas = [];
+  for (const r of rs) {
+    let d = 0;
+    if (hasStitchBefore(r)) {
+      const has = cmds[r.start - 1].t === "c";
+      if (v === "none") {
+        if (has) { const p = r.start - 1; threads.splice(countC(p) + 1, 1); cmds.splice(p, 1); d = -1; }
+      } else {
+        const k = countC(has ? r.start - 1 : r.start);
+        const idx = v === "same" ? threads[k].idx : +v;
+        if (has) threads[k + 1] = { idx };
+        else {
+          const p = cmds[r.start - 1];
+          cmds.splice(r.start, 0, { t: "c", x: p.x, y: p.y });
+          threads.splice(k + 1, 0, { idx });
+          d = 1;
+        }
+      }
+      threadsDirty = true;
+    }
+    deltas.push([r.start, d]);
+  }
+  // runs after an inserted/removed color change shift by one
+  runSel = new Set(deltas.map(([s]) => s + deltas.filter(([t]) => t <= s).reduce((a, [, d]) => a + d, 0)));
+  changed();
+}
+
+// ---- Editable stitch runs (made with "To stitches") ----
+const runSid = r => { for (let i = r.start; i <= r.end; i++) if (cmds[i].sid != null) return cmds[i].sid; return null; };
+function newSid() { let m = 0; for (const k in runSources) m = Math.max(m, +k); return m + 1; }
+// A source shape's settings, without the live-shape bookkeeping.
+function sourceDef(s) { const d = JSON.parse(JSON.stringify(s)); delete d.id; delete d.after; delete d.group; delete d.stop; return d; }
+// Fit the transform (move / resize / rotate) between a run's original stitches G and where they are now C:
+// X = a·x + b·y + e, Y = c·x + d·y + f → [a, b, e, c, d, f]. Falls back to a similarity from the end points for
+// straight runs (lines), where a full fit is undefined.
+function fitAffine(G, C) {
+  const n = G.length;
+  let Sxx = 0, Sxy = 0, Sx = 0, Syy = 0, Sy = 0, SXx = 0, SXy = 0, SX = 0, SYx = 0, SYy = 0, SY = 0;
+  for (let i = 0; i < n; i++) {
+    const [x, y] = G[i], [X, Y] = C[i];
+    Sxx += x * x; Sxy += x * y; Sx += x; Syy += y * y; Sy += y;
+    SXx += X * x; SXy += X * y; SX += X; SYx += Y * x; SYy += Y * y; SY += Y;
+  }
+  const M = [[Sxx, Sxy, Sx], [Sxy, Syy, Sy], [Sx, Sy, n]];
+  const det = m => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  const D = det(M);
+  const scale = Math.max(1, Sxx + Syy) * Math.max(1, n);
+  if (Math.abs(D) < 1e-9 * scale * scale) {   // straight run: rotation + uniform scale + move from the two ends
+    const [g0, g1] = [G[0], G[n - 1]], [c0, c1] = [C[0], C[n - 1]];
+    const gx = g1[0] - g0[0], gy = g1[1] - g0[1], cx = c1[0] - c0[0], cy = c1[1] - c0[1], gl = gx * gx + gy * gy || 1;
+    const a = (gx * cx + gy * cy) / gl, b = (gx * cy - gy * cx) / gl;   // complex ratio
+    return [a, -b, c0[0] - (a * g0[0] - b * g0[1]), b, a, c0[1] - (b * g0[0] + a * g0[1])];
+  }
+  const solve = v => {
+    const col = (k) => M.map((row, i) => row.map((x, j) => j === k ? v[i] : x));
+    return [det(col(0)) / D, det(col(1)) / D, det(col(2)) / D];
+  };
+  const [a, b, e] = solve([SXx, SXy, SX]), [c, d, f] = solve([SYx, SYy, SY]);
+  return [a, b, e, c, d, f];
+}
+const applyXf = (xf, x, y) => [xf[0] * x + xf[1] * y + xf[2], xf[3] * x + xf[4] * y + xf[5]];
+// Where this run's source stitches have been moved to. exact = the run still matches the generated stitches
+// (no hand edits with the Points tool).
+function runTransform(r, sid) {
+  const src = runSources[sid], st = (shapeStages(src.def)[src.stage] || {}).st || [];
+  const C = []; for (let i = r.start; i <= r.end; i++) if (cmds[i].t === "s") C.push([cmds[i].x, cmds[i].y]);
+  if (C.length === st.length && st.length >= 2) {
+    const xf = fitAffine(st, C);
+    const err = Math.max(...st.map(([x, y], i) => { const [X, Y] = applyXf(xf, x, y); return Math.hypot(X - C[i][0], Y - C[i][1]); }));
+    if (err <= 2) return { xf, exact: true };
+  }
+  return { xf: src.xf || [1, 0, 0, 0, 1, 0], exact: false };
+}
+// Replace a run's stitches with freshly generated ones from its source, placed with transform xf.
+function regenRun(r, sid, xf) {
+  const src = runSources[sid], st = (shapeStages(src.def)[src.stage] || {}).st;
+  if (!st || st.length < 2) return;
+  const g = runGroupOf(r), extra = g != null ? { sid, g } : { sid };
+  const P = st.map(([x, y]) => applyXf(xf, x, y).map(Math.round));
+  cmds.splice(r.start, r.end - r.start + 1, { t: "j", x: P[0][0], y: P[0][1], ...extra }, ...P.map(([x, y]) => ({ t: "s", x, y, ...extra })));
+  src.xf = xf;
+}
+// Change the source settings of the selected runs and regenerate them.
+let srcConfirmed = false;
+function editRunSources(fn) {
+  const rs = selRuns().filter(r => runSid(r) != null);
+  if (!rs.length) return;
+  const jobs = rs.map(r => ({ r, sid: runSid(r), ...runTransform(r, runSid(r)) }));
+  if (!editing) {
+    if (jobs.some(j => !j.exact) && !srcConfirmed &&
+        !confirm("Some of these stitches were edited by hand (Points tool). Changing the shape settings regenerates the stitches and replaces those edits. Continue?")) {
+      changed(); return;
+    }
+    snapshot(); editing = true; srcConfirmed = true;
+  }
+  // runs that share a source with unselected runs (e.g. copies) get their own copy, so only the selection changes
+  const allRuns = getRuns(), forked = new Map();
+  for (const j of jobs) {
+    const users = allRuns.filter(r => runSid(r) === j.sid).length, mine = jobs.filter(k => k.sid === j.sid).length;
+    if (users > mine) {
+      if (!forked.has(j.sid)) { const n = newSid(); runSources[n] = JSON.parse(JSON.stringify(runSources[j.sid])); forked.set(j.sid, n); }
+      j.sid = forked.get(j.sid);
+    }
+  }
+  const sids = [...new Set(jobs.map(j => j.sid))];
+  fn(sids.map(s => runSources[s].def));
+  for (const j of jobs.sort((a, b) => b.r.start - a.r.start)) regenRun(j.r, j.sid, j.xf);
+  runSel = new Set(getRuns().filter(r => sids.includes(runSid(r))).map(r => r.start));   // keep them selected
+  changed();
+}
+
+// ---- Sew order (the KSP-style list) ----
+// Each run as a movable object: its commands, the thread it sews with, and whether it has a same-thread pause before it.
+function runObjects() {
+  const runs = getRuns();
+  return runs.map((r, k) => {
+    const thread = threads[countC(r.start)] || threads[threads.length - 1];
+    const prev = k ? runs[k - 1] : null;
+    let hasC = false, pauseNote;
+    if (prev) for (let i = prev.end + 1; i < r.start; i++) if (cmds[i].t === "c") { hasC = true; pauseNote = cmds[i].note; }
+    const prevThread = prev ? threads[countC(prev.start)] : null;
+    // (a color change before the very first run is a pause after any live shapes sewn before it)
+    const pause = prev ? !!(hasC && prevThread && prevThread.idx === thread.idx) : cmds.slice(0, r.start).some(c => c.t === "c");
+    return { cmds: cmds.slice(r.start, r.end + 1).map(c => ({ ...c })), thread: { ...thread }, pause, pauseNote, start: r.start };
+  });
+}
+// ---- Groups ----
+// A group id is stored on every command of a grouped run (c.g) and on grouped shapes (s.group).
+// Group members always sit next to each other in the sew order.
+const runGroupOf = r => { for (let i = r.start; i <= r.end; i++) if (cmds[i].g != null) return cmds[i].g; return null; };
+const itemGroup = it => it.type === "run" ? (it.obj.cmds.find(c => c.g != null)?.g ?? null) : (it.s.group ?? null);
+function setItemGroup(it, g) {
+  if (it.type === "run") it.obj.cmds.forEach(c => { if (g == null) delete c.g; else c.g = g; });
+  else if (g == null) delete it.s.group; else it.s.group = g;
+}
+function newGroupId() {
+  let m = 0;
+  for (const c of cmds) if (c.g != null) m = Math.max(m, c.g);
+  for (const s of shapes) if (s.group != null) m = Math.max(m, s.group);
+  return m + 1;
+}
+// Pull each group's members together (at the first member's place) and dissolve groups of one.
+function normalizeGroups(order) {
+  const count = new Map();
+  for (const it of order) { const g = itemGroup(it); if (g != null) count.set(g, (count.get(g) || 0) + 1); }
+  for (const it of order) { const g = itemGroup(it); if (g != null && count.get(g) < 2) setItemGroup(it, null); }
+  const out = [], done = new Set();
+  for (const it of order) {
+    const g = itemGroup(it);
+    if (g == null) { out.push(it); continue; }
+    if (done.has(g)) continue;
+    done.add(g);
+    out.push(...order.filter(x => itemGroup(x) === g));
+  }
+  return out;
+}
+const isSelItem = it => it.type === "run" ? runSel.has(it.obj.start) : shapeSel.has(it.s.id);
+function reselect(items, starts) {
+  runSel = new Set(items.filter(it => it.type === "run").map(it => starts.get(it.obj)));
+  shapeSel = new Set(items.filter(it => it.type === "shape").map(it => it.s.id));
+}
+// Selecting any member of a group selects the whole group.
+function expandGroups() {
+  const gs = new Set(), runs = getRuns();
+  for (const r of runs) if (runSel.has(r.start)) { const g = runGroupOf(r); if (g != null) gs.add(g); }
+  for (const s of shapes) if (shapeSel.has(s.id) && s.group != null) gs.add(s.group);
+  if (!gs.size) return;
+  for (const r of runs) if (gs.has(runGroupOf(r))) runSel.add(r.start);
+  for (const s of shapes) if (gs.has(s.group)) shapeSel.add(s.id);
+}
+// Shift+click: add or remove an item (a whole group if it's grouped).
+function toggleSel(kind, key) {
+  const selSet = kind === "run" ? runSel : shapeSel;
+  if (!selSet.has(key)) { selSet.add(key); expandGroups(); return; }
+  const g = kind === "run" ? runGroupOf(getRuns().find(r => r.start === key)) : byId(key).group;
+  if (g == null) { selSet.delete(key); return; }
+  for (const r of getRuns()) if (runGroupOf(r) === g) runSel.delete(r.start);
+  for (const s of shapes) if (s.group === g) shapeSel.delete(s.id);
+}
+function groupSelection() {
+  const order = orderList(), sel = order.filter(isSelItem);
+  if (sel.length < 2) return;
+  const gs = new Set(sel.map(itemGroup));
+  if (gs.size === 1 && !gs.has(null) && order.filter(it => itemGroup(it) === [...gs][0]).length === sel.length) return;   // already one group
+  snapshot();
+  const g = newGroupId();
+  sel.forEach(it => setItemGroup(it, g));
+  const starts = applyOrder(normalizeGroups(order));
+  reselect(sel, starts); changed();
+}
+function ungroupSelection() {
+  const order = orderList(), sel = order.filter(isSelItem);
+  if (!sel.some(it => itemGroup(it) != null)) return;
+  snapshot();
+  sel.forEach(it => setItemGroup(it, null));
+  const starts = applyOrder(order);
+  reselect(sel, starts); changed();
+}
+// Drag & drop in the Sew order list. drag = {index} for one item or {group} for a whole group.
+function dropOrder(dragInfo, tIndex, below, onHeader) {
+  const order = orderList(), anchor0 = order[tIndex];
+  if (!anchor0) return;
+  const tg = itemGroup(anchor0);
+  const edgeOf = g => { const idx = order.map((it, i) => itemGroup(it) === g ? i : -1).filter(i => i >= 0); return below ? Math.max(...idx) : Math.min(...idx); };
+  let moving, newGroup;
+  if (dragInfo.group != null) {
+    if (tg === dragInfo.group) return;
+    moving = order.filter(it => itemGroup(it) === dragInfo.group);
+    if (tg != null) tIndex = edgeOf(tg);                 // a group never lands inside another group
+  } else {
+    moving = [order[dragInfo.index]];
+    if (onHeader && tg != null) { tIndex = edgeOf(tg); newGroup = null; }   // on a group's title: just outside it
+    else newGroup = tg;                                  // onto a member: join that group; onto a loose item: leave any group
+  }
+  const anchor = order[tIndex];
+  if (!moving[0] || moving.includes(anchor)) return;   // dropped onto itself
+  snapshot();
+  if (newGroup !== undefined) moving.forEach(it => setItemGroup(it, newGroup));
+  const rest = order.filter(it => !moving.includes(it));
+  rest.splice(rest.indexOf(anchor) + (below ? 1 : 0), 0, ...moving);
+  const starts = applyOrder(normalizeGroups(rest));
+  shapeSel.clear(); runSel.clear(); ptSel.clear();
+  reselect(moving, starts); expandGroups(); changed();
+}
+
+// Current sew order as a list of {type:"run", obj} / {type:"shape", s}.
+function orderList() {
+  const objs = runObjects(), n = objs.length, out = [];
+  for (let k = 0; k <= n; k++) {
+    for (const s of shapes) if (shapeSlot(s, n) === k) out.push({ type: "shape", s });
+    if (k < n) out.push({ type: "run", obj: objs[k] });
+  }
+  return out;
+}
+// Rebuild the stitch list, threads and shape positions from an order list. Each run keeps its own thread;
+// color changes are added wherever the thread changes, plus wherever a run has a pause.
+function applyOrder(order) {
+  const newCmds = [], newThreads = [], newShapes = [], starts = new Map();
+  let runCount = 0, anything = false;
+  for (const it of order) {
+    if (it.type === "shape") { it.s.after = runCount; newShapes.push(it.s); anything = true; continue; }
+    const o = it.obj, cur = newThreads[newThreads.length - 1];
+    if (!cur) {
+      newThreads.push({ ...o.thread });
+      if (o.pause && anything) { newCmds.push({ t: "c", x: o.cmds[0].x, y: o.cmds[0].y }); newThreads.push({ ...o.thread }); }
+    } else if (cur.idx !== o.thread.idx || o.pause) {
+      const l = newCmds[newCmds.length - 1], note = o.pause && cur.idx === o.thread.idx && o.pauseNote ? { note: o.pauseNote } : {};
+      newCmds.push({ t: "c", x: l.x, y: l.y, ...note }); newThreads.push({ ...o.thread });
+    }
+    anything = true;
+    const run = o.cmds.map(c => ({ ...c }));
+    if (run[0].t !== "j") run.unshift({ t: "j", x: run[0].x, y: run[0].y });
+    starts.set(o, newCmds.length);
+    newCmds.push(...run);
+    runCount++;
+  }
+  for (const s of newShapes) if (s.after >= runCount) s.after = null;   // last ones: "at the end"
+  if (!newThreads.length) newThreads.push({ ...(threads[0] || { idx: 1 }) });
+  if (newThreads.map(t => t.idx).join() !== threads.map(t => t.idx).join()) threadsDirty = true;
+  cmds = newCmds; threads = newThreads; shapes = newShapes;
+  return starts;
+}
+// Move an item in the sew order, keeping it selected.
+function moveOrderItem(from, to) {
+  const order = orderList();
+  if (from === to || from < 0 || from >= order.length) return;
+  snapshot();
+  const [it] = order.splice(from, 1);
+  order.splice(Math.max(0, Math.min(order.length, to)), 0, it);
+  const starts = applyOrder(normalizeGroups(order));
+  shapeSel.clear(); runSel.clear(); ptSel.clear();
+  if (it.type === "shape") shapeSel.add(it.s.id); else runSel.add(starts.get(it.obj));
+  changed();
+}
+// Click a gap between items: add or remove a same-thread pause before item i.
+function togglePause(i) {
+  const order = orderList(), it = order[i];
+  if (!it || i === 0) return;
+  snapshot();
+  if (it.type === "shape") it.s.stop = !it.s.stop;
+  else { it.obj.pause = !it.obj.pause; applyOrder(order); runSel.clear(); }
+  changed();
+}
+
+function runCmds(r) { return cmds.slice(r.start, r.end + 1).map(c => ({ ...c })); }
+// Add copies of runs at the end of the loaded stitches; returns the new runs' start indices.
+function appendRuns(list, dx, dy) {
+  const starts = [];
+  for (const run of list) {
+    const moved = run.map(c => ({ ...c, x: Math.round(c.x + dx), y: Math.round(c.y + dy) }));
+    if (moved[0].t !== "j") moved.unshift({ t: "j", x: moved[0].x, y: moved[0].y });
+    starts.push(cmds.length);
+    cmds.push(...moved);
+  }
+  return starts;
+}
+
+// ---------- Snapping (draw.io-style guides) ----------
+let GRID = U().snap; // 0.5 mm, or 1/32" in imperial
+// ---- Stitched edges ----
+// A satin shape's stitches reach half the thickness either side of its outline, so it has an outer and an inner edge.
+const halfThick = s => s.style === "satin" ? s.thick / 2 : 0;
+function shapeBoxes(s) {
+  const b = aabb(s), t = halfThick(s);
+  const outer = { minX: b.minX - t, maxX: b.maxX + t, minY: b.minY - t, maxY: b.maxY + t };
+  const inner = t > 0 && s.kind !== "line" && b.maxX - b.minX > 2 * t && b.maxY - b.minY > 2 * t
+    ? { minX: b.minX + t, maxX: b.maxX - t, minY: b.minY + t, maxY: b.maxY - t } : null;
+  return { outer, inner };
+}
+// The empty middle of a frame-like stitch run (e.g. a rectangle border that was turned into stitches),
+// found from the needle points closest to the center on each side. null if the run isn't a closed frame.
+function runInnerBox(r) {
+  const b = runBox(r), w = b.maxX - b.minX, h = b.maxY - b.minY;
+  if (!(w > 30 && h > 30)) return null;
+  const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
+  let L = -Infinity, R = Infinity, T = Infinity, B = -Infinity;
+  for (let i = r.start; i <= r.end; i++) {
+    const c = cmds[i]; if (c.t !== "s") continue;
+    if (Math.abs(c.y - cy) < h / 4) { if (c.x < cx) L = Math.max(L, c.x); else R = Math.min(R, c.x); }
+    if (Math.abs(c.x - cx) < w / 4) { if (c.y < cy) B = Math.max(B, c.y); else T = Math.min(T, c.y); }
+  }
+  if (![L, R, T, B].every(isFinite)) return null;
+  const ib = { minX: L, maxX: R, minY: B, maxY: T };
+  if (ib.maxX - ib.minX < 0.3 * w || ib.maxY - ib.minY < 0.3 * h) return null;
+  for (let i = r.start; i <= r.end; i++) {   // the middle must be empty of stitches
+    const c = cmds[i];
+    if (c.t === "s" && c.x > ib.minX + 2 && c.x < ib.maxX - 2 && c.y > ib.minY + 2 && c.y < ib.maxY - 2) return null;
+  }
+  return ib;
+}
+
+// Snap targets: edges and centers of every other shape and stitch run, of every group as a whole, and the 0 lines.
+// Shapes use their stitched (outer) edges; frames also offer their inside edges.
+// kind: 0 = left/bottom edge, 1 = center, 2 = right/top edge.
+function snapTargets(excludeIds) {
+  // each box remembers what it belongs to (src), so the canvas can spotlight the item being centered on
+  const boxes = [], groups = new Map();
+  const addG = (g, b) => { if (g == null) return; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(b); };
+  const inners = [];
+  for (const s of shapes) if (!excludeIds.has(s.id)) {
+    const { outer, inner } = shapeBoxes(s), src = { shape: s.id };
+    boxes.push({ b: outer, src }); addG(s.group, outer);
+    if (inner) inners.push({ b: inner, src });
+  }
+  for (const r of getRuns()) if (!runSel.has(r.start)) {
+    const b = runBox(r), src = { run: r.start };
+    boxes.push({ b, src }); addG(runGroupOf(r), b);
+    const ib = runInnerBox(r); if (ib) inners.push({ b: ib, src });
+  }
+  for (const [g, list] of groups) if (list.length > 1) boxes.push({ b: unionBox(list), group: true, src: { group: g } });
+  const xs = [{ v: 0, box: null, kind: 1, src: { origin: true } }], ys = [{ v: 0, box: null, kind: 1, src: { origin: true } }];
+  for (const { b, group, src } of boxes) {
+    [b.minX, (b.minX + b.maxX) / 2, b.maxX].forEach((v, kind) => xs.push({ v, box: b, kind, group, src }));
+    [b.minY, (b.minY + b.maxY) / 2, b.maxY].forEach((v, kind) => ys.push({ v, box: b, kind, group, src }));
+  }
+  for (const { b, src } of inners) {   // inside edges (their center is the same as the outer one)
+    xs.push({ v: b.minX, box: b, kind: 0, src, inner: true }, { v: b.maxX, box: b, kind: 2, src, inner: true });
+    ys.push({ v: b.minY, box: b, kind: 0, src, inner: true }, { v: b.maxY, box: b, kind: 2, src, inner: true });
+  }
+  return { xs, ys };
+}
+// Find the best target for any of `vals` (a box's [min, center, max], or a single point).
+// Center-to-center matches and whole groups win ties, so a frame drawn around a group locks onto its center.
+// vals: [value, kind] pairs — kind 1 marks the moving item's center (kind -1 = a lone point).
+function bestSnap(vals, targets) {
+  const thr = 7 / view.s;
+  let best = null, bestScore = Infinity;
+  for (const [val, vk] of vals) {
+    for (const t of targets) {
+      const d = t.v - val;
+      if (Math.abs(d) > thr) continue;
+      const center = vk === 1 && t.kind === 1;
+      const score = Math.abs(d) - (center ? 3 / view.s : 0) - (t.group ? 1.5 / view.s : 0);
+      if (score < bestScore) { bestScore = score; best = { d, v: t.v, box: t.box, center, group: !!t.group, src: t.src, inner: !!t.inner }; }
+    }
+  }
+  return best;
+}
+function guide(axis, hit, box) {
+  const other = hit.box || { minX: 0, maxX: 0, minY: 0, maxY: 0 }, extra = { center: hit.center, group: hit.group, src: hit.src };
+  if (axis === "x") return { axis, v: hit.v, a: Math.min(box.minY, other.minY), b: Math.max(box.maxY, other.maxY), full: !hit.box, ...extra };
+  return { axis, v: hit.v, a: Math.min(box.minX, other.minX), b: Math.max(box.maxX, other.maxX), full: !hit.box, ...extra };
+}
+// Snap a moving box (its stitched outer edges, center, and inner edges if it's a frame): returns dx, dy and guides.
+function snapBox(box, excl, off, inner = null) {
+  guides = [];
+  if (off) return { dx: 0, dy: 0 };
+  const t = snapTargets(excl);
+  const vx = [[box.minX, 0], [(box.minX + box.maxX) / 2, 1], [box.maxX, 2]], vy = [[box.minY, 0], [(box.minY + box.maxY) / 2, 1], [box.maxY, 2]];
+  if (inner) { vx.push([inner.minX, 0], [inner.maxX, 2]); vy.push([inner.minY, 0], [inner.maxY, 2]); }
+  const hx = bestSnap(vx, t.xs), hy = bestSnap(vy, t.ys);
+  const dx = hx ? hx.d : Math.round(box.minX / GRID) * GRID - box.minX;
+  const dy = hy ? hy.d : Math.round(box.minY / GRID) * GRID - box.minY;
+  const moved = { minX: box.minX + dx, maxX: box.maxX + dx, minY: box.minY + dy, maxY: box.maxY + dy };
+  if (hx) guides.push(guide("x", hx, moved));
+  if (hy) guides.push(guide("y", hy, moved));
+  return { dx, dy };
+}
+// Snap a single point (new-shape corners, line ends, resized edges).
+function snapPoint(x, y, excl, off, axes = "xy") {
+  guides = [];
+  if (off) return [x, y];
+  const t = snapTargets(excl);
+  const hx = axes.includes("x") && bestSnap([[x, -1]], t.xs), hy = axes.includes("y") && bestSnap([[y, -1]], t.ys);
+  const nx = hx ? hx.v : Math.round(x / GRID) * GRID, ny = hy ? hy.v : Math.round(y / GRID) * GRID;
+  const pb = { minX: nx, maxX: nx, minY: ny, maxY: ny };
+  if (hx) guides.push(guide("x", hx, pb));
+  if (hy) guides.push(guide("y", hy, pb));
+  return [nx, ny];
+}
+
+// ---------- Measure tool ----------
+// The element under the mouse as a box: a shape or stitch run, or its whole group if it's grouped.
+// box = stitched outer edges; inner = the inside edges of a frame (if it is one).
+function itemBoxAt(wx, wy) {
+  const s = shapeAt(wx, wy), runs = getRuns();
+  const groupBox = g => unionBox([...runs.filter(r => runGroupOf(r) === g).map(runBox), ...shapes.filter(o => o.group === g).map(o => shapeBoxes(o).outer)]);
+  if (s) {
+    if (s.group != null) return { box: groupBox(s.group), what: "group" };
+    const { outer, inner } = shapeBoxes(s);
+    return { box: outer, inner, what: SHAPE_NAMES[s.kind].toLowerCase() };
+  }
+  const st = runAt(wx, wy);
+  if (st == null) return null;
+  const r = runs.find(x => x.start === st), g = runGroupOf(r);
+  return g != null ? { box: groupBox(g), what: "group" } : { box: runBox(r), inner: runInnerBox(r), what: "stitch run" };
+}
+// Measurements between two elements: the gaps between them, or — if one sits inside the other (like text in a
+// frame) — the four margins from the frame's inside edge.
+function gapMeasures(Ai, Bi) {
+  if (Ai.minX !== undefined) Ai = { box: Ai };   // plain boxes are fine too
+  if (Bi.minX !== undefined) Bi = { box: Bi };
+  const insideOf = (i, o) => { const ob = o.inner || o.box; return i.box.minX >= ob.minX && i.box.maxX <= ob.maxX && i.box.minY >= ob.minY && i.box.maxY <= ob.maxY; };
+  if (insideOf(Ai, Bi)) return gapBoxes(Ai.box, Bi.inner || Bi.box);
+  if (insideOf(Bi, Ai)) return gapBoxes(Bi.box, Ai.inner || Ai.box);
+  return gapBoxes(Ai.box, Bi.box);
+}
+function gapBoxes(A, B) {
+  const out = [], mid = (a0, a1, b0, b1) => { const lo = Math.max(a0, b0), hi = Math.min(a1, b1); return lo <= hi ? (lo + hi) / 2 : ((a0 + a1) / 2 + (b0 + b1) / 2) / 2; };
+  const inside = (i, o) => i.minX >= o.minX && i.maxX <= o.maxX && i.minY >= o.minY && i.maxY <= o.maxY;
+  const margins = (i, o) => {
+    const cy = (i.minY + i.maxY) / 2, cx = (i.minX + i.maxX) / 2;
+    out.push({ a: [o.minX, cy], b: [i.minX, cy] }, { a: [i.maxX, cy], b: [o.maxX, cy] },
+             { a: [cx, o.maxY], b: [cx, i.maxY] }, { a: [cx, i.minY], b: [cx, o.minY] });
+  };
+  if (inside(A, B)) margins(A, B);
+  else if (inside(B, A)) margins(B, A);
+  else {
+    const y = mid(A.minY, A.maxY, B.minY, B.maxY), x = mid(A.minX, A.maxX, B.minX, B.maxX);
+    if (A.maxX <= B.minX) out.push({ a: [A.maxX, y], b: [B.minX, y] });
+    else if (B.maxX <= A.minX) out.push({ a: [B.maxX, y], b: [A.minX, y] });
+    if (A.maxY <= B.minY) out.push({ a: [x, A.maxY], b: [x, B.minY] });
+    else if (B.maxY <= A.minY) out.push({ a: [x, B.maxY], b: [x, A.minY] });
+    if (!out.length) out.push({ a: [(A.minX + A.maxX) / 2, (A.minY + A.maxY) / 2], b: [(B.minX + B.maxX) / 2, (B.minY + B.maxY) / 2] });   // overlapping: center to center
+  }
+  return out;
+}
+// Snap a measure point to element edges/centers. Selected runs are normally left out of snapping (they're the
+// thing being moved), but when measuring everything counts.
+function measSnap(x, y, alt) {
+  const saved = runSel; runSel = new Set();
+  try { return snapPoint(x, y, new Set(), alt); } finally { runSel = saved; }
+}
+function measureAt(sx, sy) {   // {id, end: "a"|"b"|null} for a measurement under the mouse
+  if (!$("showMeas").checked) return null;
+  for (let k = measures.length - 1; k >= 0; k--) {
+    const m = measures[k], [ax, ay] = toS(...m.a), [bx, by] = toS(...m.b);
+    if (Math.hypot(sx - ax, sy - ay) <= 7) return { id: m.id, end: "a" };
+    if (Math.hypot(sx - bx, sy - by) <= 7) return { id: m.id, end: "b" };
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((sx - ax) * dx + (sy - ay) * dy) / L2));
+    if (Math.hypot(sx - (ax + t * dx), sy - (ay + t * dy)) <= 5) return { id: m.id, end: null };
+  }
+  return null;
+}
+function drawMeasure(m, selected, live) {
+  const [ax, ay] = toS(...m.a), [bx, by] = toS(...m.b);
+  const dx = m.b[0] - m.a[0], dy = m.b[1] - m.a[1], d = Math.hypot(dx, dy);
+  const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * 6, ny = (bx - ax) / L * 6;
+  const col = live ? "#ad1457" : "#d81b60";
+  ctx.save();
+  ctx.strokeStyle = col; ctx.lineWidth = selected ? 2 : 1.25; ctx.setLineDash(live ? [5, 3] : []);
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(ax - nx, ay - ny); ctx.lineTo(ax + nx, ay + ny); ctx.moveTo(bx - nx, by - ny); ctx.lineTo(bx + nx, by + ny); ctx.stroke();
+  // arrow heads
+  const ux = (bx - ax) / L * 7, uy = (by - ay) / L * 7;
+  if (L > 22) {
+    ctx.beginPath();
+    ctx.moveTo(ax, ay); ctx.lineTo(ax + ux + nx * .5, ay + uy + ny * .5); ctx.moveTo(ax, ay); ctx.lineTo(ax + ux - nx * .5, ay + uy - ny * .5);
+    ctx.moveTo(bx, by); ctx.lineTo(bx - ux + nx * .5, by - uy + ny * .5); ctx.moveTo(bx, by); ctx.lineTo(bx - ux - nx * .5, by - uy - ny * .5);
+    ctx.stroke();
+  }
+  // label: distance, plus the across / up-down parts when it's diagonal
+  const diag = Math.abs(dx) > 1 && Math.abs(dy) > 1;
+  const text = fmtLen(d) + (diag ? `  (↔ ${fmtLen(Math.abs(dx))}, ↕ ${fmtLen(Math.abs(dy))})` : "");
+  ctx.font = "bold 11px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width + 10, mx = (ax + bx) / 2 + nx * 2.2, my = (ay + by) / 2 + ny * 2.2;
+  ctx.fillStyle = selected ? col : "rgba(255,255,255,.92)"; ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(mx - w / 2, my - 9, w, 18, 4); else ctx.rect(mx - w / 2, my - 9, w, 18);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = selected ? "#fff" : col; ctx.fillText(text, mx, my);
+  if (selected) for (const [px, py] of [[ax, ay], [bx, by]]) {
+    ctx.fillStyle = "#fff"; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawMeasures() {
+  if (!$("showMeas").checked && tool !== "measure") return;
+  for (const m of measures) drawMeasure(m, tool === "measure" && m.id === measSel, false);
+  if (drag && drag.mode === "measure" && drag.moved) drawMeasure({ a: drag.a, b: drag.b }, false, true);
+  if (measPick && tool === "measure") {   // first element picked, waiting for the second
+    const b = measPick.box, [x0, y0] = toS(b.minX, b.maxY), [x1, y1] = toS(b.maxX, b.minY);
+    ctx.save(); ctx.strokeStyle = "#d81b60"; ctx.lineWidth = 1.5; ctx.setLineDash([6, 3]);
+    ctx.strokeRect(x0 - 3, y0 - 3, x1 - x0 + 6, y1 - y0 + 6);
+    ctx.font = "11px system-ui, sans-serif"; ctx.fillStyle = "#d81b60"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(`${measPick.what} — now click a second element`, x0 - 3, y0 - 6);
+    ctx.restore();
+  }
+}
+function addMeasures(list) {
+  if (!list.length) return;
+  snapshot();
+  for (const m of list) { const id = nextMeasId++; measures.push({ id, a: m.a.slice(), b: m.b.slice() }); measSel = id; }
+  if (!$("showMeas").checked) $("showMeas").checked = true;
+  changed();
+}
+
+// While dragging with a "center" guide active, give every command a spotlight level:
+//   2 = centered on both axes (or being dragged) → full color
+//   1 = centered on one axis only               → half faded
+//   0 = not a centering target                  → mostly faded
+// Returns null when nothing should fade.
+function spotlight(all, marks) {
+  if (!drag || !["move", "resize", "rotate", "create", "endpoint"].includes(drag.mode)) return null;
+  const hits = guides.filter(g => g.center && g.src);
+  if (!hits.length) return null;
+  const matches = (src, m) => m.type === "run"
+    ? src.run === m.r.start || (src.group != null && src.group === runGroupOf(m.r))
+    : src.shape === m.s.id || (src.group != null && src.group === m.s.group);
+  const level = new Uint8Array(all.length);   // anything outside every item (stray jumps) stays at 0
+  for (const m of marks) {
+    const dragged = m.type === "run" ? runSel.has(m.r.start) : shapeSel.has(m.s.id);
+    const lv = dragged ? 2 : Math.min(2, hits.filter(g => matches(g.src, m)).length);
+    if (lv) level.fill(lv, m.from, m.to + 1);
+  }
+  return level;
+}
+
+// ---------- Drawing ----------
+function draw() {
+  const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const real = $("real").checked;
+  ctx.fillStyle = real ? fabricPattern() : "#fff"; ctx.fillRect(0, 0, r.width, r.height);
+  const [wx0, wy1] = toW(0, 0), [wx1, wy0] = toW(r.width, r.height);
+  const vLines = (step, color) => {
+    ctx.beginPath();
+    for (let gx = Math.ceil(wx0 / step) * step; gx <= wx1; gx += step) { const sx = Math.round(toS(gx, 0)[0]) + .5; ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+    for (let gy = Math.ceil(wy0 / step) * step; gy <= wy1; gy += step) { const sy = Math.round(toS(0, gy)[1]) + .5; ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke();
+  };
+  // Grid in the chosen units, measured from the center: labeled major lines plus lighter subdivisions.
+  const STEPS = units === "in"
+    ? [254 / 16, 254 / 8, 254 / 4, 254 / 2, 254, 508, 1016, 2032, 4064]   // 1/16" … 16"
+    : [10, 20, 50, 100, 200, 500, 1000, 2000, 5000];                       // 1 mm … 500 mm
+  const major = STEPS.find(s => s * view.s >= 50) || STEPS[STEPS.length - 1];
+  const minor = (units === "in" ? [8, 4, 2] : [10, 5, 2]).map(k => major / k).find(s => s * view.s >= 10);
+  const gridAlpha = +$("gridOp").value / 100;
+  if (!real && gridAlpha > 0) {
+    ctx.save(); ctx.globalAlpha = gridAlpha;
+    if (minor) vLines(minor, "#eef0f3");
+    vLines(major, "#c9d6ea");
+    const [cx0, cy0] = toS(0, 0);
+    ctx.strokeStyle = "#9fb3cf"; ctx.beginPath();
+    ctx.moveTo(cx0 - 14, cy0 + .5); ctx.lineTo(cx0 + 14, cy0 + .5); ctx.moveTo(cx0 + .5, cy0 - 14); ctx.lineTo(cx0 + .5, cy0 + 14); ctx.stroke();
+    ctx.restore();
+  }
+
+  // stitches (loaded design + shapes), batched by color
+  const { all, th, marks } = compose();
+  const limit = sewAll ? all.length : Math.min(sewN, all.length);
+  // while centering: full color for both-axis targets, half for one-axis targets, faded for everything else
+  const spot = spotlight(all, marks), SPOT_ALPHA = [0.15, 0.5, 1];
+  const alphaAt = i => spot ? SPOT_ALPHA[spot[i]] : 1;
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const lw = +$("lw").value, showJ = $("showJumps").checked;
+  if (real) {
+    // Each stitch drawn at true thread width: dark edge, body, then a thin highlight so it reads as a twisted thread.
+    const tpx = Math.max(0.6, +$("tw").value * 10 * view.s);
+    const hl = Math.max(0.4, tpx * 0.18), off = tpx * 0.14;
+    const P = pullField(all);
+    let px = 0, py = 0, qx = 0, qy = 0, ci = 0, cols = null;
+    const setColor = k => {
+      const [r0, g0, b0] = threadRGB(th[k] || { idx: -1 }, k), mix = (f, t) => `rgb(${[r0, g0, b0].map(v => Math.round(v + (t - v) * f)).join(",")})`;
+      cols = [mix(0.45, 0), `rgb(${r0},${g0},${b0})`, mix(0.55, 255)];
+    };
+    setColor(0);
+    ctx.lineCap = "round";
+    if ($("ghost").checked && lastPull > 0.05) {
+      // Ghost: the unpulled (100% tightness) stitches, see-through and underneath, so the pulled-in
+      // difference shows as a faint rim around the real stitching.
+      ctx.save(); ctx.globalAlpha = 0.32; ctx.lineWidth = tpx;
+      let gx = 0, gy = 0, gc = 0;
+      ctx.strokeStyle = threadCSS(th[0] || { idx: -1 }, 0);
+      for (let i = 0; i < limit; i++) {
+        const c = all[i];
+        if (c.t === "c") { gc++; ctx.strokeStyle = threadCSS(th[gc] || { idx: -1 }, gc); }
+        else if (c.t === "s" && (c.x !== gx || c.y !== gy)) {
+          ctx.beginPath(); ctx.moveTo(...toS(gx, gy)); ctx.lineTo(...toS(c.x, c.y)); ctx.stroke();
+        }
+        gx = c.x; gy = c.y;
+      }
+      ctx.restore();
+    }
+    for (let i = 0; i < limit; i++) {
+      const c = all[i];
+      if (c.t === "c") setColor(++ci);
+      else if (c.t === "s" && (c.x !== px || c.y !== py)) {
+        const [ax, ay] = toS(qx, qy), [bx, by] = toS(P[i][0], P[i][1]);
+        const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * off, ny = (bx - ax) / L * off;
+        ctx.globalAlpha = alphaAt(i);
+        ctx.strokeStyle = cols[0]; ctx.lineWidth = tpx;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        ctx.strokeStyle = cols[1]; ctx.lineWidth = tpx * 0.72;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+        if (tpx > 2.5) {
+          ctx.strokeStyle = cols[2]; ctx.lineWidth = hl;
+          ctx.beginPath(); ctx.moveTo(ax - nx, ay - ny); ctx.lineTo(bx - nx, by - ny); ctx.stroke();
+        }
+      }
+      px = c.x; py = c.y; qx = P[i][0]; qy = P[i][1];
+    }
+    ctx.globalAlpha = 1;
+    $("pullInfo").textContent = lastPull > 0.05
+      ? `Holes pulled up to ${fmtLen(lastPull, U().dec + 1)}${$("exag").checked ? " (×3)" : ""}` : "No visible pull";
+  } else {
+  let px = 0, py = 0, ci = 0, open = false, openAlpha = 1;
+  const flush = () => { if (open) { ctx.stroke(); open = false; } };
+  for (let i = 0; i < limit; i++) {
+    const c = all[i];
+    if (c.t === "c") { flush(); ci++; }
+    else if (c.t === "j") {
+      flush();
+      if (showJ && (c.x !== px || c.y !== py)) {
+        ctx.save(); ctx.globalAlpha = alphaAt(i); ctx.strokeStyle = "rgba(220,0,0,.5)"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(...toS(px, py)); ctx.lineTo(...toS(c.x, c.y)); ctx.stroke(); ctx.restore();
+      }
+    } else {
+      const a = alphaAt(i);
+      if (open && a !== openAlpha) flush();   // faded and normal stitches go in separate strokes
+      if (!open) {
+        ctx.globalAlpha = openAlpha = a;
+        ctx.strokeStyle = threadCSS(th[ci] || { idx: -1 }, ci); ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(...toS(px, py)); open = true;
+      }
+      ctx.lineTo(...toS(c.x, c.y));
+    }
+    px = c.x; py = c.y;
+  }
+  flush();
+  ctx.globalAlpha = 1;
+  }
+  if ((!real && $("showPts").checked) || tool === "points") {
+    ctx.fillStyle = "rgba(0,0,0,.6)";
+    const src = tool === "points" ? cmds : all, upto = tool === "points" ? cmds.length : limit;
+    for (let i = 0; i < upto; i++) {
+      const c = src[i]; if (c.t === "c") continue;
+      const [sx, sy] = toS(c.x, c.y); ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+    }
+  }
+  if (!sewAll && limit > 0 && limit < all.length) {
+    const [sx, sy] = toS(all[limit - 1].x, all[limit - 1].y);
+    ctx.strokeStyle = "#06c"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(sx - 9, sy); ctx.lineTo(sx + 9, sy); ctx.moveTo(sx, sy - 9); ctx.lineTo(sx, sy + 9); ctx.stroke();
+  }
+
+  // stops: a pause badge where sewing resumes after each color change, with the next thread's color
+  let stopNo = 0;
+  ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  for (let i = 0; i < limit; i++) {
+    if (all[i].t !== "c") continue;
+    stopNo++;
+    let j = i + 1; while (j < all.length - 1 && all[j].t !== "s") j++;
+    const [sx, sy0] = toS(all[j].x, all[j].y), sy = sy0 - 16;
+    const same = th[stopNo] && th[stopNo - 1] && th[stopNo].idx === th[stopNo - 1].idx;
+    ctx.strokeStyle = "rgba(30,30,30,.6)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx, sy0); ctx.lineTo(sx, sy + 9); ctx.stroke();
+    ctx.fillStyle = "rgba(30,30,30,.88)"; ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.fillRect(sx - 4, sy - 4, 2.5, 8); ctx.fillRect(sx + 1.5, sy - 4, 2.5, 8);
+    ctx.fillStyle = threadCSS(th[stopNo] || { idx: -1 }, stopNo);
+    ctx.beginPath(); ctx.arc(sx + 8, sy + 7, 4.5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    const note = all[i].note;
+    const label = note === APP_NOTES.place ? "Stop · place fabric" : note === APP_NOTES.trim ? "Stop · trim fabric"
+                : same ? "Stop" : "Stop · thread " + (stopNo + 1);
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillRect(sx + 13, sy - 7, tw + 6, 13);
+    ctx.fillStyle = "#222"; ctx.fillText(label, sx + 16, sy);
+  }
+
+  drawHoop(r);
+
+  // point selection
+  ctx.strokeStyle = "#e07a00"; ctx.lineWidth = 2;
+  for (const i of ptSel) {
+    const [sx, sy] = toS(cmds[i].x, cmds[i].y);
+    ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // shape hover + selection
+  const outlineBox = (s, color, dash) => {
+    const hw = s.w / 2, hh = Math.max(s.h / 2, s.kind === "line" ? 0 : 0);
+    const pts = s.kind === "line" ? [[-hw, 0], [hw, 0]] : [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash(dash);
+    ctx.beginPath(); pts.forEach(([x, y], i) => { const p = toS(...toWorld(s, x, y)); i ? ctx.lineTo(...p) : ctx.moveTo(...p); });
+    if (s.kind !== "line") ctx.closePath();
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  if (tool === "select") {
+    const hs = hoverId != null && !shapeSel.has(hoverId) && byId(hoverId);
+    if (hs) outlineBox(hs, "rgba(41,182,242,.7)", []);
+    for (const s of selShapes()) outlineBox(s, "#29b6f2", [4, 3]);
+    // stitch runs: trace the hovered / selected ones in blue
+    const traceRun = (r, color, width) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      for (let i = r.start; i <= r.end; i++) {
+        const c = cmds[i], p = toS(c.x, c.y);
+        c.t === "s" && i > r.start ? ctx.lineTo(...p) : ctx.moveTo(...p);
+      }
+      ctx.stroke();
+    };
+    const runs = getRuns();
+    const hr = hoverRun != null && !runSel.has(hoverRun) && runs.find(r => r.start === hoverRun);
+    if (hr) traceRun(hr, "rgba(41,182,242,.75)", 2);
+    for (const r of runs) if (runSel.has(r.start)) {
+      traceRun(r, "rgba(41,182,242,.55)", 1.5);
+      if (runSel.size > 1 || shapeSel.size) {
+        const b = runBox(r);
+        outlineBox({ kind: "rect", cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, w: b.maxX - b.minX, h: b.maxY - b.minY, rot: 0 }, "#29b6f2", [2, 3]);
+      }
+    }
+    // groups: a purple box around each selected group
+    const selGroups = new Set();
+    for (const r of runs) if (runSel.has(r.start)) { const g = runGroupOf(r); if (g != null) selGroups.add(g); }
+    for (const s of selShapes()) if (s.group != null) selGroups.add(s.group);
+    for (const g of selGroups) {
+      const b = unionBox([...runs.filter(r => runGroupOf(r) === g).map(runBox), ...shapes.filter(s => s.group === g).map(aabb)]);
+      const pad = 8 / view.s, [x0, y0] = toS(b.minX - pad, b.maxY + pad), [x1, y1] = toS(b.maxX + pad, b.minY - pad);
+      ctx.strokeStyle = "#7e57c2"; ctx.lineWidth = 1.5; ctx.setLineDash([7, 3]);
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
+    }
+    const tg = selTarget();
+    if (tg) {
+      const s = tg;
+      if (s.isRuns) outlineBox(s, "#29b6f2", [4, 3]);
+      if (s.kind !== "line") {   // stem to the rotate handle
+        const a = toS(...toWorld(s, 0, s.h / 2)), b = toS(...toWorld(s, 0, s.h / 2 + 26 / view.s));
+        ctx.strokeStyle = "#29b6f2"; ctx.beginPath(); ctx.moveTo(...a); ctx.lineTo(...b); ctx.stroke();
+      }
+      for (const [id, lx, ly] of handles(s)) {
+        const [hx, hy] = toS(...toWorld(s, lx, ly));
+        ctx.lineWidth = 1.5; ctx.strokeStyle = "#1a8fd0";
+        if (id === "rot") {
+          ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(hx, hy, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(hx, hy, 3, -Math.PI * .1, Math.PI * 1.3); ctx.stroke();
+        } else if (id === "c") {
+          ctx.fillStyle = "#29b6f2"; ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "#fff"; ctx.stroke();
+        } else {
+          ctx.fillStyle = "#fff"; ctx.fillRect(hx - 4.5, hy - 4.5, 9, 9); ctx.strokeRect(hx - 4.5, hy - 4.5, 9, 9);
+        }
+      }
+    }
+  }
+  // snap guides
+  ctx.strokeStyle = "#0a84ff"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+  for (const g of guides) {
+    ctx.beginPath();
+    if (g.axis === "x") {
+      const sx = Math.round(toS(g.v, 0)[0]) + .5;
+      if (g.full) { ctx.moveTo(sx, 0); ctx.lineTo(sx, r.height); }
+      else { ctx.moveTo(sx, toS(0, g.b)[1] - 12); ctx.lineTo(sx, toS(0, g.a)[1] + 12); }
+    } else {
+      const sy = Math.round(toS(0, g.v)[1]) + .5;
+      if (g.full) { ctx.moveTo(0, sy); ctx.lineTo(r.width, sy); }
+      else { ctx.moveTo(toS(g.a, 0)[0] - 12, sy); ctx.lineTo(toS(g.b, 0)[0] + 12, sy); }
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // label center-to-center matches, so it's clear when something is centered on a group
+  ctx.font = "bold 11px system-ui, sans-serif"; ctx.textBaseline = "middle";
+  for (const g of guides) {
+    if (!g.center) continue;
+    const text = g.group ? "center of group" : "center";
+    const [px, py] = g.axis === "x" ? [Math.round(toS(g.v, 0)[0]) + 6, toS(0, g.b)[1] - 6] : [toS(g.b, 0)[0] + 16, Math.round(toS(0, g.v)[1]) - 9];
+    const w = ctx.measureText(text).width + 8;
+    ctx.fillStyle = "#0a84ff"; ctx.fillRect(px, py - 8, w, 16);
+    ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText(text, px + 4, py);
+  }
+  drawMeasures();
+  // rubber band
+  if (drag && drag.mode === "box") {
+    ctx.fillStyle = "rgba(41,182,242,.08)"; ctx.strokeStyle = "#29b6f2"; ctx.lineWidth = 1;
+    ctx.fillRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
+    ctx.strokeRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
+  }
+  // rulers on top
+  ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(0, 0, r.width, 18); ctx.fillRect(0, 0, 34, r.height);
+  ctx.fillStyle = "#4a6890"; ctx.font = "11px system-ui, sans-serif"; ctx.textBaseline = "middle";
+  const fmt = v => units === "in" ? trim(v / 254, 3) + '"' : trim(v / 10, 1);
+  ctx.textAlign = "center";
+  for (let k = Math.ceil(wx0 / major); k * major <= wx1; k++) { const sx = toS(k * major, 0)[0]; if (sx >= 40) ctx.fillText(fmt(k * major), sx, 9); }
+  ctx.textAlign = "right";
+  for (let k = Math.ceil(wy0 / major); k * major <= wy1; k++) { const sy = toS(0, k * major)[1]; if (sy >= 24) ctx.fillText(fmt(k * major), 31, sy); }
+  ctx.textAlign = "center"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.fillText(U().name, 17, 9);   // unit in the corner
+  ctx.strokeStyle = "#d6dbe2"; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.moveTo(0, 18.5); ctx.lineTo(r.width, 18.5); ctx.moveTo(34.5, 0); ctx.lineTo(34.5, r.height); ctx.stroke();
+}
+
+// ---------- Panels ----------
+function changed() {
+  const { all, th } = compose();
+  $("sew").max = all.length;
+  if (sewAll) sewN = all.length;
+  $("sew").value = Math.min(sewN, all.length);
+  $("playBar").hidden = !all.some(c => c.t === "s");
+  if (play.idx > all.length) play.idx = all.length;
+  const real = all.filter(c => c.t !== "c"), b = bounds(real.length ? real : [{ x: 0, y: 0 }]);
+  const st = all.filter(c => c.t === "s").length, jm = all.filter(c => c.t === "j").length;
+  const W = (b.maxX - b.minX) / 10, H = (b.maxY - b.minY) / 10;
+  $("info").innerHTML = `<b>${fileName}</b><br>Size: ${fmtSize(W * 10, H * 10)}<br>` +
+    `Stitches: ${st} · Jumps: ${jm} · Colors: ${th.length} · Shapes: ${shapes.length}` +
+    (hoopFits(real) ? "" : `<br><b style="color:#c0392b">⚠ Design goes outside the ${fmtSize(currentHoop().W, currentHoop().H)} hoop</b>`);
+  $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
+  syncPlayUI(all);
+  renderThreads(th);
+  const validRuns = new Set(getRuns().map(r => r.start));   // drop selections that no longer exist
+  runSel = new Set([...runSel].filter(s => validRuns.has(s)));
+  if (hoverRun != null && !validRuns.has(hoverRun)) hoverRun = null;
+  renderShapePanel();
+  renderRunPanel();
+  if (!drag) renderOrder();   // (not while dragging on the canvas; it refreshes on release)
+  renderPointPanel();
+  $("undoBtn").disabled = !undoStack.length; $("redoBtn").disabled = !redoStack.length;
+  $("status").textContent = saved ? "" : "Unsaved changes";
+  $("drophint").hidden = !!(cmds.length || shapes.length);
+  draw();
+}
+
+function renderThreads(th) {
+  const box = $("threads"); box.innerHTML = "";
+  th.forEach((t, k) => {
+    const row = document.createElement("div"); row.className = "thread";
+    const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = threadCSS(t, k);
+    row.append(`${k + 1}.`, sw);
+    if (k < threads.length && cmds.some(c => c.t !== "c")) {   // threads of the loaded design are editable here
+      const s = document.createElement("select");
+      PALETTE.forEach((p, i) => { if (i) s.add(new Option(`${i} · ${p[0]}`, i)); });
+      if (!PALETTE[t.idx]) s.add(new Option(`${t.idx} · (unknown)`, t.idx));
+      s.value = t.idx;
+      s.onchange = () => { snapshot(); threads[k].idx = +s.value; delete threads[k].rgb; delete threads[k].name; threadsDirty = true; changed(); };
+      row.append(s);
+      if (t.name) { const n = document.createElement("span"); n.textContent = t.name; n.style.color = "#666"; row.append(n); }
+    } else {
+      const n = document.createElement("span");
+      n.textContent = (PALETTE[t.idx] ? PALETTE[t.idx][0] : "#" + t.idx) + (k < threads.length ? " (starting thread)" : " (from shape)");
+      row.append(n);
+    }
+    if (k > 0 && th[k - 1].idx === t.idx) {
+      const n = document.createElement("span"); n.textContent = "⏸ stop, same thread"; n.style.color = "#a85a00"; row.append(n);
+    }
+    box.append(row);
+  });
+}
+
+const SHAPE_NAMES = { line: "Line", rect: "Rectangle", oval: "Oval", tri: "Triangle" };
+let panelMode = "shapes";   // "shapes": live shapes · "runsrc": stitch settings of runs made with "To stitches"
+function renderShapePanel() {
+  let sel = selShapes();
+  panelMode = "shapes";
+  if (!sel.length && tool === "select") {   // stitch runs made from shapes: show their stitch settings
+    const sids = [...new Set(selRuns().map(runSid).filter(k => k != null && runSources[k]))];
+    if (sids.length) { sel = sids.map(k => runSources[k].def); panelMode = "runsrc"; }
+  }
+  $("shapeBox").hidden = tool === "points" || !sel.length;
+  if (!sel.length) return;
+  const s = sel[0], single = sel.length === 1, src = panelMode === "runsrc";
+  $("shapeTitle").textContent = src ? `${SHAPE_NAMES[s.kind]} stitches — settings` : single ? SHAPE_NAMES[s.kind] : `${sel.length} shapes`;
+  $("geom").hidden = !single || src; $("alignRow").hidden = single || src;
+  document.querySelectorAll(".liveOnly").forEach(el => el.hidden = src);
+  $("shBake").disabled = false;
+  const set = (id, v, d = 1) => { if (document.activeElement !== $(id)) $(id).value = typeof v === "number" ? +v.toFixed(d) : v; };
+  if (single) {
+    $("shWLabel").textContent = s.kind === "line" ? "Length" : "Width";
+    $("shHRow").hidden = s.kind === "line";
+    const d = U().dec;
+    set("shW", toU(s.w), d); set("shH", toU(s.h), d); set("shR", s.rot); set("shX", toU(s.cx), d); set("shY", toU(s.cy), d);
+  }
+  set("shStyle", s.style); set("shThick", s.thick / 10); set("shDens", s.dens / 10); set("shLen", s.len / 10);
+  $("shUnder").checked = s.under; $("shLock").checked = s.lock; set("shColor", String(s.color));
+  $("shStop").checked = !!s.stop;
+  // appliqué (closed shapes only)
+  const appOk = !src && sel.some(canApplique);   // (appliqué stages are fixed once turned into stitches)
+  document.querySelectorAll(".appOnly").forEach(el => el.hidden = !appOk);
+  $("shApp").checked = !!s.applique; $("shAppPlace").checked = !!s.appPlace;
+  document.querySelectorAll(".appSub").forEach(el => el.hidden = !(appOk && s.applique));
+  $("shAppHelp").innerHTML = "Sews: " + (s.appPlace ? "placement line → <b>⏸ place fabric</b> → " : "") +
+    `tack-down → <b>⏸ trim fabric</b> → ${s.style === "satin" ? "satin" : s.style === "triple" ? "triple running" : "running"} cover.` +
+    (s.appPlace ? "" : "<br>Lay the fabric over the area before you start.");
+  document.querySelectorAll(".satinOnly").forEach(el => el.hidden = s.style !== "satin");
+  document.querySelectorAll(".runOnly").forEach(el => el.hidden = s.style === "satin");
+  set("shCorner", s.corner ?? 100);
+  document.querySelectorAll(".cornerOnly").forEach(el => el.hidden = !(s.style === "satin" && sel.some(x => x.kind === "rect" || x.kind === "tri")));
+  $("shThickV").textContent = fmtLen(s.thick);
+  $("shDensV").textContent = fmtLen(s.dens);
+  $("shLenV").textContent = fmtLen(s.len);
+  const n = sel.reduce((a, x) => a + shapeStages(x).reduce((b, stg) => b + stg.st.length, 0), 0);
+  const bb = unionBox(sel.map(aabb));
+  $("shInfo").textContent = src
+    ? `Changing these regenerates the stitches (position, size, rotation, order, thread and pauses are kept).`
+    : `${n} stitches · outer size ${fmtSize(bb.maxX - bb.minX, bb.maxY - bb.minY)}`;
+  // is the frame centered on what's inside it?
+  const c = single && !src ? contentsOf(s) : null, tol = 0.5;   // within 0.05 mm counts as centered
+  $("centerRow").hidden = !c;
+  if (c) {
+    const ok = Math.abs(c.dx) <= tol && Math.abs(c.dy) <= tol;
+    const what = c.n === 1 ? "the item inside" : `the ${c.n} items inside`;
+    $("centerInfo").innerHTML = ok
+      ? `<b style="color:#2e7d32">✓ Centered</b> on ${what}`
+      : `<b style="color:#c0392b">Off-center</b> from ${what}: ` +
+        `${c.dx > 0 ? "→" : "←"} ${fmtLen(Math.abs(c.dx), U().dec + 1)}, ${c.dy > 0 ? "↑" : "↓"} ${fmtLen(Math.abs(c.dy), U().dec + 1)}`;
+    $("shCenter").disabled = ok;
+  }
+  const i = orderIndexOfShape(s.id), total = getRuns().length + shapes.length;
+  $("shEarlier").disabled = !single || i === 0; $("shLater").disabled = !single || i === total - 1;
+}
+
+// ---------- Sew order panel ----------
+let orderDragFrom = null;          // {index} while dragging one card, {group} while dragging a whole group
+const collapsedGroups = new Set();  // groups folded closed in the list
+function drawThumb(cvs, all, th, m, k0) {
+  const g = cvs.getContext("2d"), W = cvs.width, H = cvs.height;
+  g.fillStyle = "#ecebe6"; g.fillRect(0, 0, W, H);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = m.from; i <= m.to; i++) {
+    const c = all[i]; if (c.t !== "s") continue;
+    minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x); minY = Math.min(minY, c.y); maxY = Math.max(maxY, c.y);
+  }
+  if (!isFinite(minX)) return;
+  const pad = 8, sc = Math.min((W - 2 * pad) / Math.max(1, maxX - minX), (H - 2 * pad) / Math.max(1, maxY - minY));
+  const ox = W / 2 - (minX + maxX) / 2 * sc, oy = H / 2 + (minY + maxY) / 2 * sc;
+  let k = k0, started = false;
+  g.lineWidth = 1.6; g.lineJoin = "round"; g.lineCap = "round";
+  g.strokeStyle = threadCSS(th[k] || { idx: -1 }, k); g.beginPath();
+  for (let i = m.from; i <= m.to; i++) {
+    const c = all[i];
+    if (c.t === "c") { g.stroke(); k++; g.strokeStyle = threadCSS(th[k] || { idx: -1 }, k); g.beginPath(); started = false; continue; }
+    const X = ox + c.x * sc, Y = oy - c.y * sc;
+    if (c.t === "s" && started) g.lineTo(X, Y); else { g.moveTo(X, Y); started = true; }
+  }
+  g.stroke();
+}
+function renderOrder() {
+  const box = $("orderList");
+  if ($("orderPanel").hidden) return;
+  const { all, th, marks } = compose();
+  box.innerHTML = "";
+  if (!marks.length) { box.innerHTML = '<div class="help">Nothing to sew yet. Draw a shape or open a JEF file.</div>'; return; }
+  // number of color changes before index i (= which thread is in use)
+  const cAt = new Int32Array(all.length + 1);
+  for (let i = 0; i < all.length; i++) cAt[i + 1] = cAt[i] + (all[i].t === "c" ? 1 : 0);
+  const firstS = m => { for (let i = m.from; i <= m.to; i++) if (all[i].t === "s") return i; return m.from; };
+  const gOf = m => m.type === "run" ? runGroupOf(m.r) : (m.s.group ?? null);
+  const isSelMark = m => m.type === "run" ? runSel.has(m.r.start) : shapeSel.has(m.s.id);
+  const clearDropMarks = () => box.querySelectorAll(".drop-before,.drop-after,.dragging").forEach(el => el.classList.remove("drop-before", "drop-after", "dragging"));
+  // "after" half of a drop target: right half for cards in a (horizontal) group, bottom half otherwise
+  const below = (el, e) => {
+    const r = el.getBoundingClientRect();
+    return el.closest && el.closest(".ogrp-row") ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+  };
+  const openMenu = (m, e) => {   // right-click on a card: select it (unless already selected), then show the menu
+    e.preventDefault();
+    if (tool !== "select") setTool("select");
+    if (!isSelMark(m)) {
+      if (m.type === "run") { runSel = new Set([m.r.start]); shapeSel.clear(); } else { shapeSel = new Set([m.s.id]); runSel.clear(); }
+      expandGroups(); changed();
+    }
+    showMenu(e.clientX, e.clientY);
+  };
+  let parent = box, curG = null;
+  marks.forEach((m, i) => {
+    const g = gOf(m);
+    let sep = null;
+    if (i > 0) {   // the gap before this item: nothing, a pause, or a thread change
+      const p = marks[i - 1], fs = firstS(m), kPrev = cAt[firstS(p)], kCur = cAt[fs];
+      const stop = kCur > cAt[p.to + 1] || cAt[fs] > cAt[m.from] || kCur > kPrev;
+      const same = th[kCur] && th[kPrev] && th[kCur].idx === th[kPrev].idx;
+      sep = document.createElement("div");
+      // each gap has a long label (vertical list) and a short one (inside a horizontal group)
+      const lab = (cls, ...parts) => { const s = document.createElement("span"); s.className = cls; s.append(...parts); return s; };
+      if (!stop) {
+        sep.className = "sep"; sep.append(lab("long", "+ add pause"), lab("short", "+"));
+        sep.title = "Click to make the machine stop here (same thread)"; sep.onclick = () => togglePause(i);
+      } else if (same) {
+        sep.className = "sep pause"; sep.append(lab("long", "⏸ Pause — same thread"), lab("short", "⏸"));
+        sep.title = "The machine stops here (same thread). Click to remove the pause."; sep.onclick = () => togglePause(i);
+      } else {
+        sep.className = "sep change";
+        const sw = () => { const s = document.createElement("span"); s.className = "sw"; s.style.background = threadCSS(th[kCur], kCur); return s; };
+        const nm = th[kCur].name || (PALETTE[th[kCur].idx] ? PALETTE[th[kCur].idx][0] : "#" + th[kCur].idx);
+        sep.append(lab("long", "⏸ Stop · change to", sw(), nm), lab("short", "⏸", sw()));
+        sep.title = `The thread changes to ${nm} here, so the machine always stops`;
+      }
+    }
+    if (g !== curG || g == null) {   // leaving / entering a group: gaps between groups sit outside the containers
+      if (sep) box.append(sep);
+      parent = box; curG = g;
+      if (g != null) {
+        const members = marks.map((x, j) => [x, j]).filter(([x]) => gOf(x) === g);
+        const grp = document.createElement("div");
+        grp.className = "ogrp" + (collapsedGroups.has(g) ? " collapsed" : "") + (members.every(([x]) => isSelMark(x)) ? " sel" : "");
+        const head = document.createElement("div"); head.className = "ogrp-h"; head.draggable = true;
+        const caret = document.createElement("span"); caret.className = "caret"; caret.textContent = collapsedGroups.has(g) ? "▸" : "▾";
+        caret.onclick = e => { e.stopPropagation(); collapsedGroups.has(g) ? collapsedGroups.delete(g) : collapsedGroups.add(g); renderOrder(); };
+        const n = members.reduce((a, [x]) => { let c = 0; for (let q = x.from; q <= x.to; q++) if (all[q].t === "s") c++; return a + c; }, 0);
+        head.append(caret, `Group · ${members.length} items · ${n} st`);
+        head.title = "Drag to move the whole group. Click to select it.";
+        head.onclick = e => {
+          if (tool !== "select") setTool("select");
+          if (!e.shiftKey) { runSel.clear(); shapeSel.clear(); }
+          const m0 = members[0][0];
+          if (m0.type === "run") runSel.add(m0.r.start); else shapeSel.add(m0.s.id);
+          expandGroups(); changed();
+        };
+        head.oncontextmenu = e => openMenu(members[0][0], e);
+        head.addEventListener("dragstart", e => { orderDragFrom = { group: g }; grp.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "g" + g); });
+        head.addEventListener("dragend", () => { orderDragFrom = null; clearDropMarks(); });
+        head.addEventListener("dragover", e => {
+          if (!orderDragFrom) return;
+          e.preventDefault(); clearDropMarks(); head.classList.add(below(head, e) ? "drop-after" : "drop-before");
+        });
+        head.addEventListener("drop", e => {
+          e.preventDefault(); e.stopPropagation();
+          if (!orderDragFrom) return;
+          const d = orderDragFrom; orderDragFrom = null;
+          dropOrder(d, members[0][1], below(head, e), true);
+        });
+        const row = document.createElement("div"); row.className = "ogrp-row";
+        grp.append(head, row);
+        box.append(grp);
+        parent = row;
+      }
+    } else if (sep) parent.append(sep);
+    const row = document.createElement("div");
+    const selected = isSelMark(m);
+    row.className = "oi" + (selected ? " sel" : "");
+    row.draggable = true;
+    const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
+    const cvs = document.createElement("canvas"); cvs.width = 128; cvs.height = 88;
+    drawThumb(cvs, all, th, m, cAt[m.from]);
+    const lab = document.createElement("div"); lab.className = "lab";
+    const nSt = (() => { let n = 0; for (let q = m.from; q <= m.to; q++) if (all[q].t === "s") n++; return n; })();
+    lab.innerHTML = m.type === "run" ? `Stitch run<br><small>${nSt} stitches</small>`
+                                     : `${SHAPE_NAMES[m.s.kind]}${m.s.applique && canApplique(m.s) ? " · appliqué" : ""}<br><small>live shape · ${nSt} st</small>`;
+    row.append(num, cvs, lab);
+    row.onclick = e => {
+      if (tool !== "select") setTool("select");
+      const key = m.type === "run" ? m.r.start : m.s.id;
+      if (e.shiftKey) toggleSel(m.type, key);
+      else { runSel.clear(); shapeSel.clear(); (m.type === "run" ? runSel : shapeSel).add(key); expandGroups(); }
+      changed();
+    };
+    row.oncontextmenu = e => openMenu(m, e);
+    row.onmouseenter = () => { hoverRun = m.type === "run" ? m.r.start : null; hoverId = m.type === "shape" ? m.s.id : null; draw(); };
+    row.onmouseleave = () => { hoverRun = null; hoverId = null; draw(); };
+    row.addEventListener("dragstart", e => {
+      e.stopPropagation();
+      orderDragFrom = { index: i }; row.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(i));
+    });
+    row.addEventListener("dragend", () => { orderDragFrom = null; clearDropMarks(); });
+    row.addEventListener("dragover", e => {
+      if (!orderDragFrom) return;
+      e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move";
+      clearDropMarks(); row.classList.add(below(row, e) ? "drop-after" : "drop-before");
+    });
+    row.addEventListener("drop", e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!orderDragFrom) return;
+      const d = orderDragFrom; orderDragFrom = null;
+      dropOrder(d, i, below(row, e), false);   // onto a group member = into that group; onto a loose card = out of any group
+    });
+    parent.append(row);
+  });
+}
+
+function renderRunPanel() {
+  const rs = tool === "select" && !shapeSel.size ? selRuns() : [];
+  $("runBox").hidden = !rs.length;
+  if (!rs.length) return;
+  const b = unionBox(rs.map(runBox)), d = U().dec;
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = trim(v, d); };
+  $("runTitle").textContent = rs.length === 1 ? "Stitch run" : `${rs.length} stitch runs`;
+  set("rnW", toU(b.maxX - b.minX)); set("rnH", toU(b.maxY - b.minY));
+  set("rnX", toU((b.minX + b.maxX) / 2)); set("rnY", toU((b.minY + b.maxY) / 2));
+  const n = rs.reduce((a, r) => a + r.n, 0);
+  $("rnInfo").textContent = `${n} stitches · drag the handles to resize or rotate`;
+  // stop / color change before the (first) selected run
+  const first = rs.slice().sort((a, b) => a.start - b.start)[0], canStop = rs.some(hasStitchBefore);
+  if (document.activeElement !== $("rnStop")) $("rnStop").value = runStop(first);
+  $("rnStop").disabled = !canStop;
+  const v = $("rnStop").value;
+  $("rnStopHelp").textContent = !canStop ? "This is the first run in the design, so the machine is already stopped here."
+    : v === "none" ? "The machine sews straight on into this run."
+    : v === "same" ? "The machine stops here with the same thread, so you can add fabric (appliqué), trim, or check alignment, then press Start."
+    : "The machine stops here so you can change to this thread color.";
+}
+
+function renderPointPanel() {
+  $("pointBox").hidden = tool !== "points";
+  const any = ptSel.size > 0;
+  ["delBtn", "togBtn", "ccBtn"].forEach(id => $(id).disabled = !any);
+  $("insBtn").disabled = !cmds.length;
+  if (!cmds.length) { $("selInfo").textContent = "No stitch points yet. Load a file, or convert shapes with “To stitches”."; $("selEdit").hidden = true; return; }
+  if (!any) { $("selInfo").textContent = "Nothing selected."; $("selEdit").hidden = true; return; }
+  if (ptSel.size > 1) { $("selInfo").textContent = `${ptSel.size} points selected.`; $("selEdit").hidden = true; return; }
+  const i = [...ptSel][0], c = cmds[i];
+  $("selInfo").textContent = `#${i + 1} of ${cmds.length}` + (c.t === "c" ? " (color change)" : "");
+  $("selEdit").hidden = c.t === "c";
+  $("selType").value = c.t === "j" ? "j" : "s";
+  if (document.activeElement !== $("selX")) $("selX").value = trim(toU(c.x), U().dec);
+  if (document.activeElement !== $("selY")) $("selY").value = trim(toU(c.y), U().dec);
+}
+
+// ---------- Shape operations ----------
+function newShape(kind, cx, cy, w, h, rot = 0) {
+  const s = { id: nextId++, kind, cx: Math.round(cx), cy: Math.round(cy), w: Math.max(5, Math.round(w)), h: kind === "line" ? 0 : Math.max(5, Math.round(h)), rot, ...defaults };
+  shapes.push(s);
+  return s;
+}
+// These act on everything selected with the Select tool: shapes and stitch runs.
+function deleteShapes() {
+  if (!shapeSel.size && !runSel.size) return;
+  snapshot();
+  if (runSel.size) applyOrder(normalizeGroups(orderList().filter(it => it.type === "shape" ? !shapeSel.has(it.s.id) : !runSel.has(it.obj.start))));
+  else shapes = shapes.filter(s => !shapeSel.has(s.id));
+  shapeSel.clear(); runSel.clear(); changed();
+}
+function copyShapes() {
+  if (!shapeSel.size && !runSel.size) return;
+  clipboard = { shapes: selShapes().map(s => JSON.parse(JSON.stringify(s))), runs: selRuns().map(runCmds) };
+}
+function pasteShapes(offset = 50) {
+  if (!clipboard.shapes) return;
+  snapshot();
+  shapeSel.clear(); runSel.clear();
+  clipboard.shapes = clipboard.shapes.map(c => ({ ...c, cx: c.cx + offset, cy: c.cy - offset }));
+  clipboard.runs = clipboard.runs.map(run => run.map(c => ({ ...c, x: c.x + offset, y: c.y - offset })));
+  // pasted copies get their own groups (a copy of a group is a new group)
+  const gmap = new Map(); let gNext = newGroupId();
+  const remap = g => { if (g == null) return undefined; if (!gmap.has(g)) gmap.set(g, gNext++); return gmap.get(g); };
+  for (const c of clipboard.shapes) { const s = { ...c, id: nextId++, group: remap(c.group) }; if (s.group == null) delete s.group; shapes.push(s); shapeSel.add(s.id); }
+  // pasted runs made from shapes get their own copy of the source settings (so editing one doesn't change the other)
+  const smap = new Map();
+  const remapSid = sid => {
+    if (sid == null || !runSources[sid]) return undefined;
+    if (!smap.has(sid)) { const n = newSid(); runSources[n] = JSON.parse(JSON.stringify(runSources[sid])); smap.set(sid, n); }
+    return smap.get(sid);
+  };
+  const runs = clipboard.runs.map(run => run.map(c => {
+    const n = { ...c, g: remap(c.g), sid: remapSid(c.sid) };
+    if (n.g == null) delete n.g; if (n.sid == null) delete n.sid; return n;
+  }));
+  for (const st of appendRuns(runs, 0, 0)) runSel.add(st);
+  if (gmap.size) {   // keep each new group together in the sew order
+    const order = orderList(), sel = order.filter(isSelItem), starts = applyOrder(normalizeGroups(order));
+    reselect(sel, starts);
+  }
+  setTool("select"); changed();
+}
+function nudgeShapes(dx, dy) {
+  if (!shapeSel.size && !runSel.size) return;
+  snapshot();
+  for (const s of selShapes()) { s.cx += dx; s.cy += dy; }
+  transformRuns((x, y) => [x + dx, y + dy]);
+  changed();
+}
+// Everything (stitch runs and other shapes) lying fully inside a shape's outline box — e.g. the text inside a frame.
+function contentsOf(s) {
+  const b = aabb(s), inside = x => x.minX >= b.minX && x.maxX <= b.maxX && x.minY >= b.minY && x.maxY <= b.maxY;
+  const boxes = [];
+  for (const r of getRuns()) { const rb = runBox(r); if (inside(rb)) boxes.push(rb); }
+  for (const o of shapes) if (o !== s) { const ob = aabb(o); if (inside(ob)) boxes.push(ob); }
+  if (!boxes.length) return null;
+  const u = unionBox(boxes);
+  // offset of the shape's center from the contents' center
+  return { n: boxes.length, box: u, dx: (b.minX + b.maxX) / 2 - (u.minX + u.maxX) / 2, dy: (b.minY + b.maxY) / 2 - (u.minY + u.maxY) / 2 };
+}
+function centerOnContents() {
+  const sel = selShapes().filter(s => contentsOf(s));
+  if (!sel.length) return;
+  snapshot();
+  for (const s of sel) { const c = contentsOf(s); s.cx -= c.dx; s.cy -= c.dy; }
+  changed();
+}
+function alignShapes(how) {
+  const sel = selShapes(); if (sel.length < 2) return;
+  snapshot();
+  const all = unionBox(sel.map(aabb));
+  for (const s of sel) {
+    const b = aabb(s);
+    if (how === "left") s.cx += all.minX - b.minX;
+    if (how === "right") s.cx += all.maxX - b.maxX;
+    if (how === "cx") s.cx += (all.minX + all.maxX) / 2 - (b.minX + b.maxX) / 2;
+    if (how === "bottom") s.cy += all.minY - b.minY;
+    if (how === "top") s.cy += all.maxY - b.maxY;
+    if (how === "cy") s.cy += (all.minY + all.maxY) / 2 - (b.minY + b.maxY) / 2;
+    s.cx = Math.round(s.cx); s.cy = Math.round(s.cy);
+  }
+  changed();
+}
+const orderIndexOfShape = id => orderList().findIndex(it => it.type === "shape" && it.s.id === id);
+function reorder(dir) {
+  if (shapeSel.size !== 1) return;
+  const i = orderIndexOfShape(selShapes()[0].id);
+  moveOrderItem(i, i + dir);
+}
+// Turn selected shapes into ordinary stitches (so single points can be edited).
+function bakeShapes() {
+  if (!shapeSel.size) return;
+  snapshot();
+  // each selected shape becomes a stitch run at the same place in the sew order, with the same thread and pause
+  let last = { ...(threads[0] || { idx: 1 }) };
+  const order = orderList().map(it => {
+    if (it.type === "run") { last = it.obj.thread; return it; }
+    const s = it.s, thread = s.color === "cur" ? { ...last } : { idx: s.color };
+    last = thread;
+    if (!shapeSel.has(s.id)) return it;
+    // one run per stage (appliqué shapes have several, with labelled pauses between them). Each run remembers the
+    // shape it came from (sid → runSources) so its stitch settings stay editable.
+    return shapeStages(s).map((stg, k) => ({ stg, k })).filter(({ stg }) => stg.st.length >= 2).map(({ stg, k }) => {
+      const sid = newSid(); runSources[sid] = { def: sourceDef(s), stage: k, xf: [1, 0, 0, 0, 1, 0] };
+      const extra = s.group != null ? { sid, g: s.group } : { sid };   // stays in its group
+      return { type: "run", baked: true, obj: {
+        cmds: [{ t: "j", x: stg.st[0][0], y: stg.st[0][1], ...extra }, ...stg.st.map(([x, y]) => ({ t: "s", x, y, ...extra }))],
+        thread, pause: k === 0 ? !!s.stop : true, pauseNote: k ? stg.note || undefined : undefined } };
+    });
+  }).flat().filter(Boolean);
+  const starts = applyOrder(order);
+  shapeSel.clear();
+  runSel = new Set(order.filter(it => it.baked).map(it => starts.get(it.obj)));   // keep them selected and editable
+  changed();
+}
+
+// ---------- Point operations (Points tool) ----------
+const ptSorted = () => [...ptSel].sort((a, b) => a - b);
+function deletePoints() {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSorted().reverse()) {
+    if (cmds[i].t === "c") {
+      let k = 0; for (let q = 0; q <= i; q++) if (cmds[q].t === "c") k++;
+      threads.splice(k, 1); threadsDirty = true;
+    }
+    cmds.splice(i, 1);
+  }
+  ptSel.clear(); changed();
+}
+function insertAfter(i, x, y) {
+  snapshot();
+  cmds.splice(i + 1, 0, { t: "s", x: Math.round(x), y: Math.round(y) });
+  ptSel = new Set([i + 1]); changed();
+}
+function insertStitch() {
+  if (!cmds.length) return;
+  const i = ptSel.size ? Math.max(...ptSel) : cmds.length - 1;
+  const a = cmds[i], b = cmds[i + 1];
+  if (b) insertAfter(i, (a.x + b.x) / 2, (a.y + b.y) / 2); else insertAfter(i, a.x + 10, a.y);
+}
+function toggleType() {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSel) if (cmds[i].t !== "c") cmds[i].t = cmds[i].t === "s" ? "j" : "s";
+  changed();
+}
+function insertColorChange() {
+  if (!ptSel.size) return;
+  snapshot();
+  const i = Math.max(...ptSel);
+  let k = 0; for (let q = 0; q <= i; q++) if (cmds[q].t === "c") k++;
+  cmds.splice(i + 1, 0, { t: "c", x: cmds[i].x, y: cmds[i].y });
+  threads.splice(k + 1, 0, { idx: ((threads[k]?.idx ?? 0) % (PALETTE.length - 1)) + 1 });
+  threadsDirty = true;
+  ptSel = new Set([i + 1]); changed();
+}
+function nudgePoints(dx, dy) {
+  if (!ptSel.size) return;
+  snapshot();
+  for (const i of ptSel) { cmds[i].x += dx; cmds[i].y += dy; }
+  changed();
+}
+function hitPoint(sx, sy) {
+  let best = -1, bd = 49;
+  for (let i = 0; i < cmds.length; i++) {
+    if (cmds[i].t === "c") continue;
+    const [px, py] = toS(cmds[i].x, cmds[i].y);
+    const dd = (px - sx) ** 2 + (py - sy) ** 2;
+    if (dd <= bd) { bd = dd; best = i; }
+  }
+  return best;
+}
+
+// ---------- Tools ----------
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
+  cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : "copy";
+  measPick = null;
+  if (t !== "points") ptSel.clear();
+  changed();
+}
+
+// ---------- Mouse ----------
+const mpos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+const moved = (e, d) => { const [x, y] = mpos(e); return Math.abs(x - d.x0) + Math.abs(y - d.y0) >= 3; };
+
+cv.addEventListener("contextmenu", e => e.preventDefault());
+cv.addEventListener("pointerdown", e => {
+  cv.setPointerCapture(e.pointerId);
+  editing = false;
+  const [x, y] = mpos(e), [wx, wy] = toW(x, y);
+  hideMenu();
+  if (e.button === 1 || e.button === 2 || spaceDown) {
+    e.preventDefault();
+    // right button: drag to pan, or click (no drag) for the context menu
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: e.button !== 2, menu: e.button === 2 && !spaceDown, wx, wy };
+    return;
+  }
+  if (e.button !== 0) return;
+
+  // --- Measure tool ---
+  if (tool === "measure") {
+    const hit = measureAt(x, y);
+    if (hit) {   // select a measurement; grabbing an end lets you move it
+      measSel = hit.id; measPick = null;
+      if (hit.end) drag = { mode: "measEnd", id: hit.id, end: hit.end, x0: x, y0: y, started: false };
+      changed(); return;
+    }
+    const a = measSnap(wx, wy, e.altKey);
+    drag = { mode: "measure", x0: x, y0: y, a, b: a, moved: false, wx, wy };
+    return;
+  }
+
+  // --- drawing a new shape ---
+  if (SHAPE_NAMES[tool]) {
+    const p = snapPoint(wx, wy, new Set(), e.altKey);
+    drag = { mode: "create", x0: x, y0: y, start: p, kind: tool, shape: null };
+    return;
+  }
+
+  // --- Select tool ---
+  if (tool === "select") {
+    // moving everything selected (shapes and stitch runs together)
+    const startMove = () => {
+      const rs = selRuns(), rb = rs.length ? unionBox(rs.map(runBox)) : null;
+      drag = { mode: "move", x0: x, y0: y, w0: [wx, wy], started: false,
+               origs: selShapes().map(q => [q.id, q.cx, q.cy]), pts0: runPts0(), runBox0: rb,
+               runInner0: rs.length === 1 ? runInnerBox(rs[0]) : null };
+    };
+    const h = handleAt(x, y);
+    if (h) {
+      const s = selTarget();
+      if (h === "c") return startMove();
+      const mode = h === "rot" ? "rotate" : h[0] === "p" ? "endpoint" : "resize";
+      if (s.isRuns) drag = { mode, handle: h, x0: x, y0: y, orig: { ...s }, proxy: { ...s }, runs: true, pts0: runPts0(), started: false, w0: [wx, wy] };
+      else drag = { mode, handle: h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(s)), id: s.id, started: false, w0: [wx, wy] };
+      return;
+    }
+    const s = shapeAt(wx, wy);
+    if (s) {
+      if (e.shiftKey) { toggleSel("shape", s.id); changed(); return; }
+      if (!shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); changed(); }
+      return startMove();
+    }
+    const r = runAt(wx, wy);
+    if (r != null) {
+      if (e.shiftKey) { toggleSel("run", r); changed(); return; }
+      if (!runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); changed(); }
+      return startMove();
+    }
+    drag = { mode: "box", x0: x, y0: y, x, y, add: e.shiftKey };
+    return;
+  }
+
+  // --- Points tool ---
+  const h = hitPoint(x, y);
+  if (h >= 0) {
+    if (e.shiftKey) { ptSel.has(h) ? ptSel.delete(h) : ptSel.add(h); changed(); return; }
+    if (!ptSel.has(h)) ptSel = new Set([h]);
+    drag = { mode: "ptmove", x0: x, y0: y, w0: [wx, wy], started: false, orig: [...ptSel].map(i => [i, cmds[i].x, cmds[i].y]) };
+    changed();
+  } else if (e.shiftKey) {
+    drag = { mode: "ptbox", x0: x, y0: y, x, y };
+  } else {
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: false };
+  }
+});
+
+cv.addEventListener("pointermove", e => {
+  const [x, y] = mpos(e), [wx, wy] = toW(x, y);
+  if (!drag) {   // hover feedback
+    if (tool === "measure") { const h = measureAt(x, y); cv.style.cursor = h ? (h.end ? "move" : "pointer") : "crosshair"; return; }
+    if (tool === "select") {
+      const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy), r = h || s ? null : runAt(wx, wy);
+      cv.style.cursor = h ? handleCursor(h, selTarget()) : s || r != null ? "move" : "default";
+      const id = s ? s.id : null;
+      if (id !== hoverId || r !== hoverRun) { hoverId = id; hoverRun = r; draw(); }
+    }
+    return;
+  }
+  const alt = e.altKey;
+  switch (drag.mode) {
+    case "pan":
+      view.ox = drag.ox + x - drag.x0; view.oy = drag.oy + y - drag.y0;
+      if (moved(e, drag)) drag.moved = true;
+      break;
+
+    case "create": {
+      if (!drag.shape && !moved(e, drag)) return;
+      const [ax, ay] = drag.start;
+      let [bx, by] = snapPoint(wx, wy, new Set(drag.shape ? [drag.shape.id] : []), alt);
+      if (!drag.shape) { snapshot(); drag.shape = newShape(drag.kind, ax, ay, 5, 5); shapeSel = new Set([drag.shape.id]); runSel.clear(); }
+      const s = drag.shape;
+      if (s.kind === "line") {
+        let ang = Math.atan2(by - ay, bx - ax), L = Math.hypot(bx - ax, by - ay);
+        if (e.shiftKey) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; bx = ax + Math.cos(ang) * L; by = ay + Math.sin(ang) * L; }
+        Object.assign(s, { cx: Math.round((ax + bx) / 2), cy: Math.round((ay + by) / 2), w: Math.max(5, Math.round(L)), rot: +(ang * 180 / Math.PI).toFixed(1) });
+      } else {
+        let w = Math.abs(bx - ax), h = Math.abs(by - ay);
+        if (e.shiftKey) { w = h = Math.max(w, h); bx = ax + Math.sign(bx - ax || 1) * w; by = ay + Math.sign(by - ay || 1) * h; }
+        if (e.ctrlKey) Object.assign(s, { cx: ax, cy: ay, w: Math.max(5, 2 * w), h: Math.max(5, 2 * h) });
+        else Object.assign(s, { cx: Math.round((ax + bx) / 2), cy: Math.round((ay + by) / 2), w: Math.max(5, Math.round(w)), h: Math.max(5, Math.round(h)) });
+      }
+      changed(); return;
+    }
+
+    case "move": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
+      for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = cx + rdx; s.cy = cy + rdy; }
+      const ids = new Set(drag.origs.map(o => o[0]));
+      const shift = b => b && { minX: b.minX + rdx, maxX: b.maxX + rdx, minY: b.minY + rdy, maxY: b.maxY + rdy };
+      const boxes = [...ids].map(id => shapeBoxes(byId(id)).outer);
+      if (drag.runBox0) boxes.push(shift(drag.runBox0));
+      // a single frame being moved can also line up its inside edges
+      const inner = ids.size === 1 && !drag.runBox0 ? shapeBoxes(byId([...ids][0])).inner
+                  : !ids.size && drag.runInner0 ? shift(drag.runInner0) : null;
+      const { dx, dy } = snapBox(unionBox(boxes), ids, alt, inner);
+      for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = Math.round(cx + rdx + dx); s.cy = Math.round(cy + rdy + dy); }
+      for (const [i, x0, y0] of drag.pts0) { cmds[i].x = Math.round(x0 + rdx + dx); cmds[i].y = Math.round(y0 + rdy + dy); }
+      changed(); return;
+    }
+
+    case "resize": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const o = drag.orig, s = drag.runs ? drag.proxy : byId(drag.id), [hx, hy] = HSIGN[drag.handle];
+      const fromCenter = e.ctrlKey, keepRatio = e.shiftKey;
+      let [mx, my] = [wx, wy];
+      // snap the moving edge(s) to guides — only when the shape isn't rotated. The handle sits on the outline, but
+      // the stitched outer and inner edges (± half the satin thickness) can snap too.
+      guides = [];
+      if (o.rot % 360 === 0 && !alt) {
+        const T = snapTargets(new Set([o.id])), t = drag.runs ? 0 : halfThick(o);
+        const cand = v => t ? [[v, -1], [v + t, -1], [v - t, -1]] : [[v, -1]];
+        const hitX = hx && bestSnap(cand(wx), T.xs), hitY = hy && bestSnap(cand(wy), T.ys);
+        mx = hitX ? wx + hitX.d : hx ? Math.round(wx / GRID) * GRID : wx;
+        my = hitY ? wy + hitY.d : hy ? Math.round(wy / GRID) * GRID : wy;
+        const pb = { minX: mx, maxX: mx, minY: my, maxY: my };
+        if (hitX) guides.push(guide("x", hitX, pb));
+        if (hitY) guides.push(guide("y", hitY, pb));
+      }
+      const [lx, ly] = toLocal(o, mx, my);
+      let w = o.w, h = o.h;
+      if (hx) w = fromCenter ? 2 * hx * lx : hx * lx + o.w / 2;
+      if (hy) h = fromCenter ? 2 * hy * ly : hy * ly + o.h / 2;
+      w = Math.max(5, w); h = Math.max(5, h);
+      if (keepRatio) {
+        const k = hx && hy ? Math.max(w / o.w, h / o.h) : hx ? w / o.w : h / o.h;
+        w = o.w * k; h = o.h * k;
+      }
+      if (!alt && o.rot % 360 !== 0) { w = Math.round(w / GRID) * GRID || GRID; h = Math.round(h / GRID) * GRID || GRID; }
+      // keep the opposite side fixed (or the center, with Ctrl)
+      const clx = fromCenter ? 0 : hx ? hx * (w - o.w) / 2 : 0;
+      const cly = fromCenter ? 0 : hy ? hy * (h - o.h) / 2 : 0;
+      const [ncx, ncy] = toWorld(o, clx, cly);
+      Object.assign(s, { w: Math.round(w), h: Math.round(h), cx: ncx, cy: ncy });   // center may sit on a half unit so edges land exactly
+      if (drag.runs) applyRunXform(drag);
+      changed(); return;
+    }
+
+    case "rotate": {
+      if (!drag.started) { snapshot(); drag.started = true; }
+      const s = drag.runs ? drag.proxy : byId(drag.id);
+      let a = Math.atan2(wy - s.cy, wx - s.cx) * 180 / Math.PI - 90;
+      a = e.shiftKey ? Math.round(a / 15) * 15 : Math.round(a);
+      if (!e.shiftKey && !alt) for (const q of [0, 90, 180, 270, -90, -180, -270]) if (Math.abs(a - q) <= 3) a = q;  // stick to square angles
+      s.rot = ((a % 360) + 540) % 360 - 180;
+      if (drag.runs) applyRunXform(drag);
+      changed(); return;
+    }
+
+    case "endpoint": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const o = drag.orig, s = byId(drag.id);
+      const fixed = toWorld(o, drag.handle === "p1" ? o.w / 2 : -o.w / 2, 0);
+      let [bx, by] = snapPoint(wx, wy, new Set([o.id]), alt);
+      let ang = Math.atan2(by - fixed[1], bx - fixed[0]), L = Math.hypot(bx - fixed[0], by - fixed[1]);
+      if (e.shiftKey) { ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12; bx = fixed[0] + Math.cos(ang) * L; by = fixed[1] + Math.sin(ang) * L; }
+      // keep p1/p2 on the same ends
+      const deg = ang * 180 / Math.PI + (drag.handle === "p1" ? 180 : 0);
+      Object.assign(s, { cx: Math.round((fixed[0] + bx) / 2), cy: Math.round((fixed[1] + by) / 2), w: Math.max(5, Math.round(L)), rot: +(((deg % 360) + 540) % 360 - 180).toFixed(1) });
+      changed(); return;
+    }
+
+    case "measure": case "measEnd": {
+      if (drag.mode === "measure" && !drag.moved) { if (!moved(e, drag)) return; drag.moved = true; measPick = null; }
+      if (drag.mode === "measEnd" && !drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const m = drag.mode === "measEnd" ? measures.find(q => q.id === drag.id) : null;
+      const fixed = m ? (drag.end === "a" ? m.b : m.a) : drag.a;
+      let [bx, by] = measSnap(wx, wy, alt);
+      if (e.shiftKey) {   // straight across, straight up/down, or 45°
+        const dx = bx - fixed[0], dy = by - fixed[1];
+        if (Math.abs(dx) > 2 * Math.abs(dy)) by = fixed[1];
+        else if (Math.abs(dy) > 2 * Math.abs(dx)) bx = fixed[0];
+        else { const L = Math.max(Math.abs(dx), Math.abs(dy)); bx = fixed[0] + Math.sign(dx) * L; by = fixed[1] + Math.sign(dy) * L; }
+      }
+      if (m) m[drag.end] = [bx, by]; else drag.b = [bx, by];
+      break;
+    }
+
+    case "box": case "ptbox":
+      drag.x = x; drag.y = y; break;
+
+    case "ptmove": {
+      if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
+      const dx = Math.round(wx - drag.w0[0]), dy = Math.round(wy - drag.w0[1]);
+      for (const [i, ox, oy] of drag.orig) { cmds[i].x = ox + dx; cmds[i].y = oy + dy; }
+      changed(); return;
+    }
+  }
+  draw();
+});
+
+cv.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const d = drag; drag = null; guides = [];
+  if (d.mode === "measure") {
+    if (d.moved && Math.hypot(d.b[0] - d.a[0], d.b[1] - d.a[1]) > 0.5) { addMeasures([{ a: d.a, b: d.b }]); return; }
+    // a click (no drag): pick two elements and measure between them
+    const it = itemBoxAt(d.wx, d.wy);
+    if (!it) { measPick = null; measSel = null; }
+    else if (!measPick || JSON.stringify(measPick.box) === JSON.stringify(it.box)) measPick = it;
+    else { const list = gapMeasures(measPick, it); measPick = null; addMeasures(list); return; }
+    changed(); return;
+  }
+  if (d.mode === "measEnd") { changed(); return; }
+  if (d.mode === "create" && !d.shape) {   // plain click: drop a 20 mm shape centered there
+    snapshot();
+    const s = newShape(d.kind, d.start[0], d.start[1], U().click, U().click);   // 20 mm, or 1" in imperial
+    shapeSel = new Set([s.id]); runSel.clear();
+  }
+  if (d.mode === "create") { setTool("select"); return; }
+  if (d.mode === "pan" && !d.moved && d.menu) {   // right-click: select what's under the mouse, then show the menu
+    if (tool === "points") setTool("select");
+    const s = shapeAt(d.wx, d.wy), r = s ? null : runAt(d.wx, d.wy);
+    if (s && !shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); }
+    else if (r != null && !runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); }
+    changed(); showMenu(e.clientX, e.clientY);
+    return;
+  }
+  if (d.mode === "pan" && !d.moved) { ptSel.clear(); }
+  if (d.mode === "box") {
+    const ax = Math.min(d.x0, d.x), bx = Math.max(d.x0, d.x), ay = Math.min(d.y0, d.y), by = Math.max(d.y0, d.y);
+    if (!d.add) { shapeSel.clear(); runSel.clear(); }
+    if (bx - ax > 3 || by - ay > 3) {
+      const [w0x, w0y] = toW(ax, by), [w1x, w1y] = toW(bx, ay);
+      const inside = b => b.minX >= w0x && b.maxX <= w1x && b.minY >= w0y && b.maxY <= w1y;
+      for (const s of shapes) if (inside(aabb(s))) shapeSel.add(s.id);
+      for (const r of getRuns()) if (inside(runBox(r))) runSel.add(r.start);
+      expandGroups();
+    }
+  }
+  if (d.mode === "ptbox") {
+    const ax = Math.min(d.x0, d.x), bx = Math.max(d.x0, d.x), ay = Math.min(d.y0, d.y), by = Math.max(d.y0, d.y);
+    cmds.forEach((c, i) => { if (c.t === "c") return; const [px, py] = toS(c.x, c.y); if (px >= ax && px <= bx && py >= ay && py <= by) ptSel.add(i); });
+  }
+  changed();
+});
+
+cv.addEventListener("dblclick", e => {
+  if (tool !== "points" || !cmds.length) return;
+  const [x, y] = mpos(e);
+  if (hitPoint(x, y) >= 0) return;
+  const i = ptSel.size ? Math.max(...ptSel) : cmds.length - 1;
+  insertAfter(i, ...toW(x, y));
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const [x, y] = mpos(e), f = Math.exp(-e.deltaY * 0.0015);
+  view.ox = x - (x - view.ox) * f; view.oy = y - (y - view.oy) * f; view.s *= f;
+  draw();
+}, { passive: false });
+
+// ---------- Keyboard ----------
+document.addEventListener("keyup", e => { if (e.key === " ") spaceDown = false; });
+document.addEventListener("keydown", e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
+  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri", m: "measure" };
+  const pts = tool === "points";
+  if (e.key === " ") { e.preventDefault(); spaceDown = true; }
+  else if (mod && k === "z") { e.preventDefault(); e.shiftKey ? restore(redoStack, undoStack) : restore(undoStack, redoStack); }
+  else if (mod && k === "y") { e.preventDefault(); restore(redoStack, undoStack); }
+  else if (mod && k === "a") {
+    e.preventDefault();
+    if (pts) ptSel = new Set(cmds.map((c, i) => i).filter(i => cmds[i].t !== "c"));
+    else { setTool("select"); shapeSel = new Set(shapes.map(s => s.id)); runSel = new Set(getRuns().map(r => r.start)); }
+    changed();
+  }
+  else if (mod && k === "c") { if (!pts) copyShapes(); }
+  else if (mod && k === "x") { if (!pts) { copyShapes(); deleteShapes(); } }
+  else if (mod && k === "v") { e.preventDefault(); pasteShapes(); }
+  else if (mod && k === "d") { e.preventDefault(); copyShapes(); pasteShapes(); }
+  else if (mod && k === "g") { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); }
+  else if (mod) return;
+  else if ((k === "delete" || k === "backspace") && tool === "measure") {
+    e.preventDefault();
+    if (measSel != null) { snapshot(); measures = measures.filter(m => m.id !== measSel); measSel = null; changed(); }
+  }
+  else if (k === "delete" || k === "backspace") { e.preventDefault(); pts ? deletePoints() : deleteShapes(); }
+  else if (k === "escape" && tool === "measure" && (measPick || measSel != null)) { measPick = null; measSel = null; changed(); }
+  else if (k === "escape" && !$("ctxMenu").hidden) hideMenu();
+  else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); runSel.clear(); ptSel.clear(); changed(); }
+  else if (toolKeys[k]) setTool(toolKeys[k]);
+  else if (pts && k === "i") insertStitch();
+  else if (pts && k === "j") toggleType();
+  else if (k.startsWith("arrow")) {
+    e.preventDefault();
+    const step = pts ? (e.shiftKey ? 10 : 1) : (e.shiftKey ? U().nudgeBig : U().nudge);
+    const dx = k === "arrowleft" ? -step : k === "arrowright" ? step : 0, dy = k === "arrowup" ? step : k === "arrowdown" ? -step : 0;
+    pts ? nudgePoints(dx, dy) : nudgeShapes(dx, dy);
+  }
+});
+
+// ---------- Panel inputs ----------
+let editing = false;   // one undo step per field edit
+document.addEventListener("focusin", () => { editing = false; srcConfirmed = false; });
+function editShapes(fn) {
+  if (panelMode === "runsrc") return editRunSources(fn);   // stitch runs made from shapes: regenerate them
+  if (!shapeSel.size) return;
+  if (!editing) { snapshot(); editing = true; }
+  fn(selShapes());
+  changed();
+}
+const num = id => parseFloat($(id).value);
+$("shW").addEventListener("input", () => num("shW") > 0 && editShapes(([s]) => s.w = Math.max(5, fromU(num("shW")))));
+$("shH").addEventListener("input", () => num("shH") > 0 && editShapes(([s]) => s.h = Math.max(5, fromU(num("shH")))));
+$("shR").addEventListener("input", () => !isNaN(num("shR")) && editShapes(([s]) => s.rot = num("shR")));
+$("shX").addEventListener("input", () => !isNaN(num("shX")) && editShapes(([s]) => s.cx = fromU(num("shX"))));
+$("shY").addEventListener("input", () => !isNaN(num("shY")) && editShapes(([s]) => s.cy = fromU(num("shY"))));
+const styleField = (id, key, read) => $(id).addEventListener("input", () => editShapes(sel => {
+  const v = read(); for (const s of sel) s[key] = v; defaults[key] = v;
+}));
+styleField("shStyle", "style", () => $("shStyle").value);
+styleField("shThick", "thick", () => Math.round(num("shThick") * 10));
+styleField("shDens", "dens", () => Math.round(num("shDens") * 10));
+styleField("shLen", "len", () => Math.round(num("shLen") * 10));
+styleField("shUnder", "under", () => $("shUnder").checked);
+styleField("shCorner", "corner", () => +$("shCorner").value);
+styleField("shLock", "lock", () => $("shLock").checked);
+styleField("shColor", "color", () => $("shColor").value === "cur" ? "cur" : +$("shColor").value);
+$("shColor").add(new Option("Keep current thread", "cur"));
+PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`, i)); });
+document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
+$("shDup").onclick = () => { copyShapes(); pasteShapes(); };
+$("shCenter").onclick = centerOnContents;
+$("measClear").onclick = () => { if (!measures.length) return; snapshot(); measures = []; measSel = null; changed(); };
+$("showMeas").addEventListener("input", draw);
+// stitch-run panel: typed size scales around the group's center; typed center moves it
+function editRunsBox(fn) {
+  if (!runSel.size) return;
+  if (!editing) { snapshot(); editing = true; }
+  const b = unionBox(selRuns().map(runBox));
+  fn(b, (b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2);
+  changed();
+}
+$("rnW").addEventListener("input", () => num("rnW") > 0 && editRunsBox((b, cx) => {
+  const k = b.maxX - b.minX < 2 ? 1 : fromU(num("rnW")) / (b.maxX - b.minX);
+  transformRuns((x, y) => [cx + (x - cx) * k, y]);
+}));
+$("rnH").addEventListener("input", () => num("rnH") > 0 && editRunsBox((b, cx, cy) => {
+  const k = b.maxY - b.minY < 2 ? 1 : fromU(num("rnH")) / (b.maxY - b.minY);
+  transformRuns((x, y) => [x, cy + (y - cy) * k]);
+}));
+$("rnX").addEventListener("input", () => !isNaN(num("rnX")) && editRunsBox((b, cx) => { const d = fromU(num("rnX")) - cx; transformRuns((x, y) => [x + d, y]); }));
+$("rnY").addEventListener("input", () => !isNaN(num("rnY")) && editRunsBox((b, cx, cy) => { const d = fromU(num("rnY")) - cy; transformRuns((x, y) => [x, y + d]); }));
+$("rnStop").add(new Option("Keep sewing (no stop)", "none"));
+$("rnStop").add(new Option("Stop — keep the same thread (add fabric…)", "same"));
+PALETTE.forEach((p, i) => { if (i) $("rnStop").add(new Option(`Stop & change to ${i} · ${p[0]}`, i)); });
+$("rnStop").addEventListener("input", () => setRunStop($("rnStop").value));
+$("shStop").addEventListener("input", () => editShapes(sel => { for (const s of sel) s.stop = $("shStop").checked; }));
+$("shApp").addEventListener("input", () => editShapes(sel => { for (const s of sel) if (canApplique(s)) s.applique = $("shApp").checked; }));
+$("shAppPlace").addEventListener("input", () => editShapes(sel => { for (const s of sel) if (canApplique(s)) s.appPlace = $("shAppPlace").checked; }));
+$("rnDup").onclick = () => { copyShapes(); pasteShapes(); };
+$("rnDel").onclick = deleteShapes;
+$("rnPts").onclick = () => {
+  const idx = [];
+  for (const r of selRuns()) for (let i = r.start; i <= r.end; i++) if (cmds[i].t === "s") idx.push(i);
+  setTool("points"); ptSel = new Set(idx); changed();
+};
+$("shDel").onclick = deleteShapes;
+$("shBake").onclick = bakeShapes;
+$("shEarlier").onclick = () => reorder(-1);
+$("shLater").onclick = () => reorder(1);
+
+$("delBtn").onclick = deletePoints;
+$("insBtn").onclick = insertStitch;
+$("togBtn").onclick = toggleType;
+$("ccBtn").onclick = insertColorChange;
+$("selType").onchange = () => { const i = [...ptSel][0]; snapshot(); cmds[i].t = $("selType").value; changed(); };
+["selX", "selY"].forEach((id, axis) => $(id).onchange = () => {
+  const i = [...ptSel][0], v = Math.round(fromU(num(id)));
+  if (isNaN(v)) return renderPointPanel();
+  snapshot(); cmds[i][axis ? "y" : "x"] = v; changed();
+});
+
+$("undoBtn").onclick = () => restore(undoStack, redoStack);
+$("redoBtn").onclick = () => restore(redoStack, undoStack);
+$("fitBtn").onclick = fit;
+document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+["showJumps", "showPts", "lw", "tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", draw));
+// ---------- Sew-out player ----------
+// Plays the design command by command at the chosen speed. At every color change (= the machine stops) it waits
+// for Continue, saying whether to change thread or that it's a same-thread pause.
+const play = { state: "idle", idx: 0, acc: 0, last: 0, raf: 0 };   // idle | playing | paused | stopped-at-stop | done
+const threadName = t => t.name || (PALETTE[t.idx] ? `${t.idx} · ${PALETTE[t.idx][0]}` : "#" + t.idx);
+function playProgress(all) {
+  let st = 0, stTot = 0, stops = 0, stopsTot = 0;
+  for (let i = 0; i < all.length; i++) {
+    const s = all[i].t === "s", c = all[i].t === "c";
+    if (s) stTot++; if (c) stopsTot++;
+    if (i < play.idx) { if (s) st++; if (c) stops++; }
+  }
+  return { st, stTot, stops, stopsTot };
+}
+function syncPlayUI(all) {
+  all = all || compose().all;
+  const p = playProgress(all), active = play.state !== "idle";
+  $("playBtn").textContent = play.state === "playing" ? "⏸ Pause" : play.state === "paused" ? "▶ Resume" : "▶ Play sew-out";
+  $("playStopBtn").hidden = !active;
+  $("playInfo").textContent = active
+    ? `stitch ${p.st} / ${p.stTot}` + (p.stopsTot ? ` · stop ${p.stops} / ${p.stopsTot}` : "")
+    : `${p.stTot} stitches` + (p.stopsTot ? ` · ${p.stopsTot} stop${p.stopsTot > 1 ? "s" : ""}` : "") + ` · ~${Math.max(1, Math.round(p.stTot / 700))} min`;
+  $("sew").max = all.length; $("sew").value = sewAll ? all.length : sewN;
+  $("sewInfo").textContent = sewAll ? `Showing all ${all.length} commands` : `Showing ${sewN} of ${all.length} commands`;
+}
+function playStart() {
+  const n = compose().all.length;
+  if (!n) return;
+  if (play.state === "idle" || play.state === "done" || play.idx >= n) play.idx = 0;
+  play.state = "playing"; play.last = 0; play.acc = 0;
+  sewAll = false; sewN = play.idx;
+  $("playPause").hidden = true;
+  cancelAnimationFrame(play.raf); play.raf = requestAnimationFrame(playTick);
+  syncPlayUI(); draw();
+}
+function playTick(ts) {
+  if (play.state !== "playing") return;
+  if (!play.last) play.last = ts;
+  play.acc += (ts - play.last) / 1000 * +$("playSpeed").value; play.last = ts;
+  const { all, th } = compose(), n = all.length;
+  while (play.acc >= 1 && play.idx < n) {
+    play.acc -= 1; play.idx++;
+    if (all[play.idx - 1].t === "c") { sewN = play.idx; showStop(all, th); break; }
+  }
+  sewN = Math.min(play.idx, n);
+  syncPlayUI(all); draw();
+  if (play.state !== "playing") return;
+  if (play.idx >= n) return playFinish(all);
+  play.raf = requestAnimationFrame(playTick);
+}
+function showStop(all, th) {
+  play.state = "stopped";
+  let k = 0, total = 0;
+  for (let i = 0; i < all.length; i++) if (all[i].t === "c") { total++; if (i < play.idx) k++; }
+  const before = th[k - 1] || th[0], next = th[k] || before, same = before.idx === next.idx;
+  const sw = t => `<span class="sw" style="background:${threadCSS(t, 0)}"></span>`;
+  const note = all[play.idx - 1] && all[play.idx - 1].note;
+  $("ppTitle").textContent = `⏸ Machine stopped (${k} of ${total})` + (note ? " · Appliqué" : "");
+  $("ppMsg").innerHTML = note && same
+    ? `<b>${note}</b>, then Continue. (Same thread${sw(next)})`
+    : same
+    ? `Pause — <b>keep the same thread</b>${sw(next)} · add fabric, trim, or check alignment.`
+    : `Change thread: ${sw(before)}<b>${threadName(before)}</b> → ${sw(next)}<b>${threadName(next)}</b>`;
+  $("ppContinue").textContent = "Continue ▶"; $("ppContinue").hidden = false; $("ppStop").textContent = "Stop";
+  $("playPause").hidden = false;
+}
+function playFinish(all) {
+  play.state = "done"; sewN = all.length;
+  const p = playProgress(all);
+  $("ppTitle").textContent = "✓ Sew-out complete";
+  $("ppMsg").innerHTML = `${p.stTot} stitches` + (p.stopsTot ? `, ${p.stopsTot} stop${p.stopsTot > 1 ? "s" : ""}` : "") +
+    ` · about ${Math.max(1, Math.round(p.stTot / 700))} min of sewing at ~700 stitches/min`;
+  $("ppContinue").hidden = true;
+  $("ppStop").textContent = "Close";
+  $("playPause").hidden = false;
+  syncPlayUI(all);
+}
+function playStop() {
+  cancelAnimationFrame(play.raf);
+  play.state = "idle"; play.idx = 0;
+  $("playPause").hidden = true;
+  sewAll = true; changed();
+}
+$("playBtn").onclick = () => {
+  if (play.state === "playing") { play.state = "paused"; cancelAnimationFrame(play.raf); syncPlayUI(); }
+  else playStart();
+};
+$("playStopBtn").onclick = playStop;
+// collapse / expand the player (remembered in this browser)
+function foldPlayer(folded) {
+  $("playBar").classList.toggle("folded", folded);
+  $("playFold").textContent = folded ? "▸" : "▾";
+  $("playFold").title = folded ? "Expand the sew-out player" : "Collapse the sew-out player";
+  try { localStorage.setItem("jefPlayerFolded", folded ? "1" : "0"); } catch (e) {}
+}
+$("playFold").onclick = () => foldPlayer(!$("playBar").classList.contains("folded"));
+try { foldPlayer(localStorage.getItem("jefPlayerFolded") === "1"); } catch (e) { foldPlayer(false); }
+$("ppContinue").onclick = () => { $("playPause").hidden = true; play.state = "paused"; playStart(); };
+$("ppStop").onclick = playStop;
+// dragging the sew-out slider while playing pauses there
+$("sew").addEventListener("input", () => {
+  if (play.state === "playing" || play.state === "paused" || play.state === "stopped") {
+    cancelAnimationFrame(play.raf); play.state = "paused";
+    play.idx = sewN = +$("sew").value; sewAll = false;
+    $("playPause").hidden = true; syncPlayUI();
+  }
+});
+
+// Right-click menu (canvas and Sew order list)
+function showMenu(x, y) {
+  const order = orderList(), sel = order.filter(isSelItem);
+  const gs = new Set(sel.map(itemGroup));
+  const oneGroup = gs.size === 1 && !gs.has(null) && order.filter(it => itemGroup(it) === [...gs][0]).length === sel.length;
+  const m = $("ctxMenu"), btn = a => m.querySelector(`[data-act="${a}"]`);
+  btn("group").disabled = sel.length < 2 || oneGroup;
+  btn("ungroup").disabled = !sel.some(it => itemGroup(it) != null);
+  btn("dup").disabled = btn("del").disabled = !sel.length;
+  btn("bake").disabled = !shapeSel.size;
+  btn("center").disabled = !selShapes().some(s => contentsOf(s));
+  m.hidden = false;
+  const r = m.getBoundingClientRect ? m.getBoundingClientRect() : { width: 200, height: 200 };
+  m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
+  m.style.top = Math.min(y, innerHeight - r.height - 8) + "px";
+}
+function hideMenu() { $("ctxMenu").hidden = true; }
+$("ctxMenu").querySelectorAll("button").forEach(b => b.onclick = () => {
+  hideMenu();
+  ({ group: groupSelection, ungroup: ungroupSelection, center: centerOnContents, dup: () => { copyShapes(); pasteShapes(); }, bake: bakeShapes, del: deleteShapes })[b.dataset.act]();
+});
+document.addEventListener("pointerdown", e => { if (!$("ctxMenu").contains(e.target)) hideMenu(); }, true);
+
+// Sew order list width (hidden / normal / full) and the right-hand panel — remembered in this browser
+let orderMode = "normal";
+function setOrderMode(m) {
+  orderMode = m;
+  $("orderPanel").hidden = m === "hidden";
+  $("orderResize").hidden = m === "hidden";
+  $("orderTab").hidden = m !== "hidden";
+  $("wrap").classList.toggle("order-full", m === "full");
+  document.querySelectorAll("[data-omode]").forEach(b => b.classList.toggle("active", b.dataset.omode === m));
+  $("orderBtn").classList.toggle("active", m !== "hidden");
+  try { localStorage.setItem("jefOrderMode", m); } catch (e) {}
+  renderOrder();
+}
+document.querySelectorAll("[data-omode]").forEach(b => b.onclick = () => setOrderMode(b.dataset.omode));
+$("orderBtn").onclick = () => setOrderMode(orderMode === "hidden" ? "normal" : "hidden");
+function setSide(show) {
+  $("side").hidden = !show;
+  $("sideTab").hidden = show;
+  try { localStorage.setItem("jefSide", show ? "shown" : "hidden"); } catch (e) {}
+}
+$("sideBtn").onclick = () => setSide($("side").hidden);
+$("orderTab").onclick = () => setOrderMode("normal");
+// Drag the list's right edge to resize it (remembered in this browser); double-click resets to the default width.
+const ORDER_W = 250;
+function setOrderWidth(w, save = true) {
+  w = Math.round(Math.max(160, Math.min(w, (innerWidth || 1200) * 0.75)));
+  $("orderPanel").style.width = w + "px";
+  if (save) try { localStorage.setItem("jefOrderWidth", String(w)); } catch (e) {}
+}
+try { const w = +localStorage.getItem("jefOrderWidth"); if (w) setOrderWidth(w, false); } catch (e) {}
+$("orderResize").addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const h = $("orderResize"), left = $("orderPanel").getBoundingClientRect().left;
+  h.setPointerCapture(e.pointerId); h.classList.add("active"); document.body.classList.add("resizing");
+  const move = ev => setOrderWidth(ev.clientX - left, false);
+  const up = ev => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+    h.classList.remove("active"); document.body.classList.remove("resizing");
+    setOrderWidth(ev.clientX - left);
+  };
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+});
+$("orderResize").addEventListener("dblclick", () => setOrderWidth(ORDER_W));
+$("sideTab").onclick = () => setSide(true);
+try {
+  const m = localStorage.getItem("jefOrderMode"); if (m === "hidden" || m === "normal" || m === "full") orderMode = m;
+  if (localStorage.getItem("jefSide") === "hidden") setSide(false);
+} catch (e) {}
+$("sideTab").hidden = !$("side").hidden;
+setOrderMode(orderMode);
+
+// Hoop choice (remembered in this browser)
+// Units choice (remembered in this browser)
+function applyUnits() {
+  GRID = U().snap;
+  $("units").value = units;
+  document.querySelectorAll(".unit").forEach(el => el.textContent = U().name);
+  document.querySelectorAll("input.len").forEach(el => el.step = U().inStep);
+  document.querySelectorAll("input.ptlen").forEach(el => el.step = U().ptStep);
+  const keep = $("hoop").value;                        // relabel hoop sizes in the new units
+  $("hoop").options.length = 0;
+  HOOPS.forEach(h => $("hoop").add(new Option(hoopLabel(h), h.id)));
+  if (keep) $("hoop").value = keep;
+}
+$("units").addEventListener("input", () => {
+  units = $("units").value;
+  try { localStorage.setItem("jefUnits", units); } catch (e) {}
+  applyUnits(); changed();
+});
+applyUnits();
+$("hoop").value = "110x126";
+try {
+  const h = JSON.parse(localStorage.getItem("jefHoop") || "null");
+  if (h && HOOPS.some(x => x.id === h.id)) { $("hoop").value = h.id; $("hoopRot").checked = !!h.rot; }
+} catch (e) {}
+function saveHoop() { try { localStorage.setItem("jefHoop", JSON.stringify({ id: $("hoop").value, rot: $("hoopRot").checked })); } catch (e) {} }
+["hoop", "hoopRot"].forEach(id => $(id).addEventListener("input", () => { saveHoop(); if (meta) meta.hoopTouched = true; changed(); }));
+
+// Grid opacity (remembered in this browser)
+try { const g = localStorage.getItem("jefGridOpacity"); if (g !== null) $("gridOp").value = g; } catch (e) {}
+const syncGrid = () => { $("gridOpV").textContent = $("gridOp").value + "%"; };
+$("gridOp").addEventListener("input", () => {
+  syncGrid(); draw();
+  try { localStorage.setItem("jefGridOpacity", $("gridOp").value); } catch (e) {}
+});
+syncGrid();
+
+function syncRealBar() {
+  const on = $("real").checked, t = +$("tight").value;
+  $("realBar").classList.toggle("off", !on);
+  $("tightV").textContent = t + "%";
+  if (!on) $("pullInfo").textContent = "";
+}
+$("real").addEventListener("input", () => { syncRealBar(); draw(); });
+// Changing any realistic-preview setting turns the preview on, so the effect is visible right away.
+const realInput = () => { if (!$("real").checked) $("real").checked = true; syncRealBar(); draw(); };
+$("tight").addEventListener("input", () => {
+  const t = $("tight").value, match = [...$("fabricType").options].find(o => o.value === t);
+  $("fabricType").value = match ? t : "";
+  realInput();
+});
+$("fabricType").addEventListener("input", () => { if ($("fabricType").value) $("tight").value = $("fabricType").value; realInput(); });
+["tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", realInput));
+document.querySelectorAll("[data-fabric]").forEach(b => b.onclick = () => { $("fabric").value = b.dataset.fabric; realInput(); });
+syncRealBar();
+$("sew").addEventListener("input", () => { sewN = +$("sew").value; sewAll = sewN >= +$("sew").max; changed(); });
+
+// ---------- File I/O ----------
+function newDesign() {
+  const h = new Uint8Array(0x74), d = new DataView(h.buffer), t = new Date(), p = v => String(v).padStart(2, "0");
+  d.setInt32(4, 0x14, true);
+  const ds = `${t.getFullYear()}${p(t.getMonth() + 1)}${p(t.getDate())}${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`;
+  for (let i = 0; i < 14; i++) h[8 + i] = ds.charCodeAt(i);
+  h.fill(0xff, 0x34, 0x74);
+  meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
+  cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
+  measures = []; measSel = null; measPick = null; runSources = {};
+  shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+  const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
+  view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
+  changed();
+}
+function load(file) {
+  file.arrayBuffer().then(buf => {
+    try {
+      const r = parseJEF(buf);
+      cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
+      measures = []; measSel = null; measPick = null; runSources = {};
+      // show the hoop the file was made for, if it's one we know
+      const code = new DataView(buf).getInt32(32, true), known = HOOPS.find(h => h.code === code);
+      if (known) { $("hoop").value = known.id; $("hoopRot").checked = false; saveHoop(); }
+      shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
+      changed(); fit();
+    } catch (err) { alert("Could not read file: " + err.message); }
+  });
+}
+function download(blob, name) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("newBtn").onclick = () => { if (saved || confirm("Start a new design? Unsaved changes will be lost.")) newDesign(); };
+$("openBtn").onclick = () => $("file").click();
+$("file").onchange = e => { e.target.files[0] && load(e.target.files[0]); e.target.value = ""; };
+$("saveBtn").onclick = () => {
+  const name = meta.isNew ? fileName : fileName.replace(/(-edited)?(\.jef)?$/i, "-edited.JEF");
+  download(new Blob([buildJEF()], { type: "application/octet-stream" }), name);
+  saved = true; changed();
+};
+$("pngBtn").onclick = () => cv.toBlob(b => download(b, fileName.replace(/\.jef$/i, "") + ".png"));
+const stage = $("stage");
+stage.addEventListener("dragover", e => { e.preventDefault(); stage.classList.add("over"); });
+stage.addEventListener("dragleave", () => stage.classList.remove("over"));
+stage.addEventListener("drop", e => { e.preventDefault(); stage.classList.remove("over"); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); });
+window.addEventListener("beforeunload", e => { if (!saved) e.preventDefault(); });
+new ResizeObserver(resize).observe(stage);
+newDesign();
+</script>
+</body>
+</html>
