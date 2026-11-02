@@ -284,6 +284,7 @@
   </span>
   <span class="tools">
     <button data-tool="measure" title="Measure distances and gaps (M)">📏 Measure</button>
+    <button id="alignBtn" title="Align the selected elements (A): one stays put, click a dot to line the others up with it" disabled>Align</button>
   </span>
   <span id="status"></span>
 </header>
@@ -594,6 +595,7 @@
   <button data-act="ungroup">Ungroup <kbd>Ctrl+Shift+G</kbd></button>
   <hr>
   <button data-act="center">Center on contents</button>
+  <button data-act="align">Align to this <kbd>A</kbd></button>
   <hr>
   <button data-act="dup">Duplicate <kbd>Ctrl+D</kbd></button>
   <button data-act="bake">To stitches</button>
@@ -1111,6 +1113,7 @@ let docs = [{ id: 1, d: null }], activeDoc = 0, nextDocId = 2, tabSig = "";
 // untitled: a new design nobody has named yet (saving asks for a name); renamed: the name was typed in by you
 let untitled = true, renamed = false;
 let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
+let alignTool = false, alignRef = null, alignHover = null;   // Align mode (see "Align (TinkerCad style)")
 let sewAll = true, sewN = 0;
 let defaults = { style: "satin", thick: 30, dens: 4, len: 25, under: true, lock: true, color: "cur", corner: 100 };
 const $ = id => document.getElementById(id);
@@ -1717,7 +1720,7 @@ function runPts0() {
 }
 // What the handles act on: one shape, or the selected runs as a group (an axis-aligned box).
 function selTarget() {
-  if (tool !== "select") return null;
+  if (tool !== "select" || alignTool) return null;
   if (shapeSel.size === 1 && !runSel.size) return selShapes()[0] || null;
   if (!shapeSel.size && runSel.size) {
     if (drag && drag.proxy) return drag.proxy;
@@ -2550,6 +2553,14 @@ function draw() {
       }
     }
   }
+  // Shift+drag: the axis the move is locked to, through where the drag started
+  if (drag && drag.mode === "move" && drag.started && drag.lock) {
+    const [sx, sy] = toS(...drag.w0);
+    ctx.save(); ctx.strokeStyle = "rgba(240,140,0,.75)"; ctx.lineWidth = 1; ctx.setLineDash([8, 4]); ctx.beginPath();
+    if (drag.lock === "x") { ctx.moveTo(0, Math.round(sy) + .5); ctx.lineTo(r.width, Math.round(sy) + .5); }
+    else { ctx.moveTo(Math.round(sx) + .5, 0); ctx.lineTo(Math.round(sx) + .5, r.height); }
+    ctx.stroke(); ctx.restore();
+  }
   // snap guides
   ctx.strokeStyle = "#0a84ff"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
   for (const g of guides) {
@@ -2595,6 +2606,7 @@ function draw() {
   ctx.textAlign = "center"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.fillText(U().name, 17, 9);   // unit in the corner
   ctx.strokeStyle = "#d6dbe2"; ctx.lineWidth = 1; ctx.beginPath();
   ctx.moveTo(0, 18.5); ctx.lineTo(r.width, 18.5); ctx.moveTo(34.5, 0); ctx.lineTo(34.5, r.height); ctx.stroke();
+  if (alignTool && tool === "select") drawAlign();   // last, so its dots are never under the rulers
 }
 
 // ---------- Panels ----------
@@ -2622,6 +2634,9 @@ function changed() {
   renderRunPanel();
   if (!drag) renderOrder();   // (not while dragging on the canvas; it refreshes on release)
   renderPointPanel();
+  const nEls = tool === "select" ? alignEls().length : 0;   // Align needs two or more elements selected
+  if (alignTool && nEls < 2) { alignTool = false; alignRef = null; alignHover = null; }
+  $("alignBtn").disabled = nEls < 2; $("alignBtn").classList.toggle("active", alignTool);
   $("undoBtn").disabled = !undoStack.length; $("redoBtn").disabled = !redoStack.length;
   $("status").textContent = "";   // (unsaved changes show as a dot on the design's tab)
   $("drophint").hidden = !!(cmds.length || shapes.length || photo);
@@ -2767,7 +2782,7 @@ function renderOrder() {
       if (m.type === "run") { runSel = new Set([m.r.start]); shapeSel.clear(); } else { shapeSel = new Set([m.s.id]); runSel.clear(); }
       expandGroups(); changed();
     }
-    showMenu(e.clientX, e.clientY);
+    showMenu(e.clientX, e.clientY, m.type === "run" ? itemKey("run", m.r.start) : itemKey("shape", m.s));
   };
   let parent = box, curG = null;
   marks.forEach((m, i) => {
@@ -2985,21 +3000,128 @@ function centerOnContents() {
   for (const s of sel) { const c = contentsOf(s); s.cx -= c.dx; s.cy -= c.dy; }
   changed();
 }
-function alignShapes(how) {
-  const sel = selShapes(); if (sel.length < 2) return;
+// ---------- Align (TinkerCad style) ----------
+// Select two or more elements and press Align (A): dots appear for left / center / right and bottom / middle / top.
+// One element is the reference and stays put (the biggest by default — usually the frame; click another selected
+// element to make it the reference). Hovering a dot previews where the others go; clicking it moves them.
+// An element is a whole group, or one ungrouped shape or stitch run. Boxes are the stitched outer edges.
+const itemKey = (kind, x) => {
+  if (kind === "shape") return x.group != null ? "g" + x.group : "s" + x.id;
+  const r = getRuns().find(q => q.start === x), g = r ? runGroupOf(r) : null;
+  return g != null ? "g" + g : "r" + x;
+};
+function alignEls() {
+  const map = new Map(), out = [];
+  const add = (key, kind, x) => { let e = map.get(key); if (!e) map.set(key, e = { key, shapes: [], runs: [] }), out.push(e); e[kind].push(x); };
+  for (const s of selShapes()) add(itemKey("shape", s), "shapes", s);
+  for (const r of selRuns()) add(itemKey("run", r.start), "runs", r);
+  for (const e of out) e.box = unionBox([...e.shapes.map(s => shapeBoxes(s).outer), ...e.runs.map(runBox)]);
+  return out;
+}
+const boxArea = b => (b.maxX - b.minX) * (b.maxY - b.minY);
+function alignRefEl(els) {
+  return els.find(e => e.key === alignRef) || els.reduce((a, b) => boxArea(b.box) > boxArea(a.box) ? b : a, els[0]);
+}
+// axis "x" | "y"; at 0 = left/bottom, 1 = center, 2 = right/top
+const boxAt = (b, axis, at) => axis === "x" ? [b.minX, (b.minX + b.maxX) / 2, b.maxX][at] : [b.minY, (b.minY + b.maxY) / 2, b.maxY][at];
+function alignMoves(axis, at, els = alignEls()) {   // [{el, d}] for every element that would move
+  const ref = alignRefEl(els), v = boxAt(ref.box, axis, at);
+  return els.filter(e => e !== ref).map(e => ({ el: e, d: v - boxAt(e.box, axis, at) })).filter(m => Math.abs(m.d) > 0.01);
+}
+function alignTo(axis, at) {
+  const els = alignEls(); if (els.length < 2) return;
+  const moves = alignMoves(axis, at, els);
+  if (!moves.length) return;
   snapshot();
-  const all = unionBox(sel.map(aabb));
-  for (const s of sel) {
-    const b = aabb(s);
-    if (how === "left") s.cx += all.minX - b.minX;
-    if (how === "right") s.cx += all.maxX - b.maxX;
-    if (how === "cx") s.cx += (all.minX + all.maxX) / 2 - (b.minX + b.maxX) / 2;
-    if (how === "bottom") s.cy += all.minY - b.minY;
-    if (how === "top") s.cy += all.maxY - b.maxY;
-    if (how === "cy") s.cy += (all.minY + all.maxY) / 2 - (b.minY + b.maxY) / 2;
-    s.cx = Math.round(s.cx); s.cy = Math.round(s.cy);
+  for (const { el, d } of moves) {
+    const dx = axis === "x" ? d : 0, dy = axis === "y" ? d : 0;
+    for (const s of el.shapes) { s.cx += dx; s.cy += dy; }
+    for (const r of el.runs) for (let i = r.start; i <= r.end; i++) { cmds[i].x = Math.round(cmds[i].x + dx); cmds[i].y = Math.round(cmds[i].y + dy); }
   }
   changed();
+}
+// the side panel's align buttons do the same thing
+const ALIGN_HOW = { left: ["x", 0], cx: ["x", 1], right: ["x", 2], bottom: ["y", 0], cy: ["y", 1], top: ["y", 2] };
+function alignShapes(how) { alignTo(...ALIGN_HOW[how]); }
+function setAlignTool(on) {
+  on = !!on && alignEls().length >= 2;
+  if (on && tool !== "select") setTool("select");
+  alignTool = on; alignHover = null;
+  if (!on) alignRef = null;
+  $("alignBtn").classList.toggle("active", on);
+  changed();
+}
+// the dots, in screen space: a row under the selection (x) and a column left of it (y), placed at the reference's edges
+// right-click menu → "Align to this": align mode with the right-clicked element as the one that stays put
+function alignFromMenu() {
+  setAlignTool(true);
+  if (alignTool && menuAnchor && alignEls().some(e => e.key === menuAnchor)) { alignRef = menuAnchor; draw(); }
+}
+function alignDots(els = alignEls()) {
+  if (els.length < 2) return [];
+  const all = unionBox(els.map(e => e.box)), ref = alignRefEl(els).box;
+  const cr = cv.getBoundingClientRect();   // kept on screen, clear of the rulers
+  const below = Math.min(toS(0, all.minY)[1] + 26, cr.height - 14), left = Math.max(toS(all.minX, 0)[0] - 26, 48);
+  const dots = [];
+  for (let at = 0; at < 3; at++) dots.push({ axis: "x", at, sx: toS(boxAt(ref, "x", at), 0)[0], sy: below });
+  for (let at = 0; at < 3; at++) dots.push({ axis: "y", at, sx: left, sy: toS(0, boxAt(ref, "y", at))[1] });
+  return dots;
+}
+function alignDotAt(x, y) {
+  return alignDots().find(d => Math.hypot(d.sx - x, d.sy - y) <= 9) || null;
+}
+const ALIGN_TIP = { x: ["Align left edges", "Align centers", "Align right edges"], y: ["Align bottom edges", "Align middles", "Align top edges"] };
+function drawAlign() {
+  const els = alignEls(); if (els.length < 2) return;
+  const ref = alignRefEl(els), dots = alignDots(els);
+  if (alignHover) alignHover = dots.find(d => d.axis === alignHover.axis && d.at === alignHover.at) || null;   // after a zoom/pan
+  const rect = (b, pad) => { const [x0, y0] = toS(b.minX, b.maxY), [x1, y1] = toS(b.maxX, b.minY); return [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad]; };
+  ctx.save();
+  // the elements: the reference in orange (it stays put), the others in blue
+  ctx.lineWidth = 1.5;
+  for (const e of els) {
+    ctx.strokeStyle = e === ref ? "#f08c00" : "#29b6f2"; ctx.setLineDash(e === ref ? [] : [5, 3]);
+    ctx.strokeRect(...rect(e.box, 3));
+  }
+  ctx.setLineDash([]);
+  const [rx, ry] = rect(ref.box, 3);
+  ctx.font = "bold 11px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  const tag = "Stays put", tw = ctx.measureText(tag).width + 10;
+  ctx.fillStyle = "#f08c00"; ctx.fillRect(rx, ry - 18, tw, 16);
+  ctx.fillStyle = "#fff"; ctx.fillText(tag, rx + 5, ry - 10);
+  // preview of the hovered dot: a guide line and where each element would land
+  if (alignHover) {
+    const { axis, at } = alignHover, v = boxAt(ref.box, axis, at), all = unionBox(els.map(e => e.box));
+    ctx.strokeStyle = "#f08c00"; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.beginPath();
+    if (axis === "x") { const sx = Math.round(toS(v, 0)[0]) + .5; ctx.moveTo(sx, toS(0, all.maxY)[1] - 14); ctx.lineTo(sx, alignHover.sy); }
+    else { const sy = Math.round(toS(0, v)[1]) + .5; ctx.moveTo(alignHover.sx, sy); ctx.lineTo(toS(all.maxX, 0)[0] + 14, sy); }
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(41,182,242,.9)"; ctx.fillStyle = "rgba(41,182,242,.12)"; ctx.setLineDash([]);
+    for (const { el, d } of alignMoves(axis, at, els)) {
+      const b = el.box, nb = axis === "x" ? { ...b, minX: b.minX + d, maxX: b.maxX + d } : { ...b, minY: b.minY + d, maxY: b.maxY + d };
+      const rr = rect(nb, 0); ctx.fillRect(...rr); ctx.strokeRect(...rr);
+    }
+  }
+  // the dots, joined by a line along the reference's extent (like TinkerCad)
+  ctx.setLineDash([]); ctx.strokeStyle = "#999"; ctx.lineWidth = 1;
+  for (const axis of ["x", "y"]) {
+    const ds = dots.filter(d => d.axis === axis);
+    ctx.beginPath(); ctx.moveTo(ds[0].sx, ds[0].sy); ctx.lineTo(ds[2].sx, ds[2].sy); ctx.stroke();
+  }
+  for (const d of dots) {
+    const on = alignHover && alignHover.axis === d.axis && alignHover.at === d.at;
+    const done = !alignMoves(d.axis, d.at, els).length;   // already lined up that way
+    ctx.beginPath(); ctx.arc(d.sx, d.sy, on ? 7 : 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = on ? "#f08c00" : done ? "#ddd" : "#fff"; ctx.fill();
+    ctx.strokeStyle = on ? "#b86a00" : "#333"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  if (alignHover) {   // what the hovered dot does
+    const text = ALIGN_TIP[alignHover.axis][alignHover.at], w = ctx.measureText(text).width + 10;
+    const px = alignHover.axis === "x" ? alignHover.sx - w / 2 : alignHover.sx - w - 12, py = alignHover.axis === "x" ? alignHover.sy + 18 : alignHover.sy;
+    ctx.fillStyle = "rgba(30,30,30,.88)"; ctx.fillRect(px, py - 8, w, 16);
+    ctx.fillStyle = "#fff"; ctx.fillText(text, px + 5, py);
+  }
+  ctx.restore();
 }
 const orderIndexOfShape = id => orderList().findIndex(it => it.type === "shape" && it.s.id === id);
 function reorder(dir) {
@@ -3095,6 +3217,7 @@ function hitPoint(sx, sy) {
 // ---------- Tools ----------
 function setTool(t) {
   if (aligning) endAlign();
+  if (alignTool) { alignTool = false; alignRef = null; alignHover = null; $("alignBtn").classList.remove("active"); }
   tool = t;
   document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
   cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : "copy";
@@ -3159,6 +3282,15 @@ cv.addEventListener("pointerdown", e => {
   }
 
   // --- Select tool ---
+  if (tool === "select" && alignTool) {
+    // Align mode: a dot aligns, a selected element becomes the reference, anything else leaves Align
+    const dot = alignDotAt(x, y);
+    if (dot) { alignTo(dot.axis, dot.at); return; }
+    const s = shapeAt(wx, wy), r = s ? null : runAt(wx, wy);
+    const key = s ? itemKey("shape", s) : r != null ? itemKey("run", r) : null;
+    if (key && alignEls().some(el => el.key === key)) { alignRef = key; draw(); return; }
+    setAlignTool(false);   // …and the click carries on as a normal Select click
+  }
   if (tool === "select") {
     // moving everything selected (shapes and stitch runs together)
     const startMove = () => {
@@ -3176,15 +3308,22 @@ cv.addEventListener("pointerdown", e => {
       else drag = { mode, handle: h, x0: x, y0: y, orig: JSON.parse(JSON.stringify(s)), id: s.id, started: false, w0: [wx, wy] };
       return;
     }
+    // Shift: a click adds/removes the element; a drag moves the selection locked to one axis (see "move").
+    // An unselected element is added right away; a selected one is only removed if you let go without dragging.
+    const shiftHit = (kind, key, has) => {
+      if (!has) { toggleSel(kind, key); changed(); }
+      startMove();
+      if (has) drag.unselect = [kind, key];
+    };
     const s = shapeAt(wx, wy);
     if (s) {
-      if (e.shiftKey) { toggleSel("shape", s.id); changed(); return; }
+      if (e.shiftKey) return shiftHit("shape", s.id, shapeSel.has(s.id));
       if (!shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); changed(); }
       return startMove();
     }
     const r = runAt(wx, wy);
     if (r != null) {
-      if (e.shiftKey) { toggleSel("run", r); changed(); return; }
+      if (e.shiftKey) return shiftHit("run", r, runSel.has(r));
       if (!runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); changed(); }
       return startMove();
     }
@@ -3212,6 +3351,14 @@ cv.addEventListener("pointermove", e => {
     if (aligning && markBox) { const h = markHit(x, y); cv.style.cursor = h === "move" ? "move" : h != null ? "crosshair" : "default"; return; }
     if (aligning) { const h = photoHit(x, y); cv.style.cursor = h === "rot" ? "grab" : h === "move" ? "move" : h != null ? "crosshair" : "default"; return; }
     if (tool === "measure") { const h = measureAt(x, y); cv.style.cursor = h ? (h.end ? "move" : "pointer") : "crosshair"; return; }
+    if (tool === "select" && alignTool) {
+      const dot = alignDotAt(x, y), same = (a, b) => a === b || (a && b && a.axis === b.axis && a.at === b.at);
+      const s = dot ? null : shapeAt(wx, wy), r = dot || s ? null : runAt(wx, wy);
+      const key = s ? itemKey("shape", s) : r != null ? itemKey("run", r) : null;
+      cv.style.cursor = dot || (key && alignEls().some(el => el.key === key)) ? "pointer" : "default";
+      if (!same(dot, alignHover)) { alignHover = dot; draw(); }
+      return;
+    }
     if (tool === "select") {
       const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy), r = h || s ? null : runAt(wx, wy);
       cv.style.cursor = h ? handleCursor(h, selTarget()) : s || r != null ? "move" : "default";
@@ -3267,7 +3414,11 @@ cv.addEventListener("pointermove", e => {
 
     case "move": {
       if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
-      const rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
+      let rdx = wx - drag.w0[0], rdy = wy - drag.w0[1];
+      // Shift: lock to whichever axis you've moved further along (press or release Shift mid-drag to switch)
+      const lock = e.shiftKey ? (Math.abs(rdx) >= Math.abs(rdy) ? "x" : "y") : null;
+      if (lock === "x") rdy = 0; else if (lock === "y") rdx = 0;
+      drag.lock = lock;
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = cx + rdx; s.cy = cy + rdy; }
       const ids = new Set(drag.origs.map(o => o[0]));
       const shift = b => b && { minX: b.minX + rdx, maxX: b.maxX + rdx, minY: b.minY + rdy, maxY: b.maxY + rdy };
@@ -3276,7 +3427,10 @@ cv.addEventListener("pointermove", e => {
       // a single frame being moved can also line up its inside edges
       const inner = ids.size === 1 && !drag.runBox0 ? shapeBoxes(byId([...ids][0])).inner
                   : !ids.size && drag.runInner0 ? shift(drag.runInner0) : null;
-      const { dx, dy } = snapBox(unionBox(boxes), ids, alt, inner);
+      let { dx, dy } = snapBox(unionBox(boxes), ids, alt, inner);
+      // locked: no snapping off the axis (guides along x lines are vertical lines, i.e. they snap x)
+      if (lock === "x") { dy = 0; guides = guides.filter(g => g.axis === "x"); }
+      if (lock === "y") { dx = 0; guides = guides.filter(g => g.axis === "y"); }
       for (const [id, cx, cy] of drag.origs) { const s = byId(id); s.cx = Math.round(cx + rdx + dx); s.cy = Math.round(cy + rdy + dy); }
       for (const [i, x0, y0] of drag.pts0) { cmds[i].x = Math.round(x0 + rdx + dx); cmds[i].y = Math.round(y0 + rdy + dy); }
       changed(); return;
@@ -3387,6 +3541,7 @@ cv.addEventListener("pointerup", e => {
     changed(); return;
   }
   if (d.mode === "measEnd") { changed(); return; }
+  if (d.mode === "move" && d.unselect && !d.started) { toggleSel(...d.unselect); changed(); return; }   // Shift+click: remove it
   if (d.mode === "create" && !d.shape) {   // plain click: drop a 20 mm shape centered there
     snapshot();
     const s = newShape(d.kind, d.start[0], d.start[1], U().click, U().click);   // 20 mm, or 1" in imperial
@@ -3398,7 +3553,7 @@ cv.addEventListener("pointerup", e => {
     const s = shapeAt(d.wx, d.wy), r = s ? null : runAt(d.wx, d.wy);
     if (s && !shapeSel.has(s.id)) { shapeSel = new Set([s.id]); runSel.clear(); expandGroups(); }
     else if (r != null && !runSel.has(r)) { runSel = new Set([r]); shapeSel.clear(); expandGroups(); }
-    changed(); showMenu(e.clientX, e.clientY);
+    changed(); showMenu(e.clientX, e.clientY, s ? itemKey("shape", s) : r != null ? itemKey("run", r) : null);
     return;
   }
   if (d.mode === "pan" && !d.moved) { ptSel.clear(); }
@@ -3479,6 +3634,8 @@ document.addEventListener("keydown", e => {
   else if (k === "delete" || k === "backspace") { e.preventDefault(); pts ? deletePoints() : deleteShapes(); }
   else if (k === "escape" && tool === "measure" && (measPick || measSel != null)) { measPick = null; measSel = null; changed(); }
   else if (k === "escape" && !$("ctxMenu").hidden) hideMenu();
+  else if (k === "escape" && alignTool) setAlignTool(false);
+  else if (k === "a" && !e.shiftKey && !e.altKey) setAlignTool(!alignTool);
   else if (k === "escape") { if (tool !== "select" && !pts) setTool("select"); shapeSel.clear(); runSel.clear(); ptSel.clear(); changed(); }
   else if (toolKeys[k]) setTool(toolKeys[k]);
   else if (pts && k === "i") insertStitch();
@@ -3521,6 +3678,7 @@ styleField("shColor", "color", () => $("shColor").value === "cur" ? "cur" : +$("
 $("shColor").add(new Option("Keep current thread", "cur"));
 PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`, i)); });
 document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
+$("alignBtn").onclick = () => setAlignTool(!alignTool);
 $("shDup").onclick = () => { copyShapes(); pasteShapes(); };
 $("shCenter").onclick = centerOnContents;
 $("measClear").onclick = () => { if (!measures.length) return; snapshot(); measures = []; measSel = null; changed(); };
@@ -3702,7 +3860,9 @@ $("sew").addEventListener("input", () => {
 });
 
 // Right-click menu (canvas and Sew order list)
-function showMenu(x, y) {
+let menuAnchor = null;   // the element that was right-clicked: Align from the menu keeps it put
+function showMenu(x, y, anchor = null) {
+  menuAnchor = anchor;
   const order = orderList(), sel = order.filter(isSelItem);
   const gs = new Set(sel.map(itemGroup));
   const oneGroup = gs.size === 1 && !gs.has(null) && order.filter(it => itemGroup(it) === [...gs][0]).length === sel.length;
@@ -3712,6 +3872,10 @@ function showMenu(x, y) {
   btn("dup").disabled = btn("del").disabled = !sel.length;
   btn("bake").disabled = !shapeSel.size;
   btn("center").disabled = !selShapes().some(s => contentsOf(s));
+  const nEls = alignEls().length;
+  btn("align").disabled = nEls < 2;
+  btn("align").title = nEls < 2 ? "Select two or more elements first, then right-click the one that should stay put"
+                                : "Line the other selected elements up with this one (it stays put)";
   m.hidden = false;
   const r = m.getBoundingClientRect ? m.getBoundingClientRect() : { width: 200, height: 200 };
   m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
@@ -3720,7 +3884,7 @@ function showMenu(x, y) {
 function hideMenu() { $("ctxMenu").hidden = true; }
 $("ctxMenu").querySelectorAll("button").forEach(b => b.onclick = () => {
   hideMenu();
-  ({ group: groupSelection, ungroup: ungroupSelection, center: centerOnContents, dup: () => { copyShapes(); pasteShapes(); }, bake: bakeShapes, del: deleteShapes })[b.dataset.act]();
+  ({ group: groupSelection, ungroup: ungroupSelection, center: centerOnContents, align: alignFromMenu, dup: () => { copyShapes(); pasteShapes(); }, bake: bakeShapes, del: deleteShapes })[b.dataset.act]();
 });
 document.addEventListener("pointerdown", e => { if (!$("ctxMenu").contains(e.target)) hideMenu(); }, true);
 
@@ -4251,6 +4415,7 @@ function applyDoc(d) {
 }
 function leaveDoc() {   // tidy up the open tab before parking it
   if (aligning) endAlign();
+  if (alignTool) setAlignTool(false);
   if (play.state !== "idle") playStop();
   hideMenu();
   docs[activeDoc].d = captureDoc();

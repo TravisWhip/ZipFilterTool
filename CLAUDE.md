@@ -62,6 +62,20 @@ KSP-style **Sew order** panel (thumbnails, drag reorder, pauses, horizontal grou
 groups (right-click, Ctrl+G); "Center on contents" with a 3-level spotlight; measure tool (M); sew-out player with
 stops; appliqué (placement → pause → tack-down → pause → satin); points tool for single stitches.
 
+**Shift while moving:** Shift+drag (or pressing Shift mid-drag) locks the move to the axis moved further along (`drag.lock`,
+orange dashed axis line; snapping/guides only on the free axis). Shift+click still toggles selection: an unselected element
+is added on pointerdown, a selected one is removed on pointerup only if it wasn't dragged (`drag.unselect`).
+
+**Align (TinkerCad style):** toolbar `#alignBtn` / key A, needs 2+ elements selected (an element = a whole group, or one
+ungrouped shape / stitch run; `alignEls`, keys from `itemKey`; boxes = stitched outer edges). The reference (`alignRef`,
+default the biggest by area) stays put and is drawn in orange "Stays put"; clicking another selected element makes it the
+reference. `alignDots` = a row under the selection (left/center/right) and a column left of it (bottom/middle/top) at the
+reference's edges; hover (`alignHover`) previews, click = `alignTo(axis, at)` (one undo step; mode stays on). Esc, A,
+clicking empty canvas, changing tool or tab leaves it. The side panel's align buttons call the same `alignTo`.
+Right-click menu "Align to this" (`alignFromMenu`): `showMenu(x, y, anchor)` gets the right-clicked element's key (canvas or
+Sew order card) as `menuAnchor`, which becomes `alignRef`. Right-clicking a selected element keeps the selection.
+`selTarget()` returns null in align mode (no handles); `drawAlign` runs last in `draw()`, above the rulers.
+
 **Hoop photo:** View → Hoop photo → Upload (or drop an image on the canvas). Align mode
 shows a pink ghost hoop; the photo is placed by 4 corners `photo.q` (perspective warp via `squareToQuad` + triangle
 mesh `drawImageTri`, cached in `photo.warp`). Stored in `localStorage["jefHoopPhoto"]` (downscaled JPEG), never in the JEF.
