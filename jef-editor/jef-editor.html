@@ -4209,12 +4209,16 @@ async function saveProject() {
   saved = true; changed();
 }
 
-// load a .JEF or .jefproj into the current tab; resolves true if it worked
-function load(file) {
+// read a file's contents the way load() wants them (text for projects, bytes for JEF)
+const readFor = file => /\.jefproj$/i.test(file.name) ? file.text() : file.arrayBuffer();
+// load a .JEF or .jefproj into the current tab; resolves true if it worked. Pass `data` (from readFor) when it's
+// already been read: then the whole load happens without waiting, so nothing half-loaded is ever painted.
+function load(file, data) {
+  const got = data != null ? Promise.resolve(data) : readFor(file);
   if (/\.jefproj$/i.test(file.name)) {
-    return file.text().then(t => { try { loadProject(t, file.name); fxMark(file.fxPath); return true; } catch (err) { alert("Could not open project: " + err.message); return false; } });
+    return got.then(t => { try { loadProject(t, file.name); fxMark(file.fxPath); return true; } catch (err) { alert("Could not open project: " + err.message); return false; } });
   }
-  return file.arrayBuffer().then(buf => {
+  return got.then(buf => {
     try {
       const r = parseJEF(buf);
       cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = []; untitled = false; renamed = false;
@@ -4278,8 +4282,10 @@ function newTab() {
 let previewToken = 0;
 async function showPreview(f) {
   const token = ++previewToken;
-  let file;
-  try { file = await f.get(); } catch (e) { return; }
+  let file, data;
+  // read the file completely before touching the screen, so the old preview stays up until the new one replaces it
+  // in one go (clearing first and then waiting on the disk flashed a blank canvas between files)
+  try { file = await f.get(); data = await readFor(file); } catch (e) { return; }
   if (token !== previewToken) return;   // you've moved on to another file already
   file.fxPath = f.path;
   let p = docs.findIndex(x => x.preview);
@@ -4288,7 +4294,7 @@ async function showPreview(f) {
   if (aligning) endAlign();
   if (play.state !== "idle") playStop();
   newDesign();
-  const ok = await load(file);
+  const ok = await load(file, data);   // only microtasks from here on: no paint in between
   if (!ok && docs[activeDoc] && docs[activeDoc].preview) newDesign();
   tabSig = ""; renderTabs();
 }

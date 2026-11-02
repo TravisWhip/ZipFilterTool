@@ -91,7 +91,8 @@ tab (`#fileTab`, `#orderTab`, `#sideTab`) that is always shown and toggles the p
 left tabs are rotated 180°, so their arrow character is flipped). There are no separate collapse buttons.
 
 **Preview tab:** Shift+hover a file tile (or press Shift over one) → `queuePreview` (70 ms debounce) → `showPreview` loads it
-into the single `docs[i].preview` tab. `dropPreview()` (called by switchTab/newTab/closeTab) removes it once it isn't
+into the single `docs[i].preview` tab. It reads the file first (`readFor`) and then calls `load(file, data)`, which needs
+no I/O wait, so nothing is painted between clearing and loading (otherwise a blank canvas flashes between files). `dropPreview()` (called by switchTab/newTab/closeTab) removes it once it isn't
 active; `keepPreview()` turns it into a normal tab on edit (`syncTab` sees `!saved`), rename, or clicking its file.
 
 **Names:** the tab shows `fileName`; double-click to rename (`startRename` → `setName`, cleaned by `cleanName`). New designs get
