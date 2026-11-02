@@ -1,3 +1,0 @@
-
-
-Allow saving my current edits as a custom file type so I can save and reaload and keep my groupings, measurements, etc. Then I can export to JEF.

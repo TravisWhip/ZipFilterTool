@@ -10,19 +10,58 @@
   [hidden] { display:none !important; }   /* make the hidden attribute win over display:flex rules */
   html, body { height:100%; margin:0; }
   body { font:13px system-ui, sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; }
-  header { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header { display:flex; align-items:center; gap:5px; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
   header h1 { font-size:15px; margin:0 12px 0 0; }
   #wrap { flex:1; display:flex; min-height:0; }
-  #stage { flex:1; position:relative; min-width:0; }
+  #center { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #stage { flex:1; position:relative; min-width:0; min-height:0; overflow:hidden; }
+  /* document tabs along the bottom of the canvas */
+  #tabBar { flex:none; display:flex; align-items:stretch; background:#e7e5df; border-top:1px solid var(--line); min-height:30px; }
+  #tabs { display:flex; overflow-x:auto; min-width:0; scrollbar-width:thin; }
+  .tab { display:flex; align-items:center; gap:6px; padding:0 6px 0 12px; max-width:220px; border-right:1px solid var(--line);
+         cursor:pointer; user-select:none; color:#555; font-size:12px; white-space:nowrap; }
+  .tab:hover { background:#f2f1ec; }
+  .tab.on { background:#fff; color:#111; box-shadow:inset 0 2px 0 #29b6f2; }
+  .tab .tt { overflow:hidden; text-overflow:ellipsis; }
+  .tab .dot { color:#d08a00; font-size:16px; line-height:1; }
+  .tab .x { border:0; background:none; padding:0 4px; font-size:14px; line-height:1; color:#888; border-radius:3px; }
+  .tab .x:hover { background:#ddd; color:#000; }
+  .tab.drop-over { background:#dff1fb; }
+  .tab.preview .tt { font-style:italic; }
+  .tab.preview .tt::before { content:"Preview · "; color:#1477a8; font-style:normal; font-size:11px; }
+  #tabNew { border:0; border-radius:0; background:none; padding:0 12px; font-size:16px; color:#555; }
+  #tabNew:hover { background:#f2f1ec; }
   #cv { position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
-  #drophint { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:16px; pointer-events:none; text-align:center; padding:16px; }
+  /* the empty-canvas hint sits on the hoop's center and moves with the view (positioned by placeHint) */
+  #drophint { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); transform-origin:50% 50%; width:240px; color:var(--muted); font-size:14px;
+              line-height:1.45; pointer-events:none; text-align:center; }
+  #drophint span { display:block; }
+  #drophint span + span { margin-top:6px; font-size:12.5px; }
   #stage.over { outline:3px dashed #2a7; outline-offset:-8px; }
-  aside { width:300px; overflow:auto; background:var(--panel); border-left:1px solid var(--line); padding:10px 12px; }
+  aside { width:300px; flex:none; overflow:auto; background:var(--panel); border-left:1px solid var(--line); padding:0 12px 10px; }
+  /* right-hand panel: header with a collapse button, and a drag handle on its left edge */
+  .sidehead { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center;
+              background:var(--panel); padding:8px 0 6px; margin-bottom:4px; border-bottom:1px solid var(--line); }
+  .sidehead button { padding:1px 6px; font-size:12px; }
+  #sideResize { flex:none; width:6px; margin-left:-3px; margin-right:-3px; z-index:5; cursor:col-resize; position:relative; touch-action:none; }
+  #sideResize::after { content:""; position:absolute; top:0; bottom:0; left:2px; width:2px; background:transparent; transition:background .15s; }
+  #sideResize:hover::after, #sideResize.active::after { background:#29b6f2; }
   aside h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:14px 0 6px; }
   aside > :first-child h2, aside > h2:first-child { margin-top:0; }
   .row { display:flex; gap:6px; align-items:center; margin:4px 0; flex-wrap:wrap; }
   input[type=number] { width:80px; }
   button { padding:4px 9px; cursor:pointer; }
+  header > button, header .tools button { padding:4px 7px; }
+  /* Fit button + its design/hoop slider switch */
+  .fitgrp { display:inline-flex; align-items:center; gap:4px; }
+  .fitsw { display:inline-flex; align-items:center; gap:3px; font-size:10px; color:#999; cursor:pointer; user-select:none; }
+  .fitsw input { position:absolute; opacity:0; width:0; height:0; }
+  .fitsw i { position:relative; width:26px; height:14px; border-radius:7px; background:#9aa3ad; transition:background .15s; flex:none; }
+  .fitsw i::after { content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%; background:#fff; transition:left .15s; }
+  .fitsw input:checked + i { background:#29b6f2; }
+  .fitsw input:checked + i::after { left:14px; }
+  .fitsw input:focus-visible + i { outline:2px solid #29b6f2; outline-offset:2px; }
+  .fitsw .on { color:#222; font-weight:600; }
   button:disabled { cursor:default; }
   .sw { display:inline-block; width:16px; height:16px; border:1px solid #888; border-radius:3px; flex:none; }
   .thread { display:flex; gap:6px; align-items:center; margin:4px 0; }
@@ -52,6 +91,19 @@
   #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
   #realBar input[type=color] { width:30px; height:22px; padding:0 2px; }
   .realToggle { padding:3px 8px; border:1px solid #e3d6b8; border-radius:6px; background:#fff; }
+  /* Hoop photo alignment bar */
+  #alignBar { position:absolute; left:50%; top:26px; transform:translateX(-50%); z-index:5; width:min(680px, calc(100% - 50px));
+              background:#fff; border:2px solid #d6338a; border-radius:10px; padding:8px 12px; box-shadow:0 3px 14px rgba(0,0,0,.15); }
+  #alignBar .ab-row { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  #alignBar .ab-help { color:var(--muted); line-height:1.5; margin-top:5px; font-size:12px; }
+  #alignBar .ab-title { color:#b0226f; font-weight:600; margin-right:auto; }
+  #alignBar .ab-done { background:#d6338a; color:#fff; border:1px solid #b0226f; border-radius:4px; font-weight:600; }
+  #alignBar .ab-apply { background:#fff0f7; color:#b0226f; border:1px solid #d6338a; border-radius:4px; font-weight:600; }
+  #alignBar .ab-seg { display:inline-flex; }
+  #alignBar .ab-seg button { border:1px solid #d6338a; background:#fff; color:#b0226f; padding:3px 9px; margin:0; }
+  #alignBar .ab-seg button:first-child { border-radius:4px 0 0 4px; }
+  #alignBar .ab-seg button:last-child { border-radius:0 4px 4px 0; border-left:0; }
+  #alignBar .ab-seg button.on { background:#d6338a; color:#fff; }
   /* Sew-out player */
   #playBar { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); z-index:4; display:flex; flex-direction:column; gap:6px;
              width:min(620px, calc(100% - 24px)); background:#fff; border:1px solid var(--line); border-radius:10px; padding:7px 10px;
@@ -76,13 +128,29 @@
   #playBar.folded:has(#playPause:not([hidden])) { width:min(620px, calc(100% - 24px)); }
   .pp-go { background:#1477a8; color:#fff; border:1px solid #1477a8; border-radius:6px; padding:6px 16px; font-weight:600; }
   /* Right-click menu */
-  #ctxMenu { position:fixed; z-index:50; min-width:190px; background:#fff; border:1px solid #ccd; border-radius:8px;
+  /* "name this design" popup */
+  #nameDlg { position:fixed; inset:0; z-index:60; background:rgba(20,25,35,.35); display:flex; align-items:center; justify-content:center; padding:16px; }
+  #nameDlg .box { background:#fff; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.3); padding:16px 18px; width:min(420px, 100%); }
+  #nameDlg h3 { margin:0 0 6px; font-size:15px; }
+  #nameDlg p { margin:0 0 10px; color:var(--muted); line-height:1.45; }
+  #nameDlg .nrow { display:flex; align-items:center; gap:4px; }
+  #nameDlg input { flex:1; font:inherit; padding:5px 7px; border:1px solid #bbb; border-radius:5px; min-width:0; }
+  #nameDlg .ext { color:var(--muted); }
+  #nameDlg .err { color:#c0392b; font-size:12px; min-height:16px; margin-top:4px; }
+  #nameDlg .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; flex-wrap:wrap; }
+  #nameDlg .primary { background:#29b6f2; border-color:#1a9bd4; color:#fff; font-weight:600; }
+  .tab input.ren { font:inherit; width:150px; padding:1px 4px; border:1px solid #29b6f2; border-radius:3px; }
+  #ctxMenu, #fxMenu { position:fixed; z-index:50; min-width:190px; background:#fff; border:1px solid #ccd; border-radius:8px;
              box-shadow:0 6px 24px rgba(0,0,0,.18); padding:4px; }
-  #ctxMenu button { display:flex; justify-content:space-between; gap:16px; width:100%; border:0; background:none; text-align:left; padding:6px 10px; border-radius:5px; font:inherit; }
-  #ctxMenu button:hover:not(:disabled) { background:#eef8fe; }
-  #ctxMenu button:disabled { color:#bbb; }
+  #ctxMenu button, #fxMenu button { display:flex; justify-content:space-between; gap:16px; width:100%; border:0; background:none; text-align:left; padding:6px 10px; border-radius:5px; font:inherit; }
+  #ctxMenu button:hover:not(:disabled), #fxMenu button:hover:not(:disabled) { background:#eef8fe; }
+  #ctxMenu button:disabled, #fxMenu button:disabled { color:#bbb; }
   #ctxMenu kbd { font-size:11px; color:#999; background:none; border:0; }
-  #ctxMenu hr { border:0; border-top:1px solid #eee; margin:4px 0; }
+  #fxMenu .mh { padding:4px 10px 6px; color:var(--muted); font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #fxMenu .note { padding:4px 10px; color:var(--muted); font-size:11px; max-width:240px; line-height:1.4; }
+  #nameDlg .warn { color:#a85a00; background:#fff3e0; border:1px solid #f0b060; border-radius:5px; padding:5px 8px; font-size:12px; margin-top:6px; }
+  #nameDlg .where { font-family:ui-monospace, Consolas, monospace; font-size:12px; color:#333; background:#f3f3f0; border-radius:4px; padding:1px 5px; }
+  #ctxMenu hr, #fxMenu hr { border:0; border-top:1px solid #eee; margin:4px 0; }
   /* Groups in the sew order list */
   .ogrp { border:1px solid #c9b8ea; background:#f7f3fd; border-radius:9px; padding:0 4px 4px; margin:2px 0; }
   .ogrp.sel { border-color:#7e57c2; box-shadow:0 0 0 1px #7e57c2; }
@@ -108,6 +176,9 @@
   #orderTab { border-right:1px solid var(--line); transform:rotate(180deg); }
   #sideTab { border-left:1px solid var(--line); }
   .edgeTab:hover { background:#dfeef8; color:#1477a8; }
+  .edgeTab.open { background:#f3f2ee; color:#777; }
+  .edgeTab .arw { writing-mode:horizontal-tb; display:inline-block; font-size:9px; margin:5px 0; color:#1477a8; }
+  .edgeTab.open:hover { background:#dfeef8; color:#1477a8; }
   /* list width modes */
   .opmodes { display:flex; gap:2px; }
   .opmodes button { padding:1px 6px; font-size:12px; }
@@ -119,7 +190,34 @@
   #orderResize:hover::after, #orderResize.active::after { background:#29b6f2; }
   #wrap.order-full #orderResize { display:none; }
   body.resizing, body.resizing * { cursor:col-resize !important; user-select:none !important; }
-  #wrap.order-full #stage { display:none; }
+  #wrap.order-full #center { display:none; }
+  /* File explorer: nested folders as spanning columns, files as thumbnails */
+  #filePanel { width:380px; flex:none; display:flex; flex-direction:column; background:var(--panel); border-right:1px solid var(--line); padding:8px; min-height:0; }
+  #fileResize { flex:none; width:6px; margin-left:-3px; margin-right:-3px; z-index:5; cursor:col-resize; position:relative; touch-action:none; }
+  #fileResize::after { content:""; position:absolute; top:0; bottom:0; left:2px; width:2px; background:transparent; transition:background .15s; }
+  #fileResize:hover::after, #fileResize.active::after { background:#29b6f2; }
+  #fileTab { border-right:1px solid var(--line); transform:rotate(180deg); }
+  .fxbar { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+  .fxbar .root { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1; }
+  #fxTree { flex:1; overflow:auto; min-height:0; }
+  .fx { display:grid; border-top:1px solid #555; border-left:1px solid #555; background:#fff; }
+  .fx > * { border-right:1px solid #555; border-bottom:1px solid #555; min-width:0; }
+  .fx-dir { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:6px 5px;
+            max-width:120px; word-break:break-word; cursor:pointer; user-select:none; font-size:12px; }
+  .fx-dir:hover { background:#eef8fe; }
+  .fx-dir small { color:var(--muted); font-size:11px; }
+  .fx-files { display:flex; overflow-x:auto; align-items:stretch; }
+  .fx.rows .fx-files { flex-wrap:wrap; overflow-x:hidden; }
+  .fx-files.note { align-items:center; justify-content:center; color:var(--muted); font-size:12px; padding:10px; cursor:pointer; }
+  .fx-tile { flex:none; width:92px; padding:6px 3px 5px; display:flex; flex-direction:column; align-items:center; border-right:1px dashed #999;
+             cursor:pointer; position:relative; }
+  .fx-tile:hover { background:#f4fbff; }
+  .fx-tile canvas { width:62px; height:62px; border:1.5px solid #222; border-radius:10px; background:#ecebe6; }
+  .fx-tile:hover canvas { border-color:#29b6f2; }
+  .fx-tile.cur canvas { border-color:#29b6f2; box-shadow:0 0 0 3px rgba(41,182,242,.45); }
+  .fx-tile.cur .nm { font-weight:600; color:#1477a8; }
+  .fx-tile .nm { font-size:11px; margin-top:4px; max-width:86px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fx-tile .badge { position:absolute; top:3px; right:6px; font-size:9px; background:#6a4fb3; color:#fff; border-radius:3px; padding:0 3px; }
   /* Sew order list */
   #orderPanel { width:250px; flex:none; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:8px; }
   .ophead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
@@ -143,10 +241,14 @@
     .edgeTab, #orderTab { width:auto; writing-mode:horizontal-tb; transform:none; padding:6px; }
     #orderResize { display:none; }
     #orderPanel { width:auto !important; }
+    #fileResize { display:none; }
+    #filePanel { width:auto !important; max-height:260px; border-right:0; border-bottom:1px solid var(--line); }
+    #fileTab { transform:none; }
     #orderPanel { width:auto; max-height:160px; border-right:0; border-bottom:1px solid var(--line); }
     #wrap { flex-direction:column; }
-    #stage { min-height:55vh; }
-    aside { width:auto; border-left:0; border-top:1px solid var(--line); }
+    #center { min-height:55vh; }
+    aside { width:auto !important; border-left:0; border-top:1px solid var(--line); }
+    #sideResize { display:none; }
   }
 </style>
 </head>
@@ -155,14 +257,21 @@
   <h1>JEF Stitch Editor</h1>
   <button id="newBtn">New</button>
   <button id="openBtn">Open…</button>
-  <input id="file" type="file" accept=".jef,.JEF" hidden>
-  <button id="saveBtn">Save JEF</button>
-  <button id="pngBtn">Save PNG</button>
+  <input id="file" type="file" accept=".jef,.JEF,.jef+,.JEF+,.jefproj" hidden>
+  <button id="projBtn" title="Save everything (shapes, groups, measurements, sew order, hoop and photo) as a .jefproj project you can reopen and keep editing (Ctrl+S)">Save</button>
+  <button id="saveBtn" title="Export the stitches as a .JEF file for the machine">Export JEF</button>
+  <button id="pngBtn" title="Save a PNG picture of the canvas">PNG</button>
   <button id="undoBtn" disabled title="Ctrl+Z">Undo</button>
   <button id="redoBtn" disabled title="Ctrl+Y">Redo</button>
-  <button id="fitBtn">Fit</button>
+  <span class="fitgrp">
+    <button id="fitBtn" title="Zoom to fit the design or the hoop (choose with the switch)">Fit</button>
+    <label class="fitsw" title="What the Fit button zooms to: the design, or the whole hoop">
+      <span id="fitLblD">Design</span><input type="checkbox" id="fitHoop" role="switch" aria-label="Fit to hoop"><i></i><span id="fitLblH">Hoop</span>
+    </label>
+  </span>
+  <button id="filesBtn" title="Show or hide the file list">Files</button>
   <button id="orderBtn" title="Show or hide the sew order list">Sew order</button>
-  <button id="sideBtn" title="Show or hide the right-hand panel">Side panel</button>
+  <button id="sideBtn" title="Show or hide the right-hand panel">Panel</button>
   <span class="tools">
     <button data-tool="select" class="active" title="Select, move and resize shapes (V)">Select</button>
     <button data-tool="points" title="Edit individual stitch points of the loaded design (P)">Points</button>
@@ -216,10 +325,25 @@
 </div>
 
 <div id="wrap">
+  <div id="filePanel">
+    <div class="ophead"><b>Files</b>
+      <span class="opmodes">
+        <button data-fxmode="horizontal" title="Files in one horizontal strip per folder (scroll sideways)">⇢</button>
+        <button data-fxmode="rows" title="Files wrap onto rows">▦</button>
+      </span></div>
+    <div class="fxbar">
+      <button id="fxOpen" title="Pick the folder that holds your JEF files">Choose folder…</button>
+      <button id="fxRefresh" title="Look for new or changed files" hidden>↻</button>
+      <span class="root" id="fxRoot"></span>
+    </div>
+    <input id="fxDirIn" type="file" webkitdirectory multiple hidden>
+    <div id="fxTree"></div>
+  </div>
+  <div id="fileResize" title="Drag to resize the file list · double-click to reset"></div>
+  <button id="fileTab" class="edgeTab" title="Show or hide the file list">▸ Files</button>
   <div id="orderPanel">
     <div class="ophead"><b>Sew order</b>
       <span class="opmodes">
-        <button data-omode="hidden" title="Hide the list">⇤</button>
         <button data-omode="normal" title="Normal width">▥</button>
         <button data-omode="full" title="Use the full width for the list (hides the canvas)">⇔</button>
       </span></div>
@@ -227,10 +351,49 @@
     <div class="help" style="margin-top:6px">Drag cards to reorder. Click the gap between two items to add or remove a pause.</div>
   </div>
   <div id="orderResize" title="Drag to resize the list · double-click to reset"></div>
-  <button id="orderTab" class="edgeTab" title="Show the sew order list" hidden>▸ Sew order</button>
+  <button id="orderTab" class="edgeTab" title="Show or hide the sew order list">▸ Sew order</button>
+  <div id="center">
   <div id="stage">
     <canvas id="cv"></canvas>
-    <div id="drophint">Pick Rectangle, Oval, Line or Triangle and drag here to draw,<br>or drop a .JEF file to edit it.</div>
+    <div id="drophint"><span>Pick Rectangle, Oval, Line or Triangle and drag here to draw,</span><span>or drop a .JEF file or a saved project to edit it — or a photo of your hooped fabric to design on it.</span></div>
+    <!-- lining up a hoop photo with the ghost hoop -->
+    <div id="alignBar" hidden>
+      <div class="ab-row">
+        <span class="ab-title" id="alTitle">Line up your photo with the pink ghost hoop</span>
+        <label>Hoop <select id="alHoop" style="max-width:190px"></select></label>
+        <label><input type="checkbox" id="alHoopRot"> Turn 90°</label>
+      </div>
+      <div class="ab-row" style="margin-top:6px">
+        <div class="ab-seg">
+          <button id="alModeMark" title="Mark the inside edge of the hoop in the photo, then let the editor straighten and size the photo for you">Mark hoop edge</button>
+          <button id="alModeMove" title="Move, rotate, resize and stretch the photo by hand to match the ghost hoop">Move photo</button>
+        </div>
+        <label>Photo <input type="range" id="alOp" min="10" max="100" step="5" style="width:90px"></label>
+        <button id="alDone" class="ab-done" style="margin-left:auto">Done</button>
+      </div>
+      <div class="ab-row" id="alMarkRow" style="margin-top:6px" hidden>
+        <button id="alApply" class="ab-apply" title="Straighten and size the photo so the box becomes the hoop's inside edge (Enter)">Apply</button>
+        <button id="alBoxReset" title="Put the box back on the ghost hoop's inside edge">Reset box</button>
+      </div>
+      <div class="ab-row" id="alMoveRow" style="margin-top:6px">
+        <button id="alRotL" title="Rotate the photo 90° left">⟲ 90°</button>
+        <button id="alRotR" title="Rotate the photo 90° right">⟳ 90°</button>
+        <button id="alFlat" title="Undo any corner stretching: back to a flat, square-cornered photo (keeps position, size and angle)">Flatten</button>
+        <button id="alReset" title="Start over: center and size the photo on the hoop again">Reset</button>
+      </div>
+      <div class="ab-help" id="alHelpMark" hidden>
+        Drag the <b>4 corners</b> of the dotted box onto the <b>inside edge</b> of your hoop, where the straight sides
+        would meet if the corners weren't rounded. The solid pink line shows the rounded edge to match, and
+        <b>top</b> marks the top of the hoop. <b>Drag inside</b> the box to move it · then <b>Apply</b> ·
+        <span title="Arrows nudge the box · [ ] rotate · - + resize · hold Shift for bigger steps · Enter = apply · Esc = done" style="text-decoration:underline dotted;cursor:help">keys</span>
+      </div>
+      <div class="ab-help" id="alHelpMove">
+        Match your hoop's <b>inside edge</b> to the inner pink line and its center marks to the pink ticks.
+        <b>Drag</b> to move · <b>round handle</b> rotates · <b>Shift+corner</b> resizes ·
+        <b>corner</b> alone stretches (fixes photos taken at an angle) ·
+        <span title="Arrows nudge · [ ] rotate · - + resize · hold Shift for bigger steps · Enter = done" style="text-decoration:underline dotted;cursor:help">keys</span>
+      </div>
+    </div>
     <!-- sew-out player -->
     <div id="playBar" hidden>
       <!-- shown when the simulated machine stops (or finishes) -->
@@ -263,9 +426,14 @@
       </div>
     </div>
   </div>
+  <!-- open designs, one tab each -->
+  <div id="tabBar"><div id="tabs"></div><button id="tabNew" title="New design in a new tab">+</button></div>
+  </div>
 
-  <button id="sideTab" class="edgeTab" title="Show the side panel" hidden>Side panel ◂</button>
+  <button id="sideTab" class="edgeTab" title="Show or hide the properties panel">Properties ◂</button>
+  <div id="sideResize" title="Drag to resize the panel · double-click to reset"></div>
   <aside id="side">
+    <div class="sidehead"><b>Properties</b></div>
     <!-- Shape properties (Select tool) -->
     <section id="shapeBox" class="card" hidden>
       <h2 id="shapeTitle">Shape</h2>
@@ -370,7 +538,20 @@
     <div class="row"><label><input type="checkbox" id="showMeas" checked> Measurements</label><button id="measClear" title="Remove all measurements">Clear all</button></div>
     <div class="row"><label class="lbl">Hoop</label><select id="hoop" style="flex:1;min-width:0"></select></div>
     <div class="row"><span class="lbl"></span><label><input type="checkbox" id="hoopRot"> Turn 90°</label></div>
+    <div class="row"><label class="lbl" title="How the view is zoomed when you open a JEF or project">On open</label>
+      <select id="openFit" style="flex:1;min-width:0"><option value="hoop">Fit the hoop</option><option value="design">Fit the design</option></select></div>
     <div class="row"><label class="lbl">Grid</label><input type="range" id="gridOp" min="0" max="100" step="5" value="100"><span class="val" id="gridOpV">100%</span></div>
+
+    <h2>Hoop photo</h2>
+    <div class="help" id="photoHelp">Take a photo of your hooped fabric from straight above, upload it, and line it up: either mark the
+      hoop's inside edge and let the editor straighten the photo, or move the photo onto the ghost hoop by hand.
+      Then you can draw and place the design right on the fabric you'll sew on. The photo stays in this browser and in saved projects, never in the JEF.<b id="photoWarn" style="color:#c0392b"></b></div>
+    <div class="row">
+      <button id="photoBtn">Upload photo…</button><input id="photoFile" type="file" accept="image/*" hidden>
+      <button id="photoAlign" disabled title="Move, rotate, resize and straighten the photo to match the hoop">Align</button>
+      <button id="photoDel" disabled>Remove</button>
+    </div>
+    <div class="row"><label class="lbl">Photo</label><input type="range" id="photoOp" min="0" max="100" step="5" value="100" disabled><span class="val" id="photoOpV">100%</span></div>
 
     <h2>Shapes (Select tool)</h2>
     <div class="help">
@@ -402,6 +583,12 @@
   </aside>
 </div>
 
+<div id="fxMenu" hidden>
+  <div class="mh" id="fxMenuHead"></div>
+  <button data-fx="proj">Save project here…</button>
+  <button data-fx="jef">Export JEF here…</button>
+  <div class="note" id="fxMenuNote" hidden></div>
+</div>
 <div id="ctxMenu" hidden>
   <button data-act="group">Group <kbd>Ctrl+G</kbd></button>
   <button data-act="ungroup">Ungroup <kbd>Ctrl+Shift+G</kbd></button>
@@ -469,7 +656,8 @@ const HOOPS = [
   { id: "50x50",   w: 50,  h: 50,  name: "Hoop C, free-arm", code: 1 },
   { id: "110x110", w: 110, h: 110, name: "", code: 0 },
   { id: "110x126", w: 110, h: 126, name: "Hoop A, standard", code: 3 },
-  { id: "140x140", w: 140, h: 140, name: "SQ14" },
+  // measured: 6.75" (171.5 mm) inside-to-inside, ~11 mm wide frame, ~16 mm inside corner radius
+  { id: "140x140", w: 140, h: 140, name: "SQ14", iw: 171.5, ih: 171.5, band: 11, rad: 16 },
   { id: "140x200", w: 140, h: 200, name: "Hoop B / RE20", code: 2 },
   { id: "200x200", w: 200, h: 200, name: "SQ20", code: 4 },
   { id: "200x280", w: 200, h: 280, name: "RE28" },
@@ -481,8 +669,14 @@ function currentHoop() {
   const h = HOOPS.find(x => x.id === $("hoop").value);
   if (!h || !h.w) return null;
   const rot = $("hoopRot").checked;
-  return { ...h, W: (rot ? h.h : h.w) * 10, H: (rot ? h.w : h.h) * 10 };   // in 0.1 mm
+  // W×H = sewing field; IW×IH = inside edge of the plastic frame (default: 5 mm past the field);
+  // BAND = frame width; RAD = inside corner radius. All in 0.1 mm.
+  const iw = h.iw || h.w + 10, ih = h.ih || h.h + 10;
+  return { ...h, W: (rot ? h.h : h.w) * 10, H: (rot ? h.w : h.h) * 10,
+           IW: (rot ? ih : iw) * 10, IH: (rot ? iw : ih) * 10, BAND: (h.band || 6) * 10, RAD: (h.rad || 22) * 10 };
 }
+// how far the frame's outside edge reaches past the sewing field (0.1 mm), per side
+const hoopReach = hp => ({ x: (hp.IW - hp.W) / 2 + hp.BAND, y: (hp.IH - hp.H) / 2 + hp.BAND });
 function drawHoop(r) {
   const hp = currentHoop();
   if (!hp) return;
@@ -491,12 +685,10 @@ function drawHoop(r) {
   ctx.save();
   ctx.fillStyle = "rgba(40,50,70,.13)";
   ctx.beginPath(); ctx.rect(0, 0, r.width, r.height); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fill("evenodd");
-  // the plastic hoop frame, ~8 mm outside the sewing field, with rounded corners
-  const pad = 80 * view.s, rad = Math.min(250 * view.s, (x1 - x0) / 2);
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad, rad);
-  else ctx.rect(x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad);
-  ctx.strokeStyle = "rgba(90,100,120,.35)"; ctx.lineWidth = Math.max(3, 60 * view.s); ctx.stroke();
+  // the plastic hoop frame around the sewing field, with rounded corners
+  const s = view.s, px = ((hp.IW - hp.W) / 2 + hp.BAND / 2) * s, py = ((hp.IH - hp.H) / 2 + hp.BAND / 2) * s;
+  rrPath(x0 - px, y0 - py, x1 - x0 + 2 * px, y1 - y0 + 2 * py, (hp.RAD + hp.BAND / 2) * s);
+  ctx.strokeStyle = "rgba(90,100,120,.35)"; ctx.lineWidth = Math.max(3, hp.BAND * s); ctx.stroke();
   // sewing field boundary
   ctx.strokeStyle = "rgba(60,80,120,.7)"; ctx.lineWidth = 1; ctx.setLineDash([6, 4]);
   ctx.strokeRect(Math.round(x0) + .5, Math.round(y0) + .5, Math.round(x1 - x0), Math.round(y1 - y0));
@@ -505,8 +697,8 @@ function drawHoop(r) {
   ctx.strokeStyle = "rgba(60,80,120,.6)"; ctx.lineWidth = 2;
   const [cx, cy] = toS(0, 0);
   ctx.beginPath();
-  ctx.moveTo(cx, y0 - pad - 6); ctx.lineTo(cx, y0 - pad + 6); ctx.moveTo(cx, y1 + pad - 6); ctx.lineTo(cx, y1 + pad + 6);
-  ctx.moveTo(x0 - pad - 6, cy); ctx.lineTo(x0 - pad + 6, cy); ctx.moveTo(x1 + pad - 6, cy); ctx.lineTo(x1 + pad + 6, cy);
+  ctx.moveTo(cx, y0 - py - 6); ctx.lineTo(cx, y0 - py + 6); ctx.moveTo(cx, y1 + py - 6); ctx.lineTo(cx, y1 + py + 6);
+  ctx.moveTo(x0 - px - 6, cy); ctx.lineTo(x0 - px + 6, cy); ctx.moveTo(x1 + px - 6, cy); ctx.lineTo(x1 + px + 6, cy);
   ctx.stroke();
   ctx.restore();
 }
@@ -514,6 +706,360 @@ function hoopFits(all) {
   const hp = currentHoop();
   if (!hp) return true;
   return all.every(c => Math.abs(c.x) <= hp.W / 2 && Math.abs(c.y) <= hp.H / 2);
+}
+// rounded-rectangle path (falls back to square corners on old browsers)
+function rrPath(x, y, w, h, rad) {
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, Math.max(0, Math.min(rad, w / 2, h / 2)));
+  else ctx.rect(x, y, w, h);
+}
+// The bold pink hoop shown while lining up a photo: the frame band (with crisp inner/outer edges),
+// the sewing field, and the center marks a real hoop has on each side.
+const GHOST = "#d6338a";
+function drawGhostHoop() {
+  const hp = currentHoop();
+  if (!hp) return;
+  const s = view.s, [x0, y0] = toS(-hp.W / 2, hp.H / 2), [x1, y1] = toS(hp.W / 2, -hp.H / 2);
+  const w = x1 - x0, h = y1 - y0, [cx, cy] = toS(0, 0);
+  // gaps from the sewing field to the frame's inside edge, middle of the band, and outside edge (screen px)
+  const ix = (hp.IW - hp.W) / 2 * s, iy = (hp.IH - hp.H) / 2 * s, B = hp.BAND * s, R = hp.RAD * s;
+  const ring = (gx, gy, rad) => rrPath(x0 - gx, y0 - gy, w + 2 * gx, h + 2 * gy, rad);
+  ctx.save();
+  ring(ix + B / 2, iy + B / 2, R + B / 2);                                                     // the frame band
+  ctx.strokeStyle = "rgba(214,51,138,.22)"; ctx.lineWidth = Math.max(3, B); ctx.stroke();
+  ctx.strokeStyle = GHOST; ctx.lineWidth = 2;
+  ring(ix, iy, R); ctx.stroke();                                                               // inside edge of the hoop
+  ctx.lineWidth = 1;
+  ring(ix + B, iy + B, R + B); ctx.stroke();                                                   // outside edge
+  ctx.setLineDash([6, 4]); ctx.strokeRect(x0, y0, w, h);                                       // sewing field
+  ctx.setLineDash([2, 5]); ctx.globalAlpha = .7; ctx.beginPath();                              // center lines
+  ctx.moveTo(cx, y0); ctx.lineTo(cx, y1); ctx.moveTo(x0, cy); ctx.lineTo(x1, cy); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = 3; ctx.beginPath();                // center ticks on the frame
+  const tx0 = ix, tx1 = ix + B + 8, ty0 = iy, ty1 = iy + B + 8;
+  ctx.moveTo(cx, y0 - ty0); ctx.lineTo(cx, y0 - ty1); ctx.moveTo(cx, y1 + ty0); ctx.lineTo(cx, y1 + ty1);
+  ctx.moveTo(x0 - tx0, cy); ctx.lineTo(x0 - tx1, cy); ctx.moveTo(x1 + tx0, cy); ctx.lineTo(x1 + tx1, cy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ---------- Hoop photo ----------
+// A photo of the hooped fabric, drawn under the design. It is placed by its four corners in design space
+// (q = top-left, top-right, bottom-right, bottom-left, in 0.1 mm). Moving one corner on its own warps the
+// photo in perspective, which straightens a photo taken slightly off to one side. The warped photo is
+// rendered once into an offscreen canvas (photo.warp) and only redone when the corners change.
+let photo = null;          // { img, src (JPEG data URL, for remembering it), q, op }
+let aligning = false;
+const PHOTO_KEY = "jefHoopPhoto";
+const quadBox = q => ({ minX: Math.min(...q.map(p => p[0])), maxX: Math.max(...q.map(p => p[0])),
+                        minY: Math.min(...q.map(p => p[1])), maxY: Math.max(...q.map(p => p[1])) });
+const quadMid = q => [q.reduce((a, p) => a + p[0], 0) / 4, q.reduce((a, p) => a + p[1], 0) / 4];
+// projective map from the unit square to the quad: (0,0)→q0, (1,0)→q1, (1,1)→q2, (0,1)→q3
+function squareToQuad(q) {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
+  const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+  let g = 0, h = 0;
+  if (Math.abs(sx) > 1e-9 || Math.abs(sy) > 1e-9) {
+    const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2, den = dx1 * dy2 - dx2 * dy1;
+    g = (sx * dy2 - dx2 * sy) / den; h = (dx1 * sy - sx * dy1) / den;
+  }
+  const a = x1 - x0 + g * x1, b = x3 - x0 + h * x3, d = y1 - y0 + g * y1, e = y3 - y0 + h * y3;
+  return (u, v) => { const w = g * u + h * v + 1; return [(a * u + b * v + x0) / w, (d * u + e * v + y0) / w]; };
+}
+function quadConvex(q) {
+  let sign = 0;
+  for (let i = 0; i < 4; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % 4], [cx, cy] = q[(i + 2) % 4];
+    const z = (bx - ax) * (cy - by) - (by - ay) * (cx - bx);
+    if (Math.abs(z) < 1e-6) return false;
+    if (sign && Math.sign(z) !== sign) return false;
+    sign = Math.sign(z);
+  }
+  return true;
+}
+// draw `img` so the source triangle s lands on the destination triangle d (canvas px), clipped to d
+function drawImageTri(g, img, s, d) {
+  const [[sx0, sy0], [sx1, sy1], [sx2, sy2]] = s, [[dx0, dy0], [dx1, dy1], [dx2, dy2]] = d;
+  const den = (sx1 - sx0) * (sy2 - sy0) - (sx2 - sx0) * (sy1 - sy0);
+  if (!den) return;
+  const a = ((dx1 - dx0) * (sy2 - sy0) - (dx2 - dx0) * (sy1 - sy0)) / den;
+  const b = ((dy1 - dy0) * (sy2 - sy0) - (dy2 - dy0) * (sy1 - sy0)) / den;
+  const c = ((dx2 - dx0) * (sx1 - sx0) - (dx1 - dx0) * (sx2 - sx0)) / den;
+  const e = ((dy2 - dy0) * (sx1 - sx0) - (dy1 - dy0) * (sx2 - sx0)) / den;
+  g.save();
+  // clip to the triangle grown by ~0.7 px, so neighbouring triangles overlap and no seams show
+  const mx = (dx0 + dx1 + dx2) / 3, my = (dy0 + dy1 + dy2) / 3;
+  g.beginPath();
+  d.forEach(([x, y], i) => { const L = Math.hypot(x - mx, y - my) || 1, k = 1 + 0.7 / L; i ? g.lineTo(mx + (x - mx) * k, my + (y - my) * k) : g.moveTo(mx + (x - mx) * k, my + (y - my) * k); });
+  g.closePath(); g.clip();
+  g.transform(a, b, c, e, dx0 - a * sx0 - c * sy0, dy0 - b * sx0 - e * sy0);
+  g.drawImage(img, 0, 0);
+  g.restore();
+}
+function warpPhoto(fast) {
+  const p = photo;
+  if (!p) return;
+  const b = quadBox(p.q), bw = b.maxX - b.minX, bh = b.maxY - b.minY, iw = p.img.width, ih = p.img.height;
+  // about the photo's own resolution, capped so the offscreen canvas stays a sensible size
+  const edge = Math.max(Math.hypot(p.q[1][0] - p.q[0][0], p.q[1][1] - p.q[0][1]) / iw,
+                        Math.hypot(p.q[3][0] - p.q[0][0], p.q[3][1] - p.q[0][1]) / ih);
+  const k = Math.min(1 / edge, (fast ? 1200 : 2600) / Math.max(bw, bh));      // offscreen px per 0.1 mm
+  const W = p.warp ? p.warp.cv : document.createElement("canvas");   // resizing below also clears it
+  W.width = Math.max(1, Math.ceil(bw * k)); W.height = Math.max(1, Math.ceil(bh * k));
+  const g = W.getContext("2d");
+  g.imageSmoothingQuality = "high";
+  const toO = ([x, y]) => [(x - b.minX) * k, (b.maxY - y) * k];   // design space → offscreen px (y flipped)
+  const flat = Math.hypot(p.q[0][0] + p.q[2][0] - p.q[1][0] - p.q[3][0], p.q[0][1] + p.q[2][1] - p.q[1][1] - p.q[3][1]) < 0.5;
+  if (flat) {   // a plain parallelogram: one affine draw does it, no seams
+    const [o0, o1, o3] = [toO(p.q[0]), toO(p.q[1]), toO(p.q[3])];
+    g.setTransform((o1[0] - o0[0]) / iw, (o1[1] - o0[1]) / iw, (o3[0] - o0[0]) / ih, (o3[1] - o0[1]) / ih, o0[0], o0[1]);
+    g.drawImage(p.img, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  } else {      // perspective: a mesh of small triangles, each drawn with its own affine transform
+    const map = squareToQuad(p.q), N = fast ? 10 : 18;
+    const P = [];
+    for (let j = 0; j <= N; j++) { P.push([]); for (let i = 0; i <= N; i++) P[j].push(toO(map(i / N, j / N))); }
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const s00 = [iw * i / N, ih * j / N], s10 = [iw * (i + 1) / N, ih * j / N], s01 = [iw * i / N, ih * (j + 1) / N], s11 = [iw * (i + 1) / N, ih * (j + 1) / N];
+      drawImageTri(g, p.img, [s00, s10, s11], [P[j][i], P[j][i + 1], P[j + 1][i + 1]]);
+      drawImageTri(g, p.img, [s00, s11, s01], [P[j][i], P[j + 1][i + 1], P[j + 1][i]]);
+    }
+  }
+  p.warp = { cv: W, minX: b.minX, maxY: b.maxY, w: W.width / k, h: W.height / k };
+}
+function drawPhoto() {
+  if (!photo || !photo.warp || photo.op <= 0) return;
+  const W = photo.warp, [sx, sy] = toS(W.minX, W.maxY);
+  ctx.save(); ctx.globalAlpha = photo.op; ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(W.cv, sx, sy, W.w * view.s, W.h * view.s);
+  ctx.restore();
+}
+// the photo laid out flat and centered so the whole hoop frame fits inside it with a little room
+function defaultQuad(img) {
+  const hp = currentHoop(), o = hp ? { x: hp.W + 2 * hoopReach(hp).x, y: hp.H + 2 * hoopReach(hp).y } : { x: 1320, y: 1480 };
+  const s = Math.max(o.x / img.width, o.y / img.height) / 0.85;
+  const hw = img.width * s / 2, hh = img.height * s / 2;
+  return [[-hw, hh], [hw, hh], [hw, -hh], [-hw, -hh]];
+}
+function savePhoto() {
+  if (!photo) { try { localStorage.removeItem(PHOTO_KEY); } catch (e) {} return; }
+  try { localStorage.setItem(PHOTO_KEY, JSON.stringify({ src: photo.src, q: photo.q, op: photo.op })); photo.unsaved = false; }
+  catch (e) { photo.unsaved = true; }   // too big for this browser's storage: it still works until the page is closed
+  updatePhotoUI();
+}
+function setPhoto(img, src, q, op) {
+  photo = { img, src, q: q || defaultQuad(img), op: op == null ? 1 : op };
+  warpPhoto(); savePhoto();
+}
+function loadPhoto(file) {
+  const url = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    URL.revokeObjectURL(url);
+    // shrink big phone photos: plenty of detail for lining up, and small enough to remember in the browser
+    const f = Math.min(1, 2000 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(im.naturalWidth * f); c.height = Math.round(im.naturalHeight * f);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    setPhoto(c, c.toDataURL("image/jpeg", 0.85), null, photo ? photo.op : 1);
+    startAlign();
+  };
+  im.onerror = () => { URL.revokeObjectURL(url); alert("Couldn't open that image. Try a JPEG or PNG photo."); };
+  im.src = url;
+}
+function removePhoto() {
+  if (aligning) endAlign();
+  photo = null; savePhoto(); changed();
+}
+function updatePhotoUI() {
+  const has = !!photo;
+  $("photoAlign").disabled = $("photoDel").disabled = $("photoOp").disabled = !has;
+  $("photoBtn").textContent = has ? "Replace photo…" : "Upload photo…";
+  $("photoAlign").textContent = aligning ? "Aligning…" : "Align";
+  const pct = Math.round((has ? photo.op : 1) * 100);
+  $("photoOp").value = $("alOp").value = pct; $("photoOpV").textContent = pct + "%";
+  $("photoWarn").textContent = has && photo.unsaved
+    ? " (This photo is too large to remember in this browser, so you'll need to upload it again next time.)" : "";
+}
+function syncAlignHoop() {
+  $("alHoop").innerHTML = $("hoop").innerHTML;
+  $("alHoop").value = $("hoop").value; $("alHoopRot").checked = $("hoopRot").checked;
+}
+function fitBox(b, pad = 50, top = pad) {   // `top`: extra room to keep clear at the top (for the align bar)
+  const r = cv.getBoundingClientRect(), w = Math.max(10, b.maxX - b.minX), h = Math.max(10, b.maxY - b.minY);
+  view.s = Math.min((r.width - 2 * pad) / w, (r.height - pad - top) / h);
+  view.ox = r.width / 2 - (b.minX + w / 2) * view.s;
+  view.oy = top + (r.height - pad - top) / 2 + (b.minY + h / 2) * view.s;
+}
+function startAlign() {
+  if (!photo) return;
+  if (!currentHoop()) { $("hoop").value = "110x126"; saveHoop(); }   // there has to be a hoop to line up with
+  if (tool !== "select") setTool("select");   // (before aligning is set: switching tools ends alignment)
+  aligning = true;
+  shapeSel.clear(); runSel.clear(); ptSel.clear();
+  syncAlignHoop();
+  $("alignBar").hidden = false;
+  setAlignMode(alignMode);   // (also fits the view)
+  cv.style.cursor = "move";
+  updatePhotoUI(); changed();
+}
+// zoom to show the whole photo and the hoop, below the align bar
+function fitAlign() {
+  const hp = currentHoop(), pb = quadBox(photo.q), rc = hoopReach(hp);
+  fitBox({ minX: Math.min(pb.minX, -hp.W / 2 - rc.x), maxX: Math.max(pb.maxX, hp.W / 2 + rc.x),
+           minY: Math.min(pb.minY, -hp.H / 2 - rc.y), maxY: Math.max(pb.maxY, hp.H / 2 + rc.y) }, 30, ($("alignBar").offsetHeight || 0) + 70);
+}
+function endAlign() {
+  if (!aligning) return;
+  aligning = false; markBox = null;
+  $("alignBar").hidden = true;
+  cv.style.cursor = "default";
+  savePhoto(); changed();
+}
+// handles in screen px: the 4 corners, plus a rotate knob beyond the middle of the photo's top edge
+function photoHandles() {
+  const S = photo.q.map(p => toS(...p)), c = [(S[0][0] + S[1][0] + S[2][0] + S[3][0]) / 4, (S[0][1] + S[1][1] + S[2][1] + S[3][1]) / 4];
+  const m = [(S[0][0] + S[1][0]) / 2, (S[0][1] + S[1][1]) / 2], L = Math.hypot(m[0] - c[0], m[1] - c[1]) || 1;
+  return { S, m, rot: [m[0] + (m[0] - c[0]) / L * 30, m[1] + (m[1] - c[1]) / L * 30] };
+}
+function photoHit(x, y) {
+  if (!photo) return null;
+  const { S, rot } = photoHandles();
+  if (Math.hypot(x - rot[0], y - rot[1]) <= 10) return "rot";
+  for (let i = 0; i < 4; i++) if (Math.hypot(x - S[i][0], y - S[i][1]) <= 10) return i;
+  return inQuad(S, x, y) ? "move" : null;
+}
+function inQuad(S, x, y) {   // point in polygon (works for any convex quad)
+  let inside = false;
+  for (let i = 0, j = 3; i < 4; j = i++)
+    if ((S[i][1] > y) !== (S[j][1] > y) && x < (S[j][0] - S[i][0]) * (y - S[i][1]) / (S[j][1] - S[i][1]) + S[i][0]) inside = !inside;
+  return inside;
+}
+function drawPhotoHandles() {
+  const { S, m, rot } = photoHandles();
+  ctx.save();
+  ctx.strokeStyle = GHOST; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); S.forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(...m); ctx.lineTo(...rot); ctx.stroke();
+  ctx.fillStyle = "#fff";
+  for (const [x, y] of S) { ctx.beginPath(); ctx.rect(x - 6, y - 6, 12, 12); ctx.fill(); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(rot[0], rot[1], 7, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+// apply a change to every corner (relative to the corners at the start of a drag, if given)
+function photoXform(fn, base = photo.q, fast = false) {
+  const q = base.map(p => fn(p));
+  if (!quadConvex(q)) return;    // never let the photo fold over itself
+  photo.q = q; warpPhoto(fast); draw();
+}
+const rotAbout = (c, ang) => ([x, y]) => {
+  const co = Math.cos(ang), si = Math.sin(ang);
+  return [c[0] + (x - c[0]) * co - (y - c[1]) * si, c[1] + (x - c[0]) * si + (y - c[1]) * co];
+};
+const scaleAbout = (c, f) => ([x, y]) => [c[0] + (x - c[0]) * f, c[1] + (y - c[1]) * f];
+// back to a flat rectangle with the photo's proportions, keeping its center, size and angle
+function flattenPhoto() {
+  const q = photo.q, c = quadMid(q), d = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const w = (d(q[0], q[1]) + d(q[3], q[2])) / 2, hgt = w * photo.img.height / photo.img.width;
+  const ang = Math.atan2(q[1][1] - q[0][1] + q[2][1] - q[3][1], q[1][0] - q[0][0] + q[2][0] - q[3][0]);
+  photoXform(rotAbout(c, ang), [[c[0] - w / 2, c[1] + hgt / 2], [c[0] + w / 2, c[1] + hgt / 2], [c[0] + w / 2, c[1] - hgt / 2], [c[0] - w / 2, c[1] - hgt / 2]]);
+  savePhoto();
+}
+
+// ---------- Marking the hoop edge (the other way to line up a photo) ----------
+// Instead of moving the photo, you drag a box's 4 corners onto the inside edge of the hoop in the photo.
+// "Apply" then finds the perspective map that takes that box to the real inside edge (hoop.IW × IH,
+// centered on 0,0) and runs the photo's corners through it, which straightens and sizes the photo in one go.
+let alignMode = "move";      // "mark" | "move"
+try { if (localStorage.getItem("jefAlignMode") === "mark") alignMode = "mark"; } catch (e) {}
+let markBox = null;          // [TL, TR, BR, BL] in design space (0.1 mm), while marking
+// projective map taking the 4 points s onto the 4 points d (null if the points are degenerate);
+// fn.w(p) is the homogeneous divisor: if it changes sign between points, the map folds them over the horizon
+function homog(s, d) {
+  const A = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = s[i], [X, Y] = d[i];
+    A.push([x, y, 1, 0, 0, 0, -x * X, -y * X, X], [0, 0, 0, x, y, 1, -x * Y, -y * Y, Y]);
+  }
+  for (let c = 0; c < 8; c++) {   // Gaussian elimination with partial pivoting
+    let p = c;
+    for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-12) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
+  }
+  const [a, b, c, d2, e, f, g, h] = A.map((row, i) => row[8] / row[i]);
+  const fn = ([x, y]) => { const w = g * x + h * y + 1; return [(a * x + b * y + c) / w, (d2 * x + e * y + f) / w]; };
+  fn.w = ([x, y]) => g * x + h * y + 1;
+  return fn;
+}
+// the current hoop's inside edge as a box (where its straight sides would meet), [TL, TR, BR, BL]
+function hoopInnerQuad() {
+  const hp = currentHoop(), w = hp.IW / 2, h = hp.IH / 2;
+  return [[-w, h], [w, h], [w, -h], [-w, -h]];
+}
+function boxXform(fn, base = markBox) {
+  const q = base.map(p => fn(p));
+  if (quadConvex(q)) { markBox = q; draw(); }
+}
+function applyMark() {
+  if (!markBox || !photo) return;
+  if (!currentHoop()) { alert("Pick your hoop first, so the editor knows how big its inside edge is."); return; }
+  const f = homog(markBox, hoopInnerQuad());
+  // every photo corner has to stay on the same side of the horizon, or the photo would fold inside out
+  const ws = f ? photo.q.map(f.w) : [];
+  const q = f && ws.every(w => w > 0) || f && ws.every(w => w < 0) ? photo.q.map(f) : null;
+  if (!q || !quadConvex(q) || q.flat().some(v => !isFinite(v))) {
+    alert("That box can't be applied: it's too squashed or twisted. Line its corners up with the inside corners of the hoop and try again.");
+    return;
+  }
+  photo.q = q; warpPhoto(); savePhoto();
+  setAlignMode("move");   // now check the result against the ghost hoop, nudge if needed, then Done
+}
+function setAlignMode(m) {
+  alignMode = m;
+  try { localStorage.setItem("jefAlignMode", m); } catch (e) {}
+  const mark = m === "mark";
+  // the box starts on the ghost hoop's inside edge: right where the hoop is after an Apply, so it can be refined
+  markBox = mark ? (currentHoop() ? hoopInnerQuad() : [[-800, 800], [800, 800], [800, -800], [-800, -800]]) : null;
+  $("alModeMark").classList.toggle("on", mark); $("alModeMove").classList.toggle("on", !mark);
+  $("alMarkRow").hidden = $("alHelpMark").hidden = !mark;
+  $("alMoveRow").hidden = $("alHelpMove").hidden = mark;
+  $("alTitle").textContent = mark ? "Mark the inside edge of your hoop" : "Line up your photo with the pink ghost hoop";
+  if (aligning && currentHoop()) { fitAlign(); draw(); }
+}
+function markHit(x, y) {
+  const S = markBox.map(p => toS(...p));
+  for (let i = 0; i < 4; i++) if (Math.hypot(x - S[i][0], y - S[i][1]) <= 10) return i;
+  return inQuad(S, x, y) ? "move" : null;
+}
+function drawMarkBox() {
+  const hp = currentHoop(), H = hp && homog(hoopInnerQuad(), markBox);
+  if (!H) return;
+  const P = p => toS(...H(p)), S = markBox.map(p => toS(...p));
+  const line = pts => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); };
+  // the hoop's rounded inside edge, bent by the same perspective as the box
+  const w = hp.IW / 2, h = hp.IH / 2, R = Math.min(hp.RAD, w, h), edge = [];
+  [[w - R, h - R, 0], [w - R, -h + R, -Math.PI / 2], [-w + R, -h + R, Math.PI], [-w + R, h - R, Math.PI / 2]].forEach(([cx, cy, a0]) => {
+    for (let k = 0; k <= 8; k++) { const a = a0 - k * Math.PI / 16; edge.push(P([cx + R * Math.cos(a + Math.PI / 2), cy + R * Math.sin(a + Math.PI / 2)])); }
+  });
+  ctx.save();
+  ctx.strokeStyle = GHOST;
+  ctx.lineWidth = 2; line(edge); ctx.closePath(); ctx.stroke();
+  // the sewing field and center lines, as a preview of where they'll land
+  ctx.lineWidth = 1; ctx.globalAlpha = .6; ctx.setLineDash([6, 4]);
+  line([P([-hp.W / 2, hp.H / 2]), P([hp.W / 2, hp.H / 2]), P([hp.W / 2, -hp.H / 2]), P([-hp.W / 2, -hp.H / 2])]); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([2, 5]);
+  line([P([0, h]), P([0, -h])]); ctx.stroke(); line([P([-w, 0]), P([w, 0])]); ctx.stroke();
+  // the dotted box itself, with its corner handles
+  ctx.globalAlpha = 1; ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]);
+  line(S); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]); ctx.fillStyle = "#fff";
+  for (const [x, y] of S) { ctx.beginPath(); ctx.arc(x, y, 6, 0, 2 * Math.PI); ctx.fill(); ctx.stroke(); }
+  // "top" label just outside the middle of the top edge
+  const tm = P([0, h]), c = P([0, 0]), L = Math.hypot(tm[0] - c[0], tm[1] - c[1]) || 1;
+  ctx.fillStyle = GHOST; ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("top", tm[0] + (tm[0] - c[0]) / L * 14, tm[1] + (tm[1] - c[1]) / L * 14);
+  ctx.restore();
 }
 
 // ---------- Fabric pull simulation ----------
@@ -560,6 +1106,10 @@ let runSources = {};
 let measures = [], measSel = null, measPick = null, nextMeasId = 1;
 let ptSel = new Set(), undoStack = [], redoStack = [], saved = true;
 let view = { s: 1, ox: 0, oy: 0 };
+// open tabs (see "Tabs" below): the active design is in the globals above, the others are parked in docs[i].d
+let docs = [{ id: 1, d: null }], activeDoc = 0, nextDocId = 2, tabSig = "";
+// untitled: a new design nobody has named yet (saving asks for a name); renamed: the name was typed in by you
+let untitled = true, renamed = false;
 let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
 let sewAll = true, sewN = 0;
 let defaults = { style: "satin", thick: 30, dens: 4, len: 25, under: true, lock: true, color: "cur", corner: 100 };
@@ -595,7 +1145,55 @@ function parseJEF(buf) {
   if (!th.length) th.push({ idx: 1 });
   const trailer = bytes.slice(Math.min(endAt + 4, buf.byteLength));
   readEnhance(trailer, th);
-  return { cmds: out, threads: th, meta: { header: bytes.slice(0, 0x74), types, trailer } };
+  // whatever sits between the thread types and the stitches is kept byte for byte (JEF+ keeps its thread block there)
+  const pre = bytes.slice(Math.min(off, 0x74 + 8 * n), off);
+  const plus = readPlus(pre, th);
+  return { cmds: out, threads: th, meta: { header: bytes.slice(0, 0x74), types, trailer, pre, plus } };
+}
+
+// JEF+ (Janome's newer software): right after the thread types comes a thread block —
+//   u32 count, then per thread 44 bytes: u32 number (0, 1, 2…), r g b a, u32 (unknown, usually -1), 32-byte name —
+// with each thread's real color and a name. Read it if present; returns true for a JEF+ file.
+const PLUS_REC = 44;
+function readPlus(pre, th) {
+  if (pre.length < 4 + PLUS_REC * th.length) return false;
+  const d = new DataView(pre.buffer, pre.byteOffset, pre.byteLength);
+  if (d.getInt32(0, true) !== th.length) return false;
+  for (let k = 0; k < th.length; k++) if (d.getInt32(4 + k * PLUS_REC, true) !== k) return false;
+  th.forEach((t, k) => {
+    const r = 4 + k * PLUS_REC;
+    let name = "";
+    for (let q = r + 12; q < r + PLUS_REC && pre[q]; q++) name += String.fromCharCode(pre[q]);
+    t.rgb = [pre[r + 4], pre[r + 5], pre[r + 6]];
+    if (/^[\x20-\x7e]+$/.test(name)) t.name = name; else delete t.name;
+    t.plusRec = b64(pre.slice(r, r + PLUS_REC));   // the original record, reused on export while the thread is unchanged
+  });
+  return true;
+}
+// a fresh JEF+ thread block for these threads (old = the file's block, whose tail after the records is kept)
+function buildPlus(th, old) {
+  const oldN = old && old.length >= 4 ? new DataView(old.buffer, old.byteOffset, old.byteLength).getInt32(0, true) : 0;
+  const tail = old && old.length >= 4 + PLUS_REC * oldN ? old.slice(4 + PLUS_REC * oldN) : new Uint8Array(4);
+  const out = new Uint8Array(4 + PLUS_REC * th.length + tail.length), d = new DataView(out.buffer);
+  d.setInt32(0, th.length, true);
+  th.forEach((t, k) => {
+    const r = 4 + k * PLUS_REC, rgb = t.rgb || threadRGB(t, k);
+    const raw = t.plusRec ? unb64(t.plusRec) : null;
+    let rawName = "";
+    if (raw) for (let q = 12; q < PLUS_REC && raw[q]; q++) rawName += String.fromCharCode(raw[q]);
+    // still the same color and name as in the file it came from: reuse its record as it was
+    if (raw && raw.length === PLUS_REC && t.rgb && raw[4] === rgb[0] && raw[5] === rgb[1] && raw[6] === rgb[2] && (t.name || "") === rawName) out.set(raw, r);
+    else {
+      out.set([rgb[0], rgb[1], rgb[2], 0xff], r + 4);
+      d.setInt32(r + 8, -1, true);
+      const hex = "#" + rgb.map(v => v.toString(16).padStart(2, "0")).join("");
+      const name = (t.name || (PALETTE[t.idx] && !t.rgb ? PALETTE[t.idx][0] : "RGB," + hex)).replace(/[^\x20-\x7e]/g, "").slice(0, 31);
+      for (let q = 0; q < name.length; q++) out[r + 12 + q] = name.charCodeAt(q);
+    }
+    d.setInt32(r, k, true);
+  });
+  out.set(tail, 4 + PLUS_REC * th.length);
+  return out;
 }
 
 // Some Janome software appends an "ENHANCE" block with real thread RGB + names. Read it if present.
@@ -935,10 +1533,14 @@ function buildJEF() {
     }
     px = c.x; py = c.y;
   }
-  const n = th.length, off = 0x74 + 8 * n;
+  const n = th.length;
   const dirty = threadsDirty || th.length !== threads.length || th.some((t, k) => t.idx !== threads[k].idx);
   const trailer = dirty ? new Uint8Array(0) : meta.trailer;
+  // bytes between the thread types and the stitches: kept as they were; a JEF+ thread block is rebuilt if threads changed
+  const pre = meta.plus ? (dirty ? buildPlus(th, meta.pre) : meta.pre) : (!dirty && meta.pre ? meta.pre : new Uint8Array(0));
+  const off = 0x74 + 8 * n + pre.length;
   const out = new Uint8Array(off + st.length + 4 + trailer.length);
+  out.set(pre, 0x74 + 8 * n);
   out.set(meta.header.slice(0, 0x74), 0);
   const d = new DataView(out.buffer), b = bounds(all);
   d.setInt32(0, off, true);
@@ -991,16 +1593,24 @@ function resize() {
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   draw();
 }
-function fit() {
-  const { all } = compose();
-  if (!all.length) return;
-  const b = bounds(all), r = cv.getBoundingClientRect(), pad = 50;
-  const w = Math.max(10, b.maxX - b.minX), h = Math.max(10, b.maxY - b.minY);
-  view.s = Math.min((r.width - 2 * pad) / w, (r.height - 2 * pad) / h);
-  view.ox = r.width / 2 - (b.minX + w / 2) * view.s;
-  view.oy = r.height / 2 + (b.minY + h / 2) * view.s;
+// Fit the view to the design or to the hoop. mode: "design" | "hoop" (default: the Fit switch in the toolbar).
+// Hoop: the whole frame, plus any part of the design that sticks out of it. Design: just the design (or the
+// hoop photo when there's nothing sewn yet), falling back to the hoop when there's neither.
+const fitModeNow = () => $("fitHoop").checked ? "hoop" : "design";
+function fit(mode = fitModeNow()) {
+  const pts = compose().all.filter(c => c.t !== "c");
+  // the design's own box (bounds() always includes the origin, as JEF extents do)
+  const db = pts.length ? { minX: Math.min(...pts.map(c => c.x)), maxX: Math.max(...pts.map(c => c.x)),
+                            minY: Math.min(...pts.map(c => c.y)), maxY: Math.max(...pts.map(c => c.y)) } : null;
+  const hp = currentHoop(), rc = hp && hoopReach(hp);
+  const hb = hp ? { minX: -hp.W / 2 - rc.x, maxX: hp.W / 2 + rc.x, minY: -hp.H / 2 - rc.y, maxY: hp.H / 2 + rc.y } : null;
+  const union = (a, b) => !a ? b : !b ? a : { minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX), minY: Math.min(a.minY, b.minY), maxY: Math.max(a.maxY, b.maxY) };
+  const b = mode === "hoop" && hb ? union(hb, db) : db || (photo ? quadBox(photo.q) : hb);
+  if (!b) return;
+  fitBox(b, mode === "hoop" ? 20 : 50);
   draw();
 }
+const openFitMode = () => $("openFit").value === "design" ? "design" : "hoop";
 
 // ---------- Shape geometry helpers ----------
 const byId = id => shapes.find(s => s.id === id);
@@ -1702,11 +2312,25 @@ function spotlight(all, marks) {
 }
 
 // ---------- Drawing ----------
+// The empty-canvas hint is part of the scene: it sits on the hoop's center (design 0,0) and is scaled with the zoom, so
+// it always spans the same share of the hoop (85% of the sewing field's width) — zooming out makes it smaller.
+const HINT_W = 240;   // its layout width in px before scaling (the CSS width)
+function placeHint() {
+  const el = $("drophint");
+  if (el.hidden) return;
+  const [x, y] = toS(0, 0), hp = currentHoop();
+  const k = (hp ? hp.W : 1100) * 0.85 * view.s / HINT_W;
+  el.style.left = x + "px"; el.style.top = y + "px";
+  el.style.transform = `translate(-50%, -50%) scale(${k})`;
+  el.style.visibility = k * 14 < 4 ? "hidden" : "";   // too small to read: leave it out rather than show specks
+}
 function draw() {
+  placeHint();
   const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const real = $("real").checked;
   ctx.fillStyle = real ? fabricPattern() : "#fff"; ctx.fillRect(0, 0, r.width, r.height);
+  drawPhoto();
   const [wx0, wy1] = toW(0, 0), [wx1, wy0] = toW(r.width, r.height);
   const vLines = (step, color) => {
     ctx.beginPath();
@@ -1959,6 +2583,7 @@ function draw() {
     ctx.fillRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
     ctx.strokeRect(drag.x0, drag.y0, drag.x - drag.x0, drag.y - drag.y0);
   }
+  if (aligning && photo) { if (markBox) drawMarkBox(); else { drawGhostHoop(); drawPhotoHandles(); } }
   // rulers on top
   ctx.fillStyle = "rgba(255,255,255,.92)"; ctx.fillRect(0, 0, r.width, 18); ctx.fillRect(0, 0, 34, r.height);
   ctx.fillStyle = "#4a6890"; ctx.font = "11px system-ui, sans-serif"; ctx.textBaseline = "middle";
@@ -1974,6 +2599,7 @@ function draw() {
 
 // ---------- Panels ----------
 function changed() {
+  syncTab();
   const { all, th } = compose();
   $("sew").max = all.length;
   if (sewAll) sewN = all.length;
@@ -1997,8 +2623,9 @@ function changed() {
   if (!drag) renderOrder();   // (not while dragging on the canvas; it refreshes on release)
   renderPointPanel();
   $("undoBtn").disabled = !undoStack.length; $("redoBtn").disabled = !redoStack.length;
-  $("status").textContent = saved ? "" : "Unsaved changes";
-  $("drophint").hidden = !!(cmds.length || shapes.length);
+  $("status").textContent = "";   // (unsaved changes show as a dot on the design's tab)
+  $("drophint").hidden = !!(cmds.length || shapes.length || photo);
+  placeHint();
   draw();
 }
 
@@ -2467,6 +3094,7 @@ function hitPoint(sx, sy) {
 
 // ---------- Tools ----------
 function setTool(t) {
+  if (aligning) endAlign();
   tool = t;
   document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
   cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : "copy";
@@ -2488,10 +3116,27 @@ cv.addEventListener("pointerdown", e => {
   if (e.button === 1 || e.button === 2 || spaceDown) {
     e.preventDefault();
     // right button: drag to pan, or click (no drag) for the context menu
-    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: e.button !== 2, menu: e.button === 2 && !spaceDown, wx, wy };
+    drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: e.button !== 2, menu: e.button === 2 && !spaceDown && !aligning, wx, wy };
     return;
   }
   if (e.button !== 0) return;
+
+  // --- lining up the hoop photo: the canvas moves the photo instead of the design ---
+  if (aligning && markBox) {   // marking the hoop edge: the canvas moves the box, the photo stays put
+    const h = markHit(x, y), q0 = markBox.map(p => p.slice());
+    if (h === "move") drag = { mode: "mkMove", w0: [wx, wy], q0 };
+    else if (h != null) drag = { mode: "mkCorner", i: h, q0 };
+    else drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: false };
+    return;
+  }
+  if (aligning) {
+    const h = photoHit(x, y), q0 = photo.q.map(p => p.slice());
+    if (h === "rot") drag = { mode: "phRot", w0: [wx, wy], q0 };
+    else if (h === "move") drag = { mode: "phMove", w0: [wx, wy], q0 };
+    else if (h != null) drag = { mode: "phCorner", i: h, q0 };
+    else drag = { mode: "pan", x0: x, y0: y, ox: view.ox, oy: view.oy, moved: false };
+    return;
+  }
 
   // --- Measure tool ---
   if (tool === "measure") {
@@ -2564,6 +3209,8 @@ cv.addEventListener("pointerdown", e => {
 cv.addEventListener("pointermove", e => {
   const [x, y] = mpos(e), [wx, wy] = toW(x, y);
   if (!drag) {   // hover feedback
+    if (aligning && markBox) { const h = markHit(x, y); cv.style.cursor = h === "move" ? "move" : h != null ? "crosshair" : "default"; return; }
+    if (aligning) { const h = photoHit(x, y); cv.style.cursor = h === "rot" ? "grab" : h === "move" ? "move" : h != null ? "crosshair" : "default"; return; }
     if (tool === "measure") { const h = measureAt(x, y); cv.style.cursor = h ? (h.end ? "move" : "pointer") : "crosshair"; return; }
     if (tool === "select") {
       const h = handleAt(x, y), s = h ? null : shapeAt(wx, wy), r = h || s ? null : runAt(wx, wy);
@@ -2575,6 +3222,25 @@ cv.addEventListener("pointermove", e => {
   }
   const alt = e.altKey;
   switch (drag.mode) {
+    case "mkMove": { const dx = wx - drag.w0[0], dy = wy - drag.w0[1]; boxXform(([px, py]) => [px + dx, py + dy], drag.q0); return; }
+    case "mkCorner": boxXform(p => p, drag.q0.map((p, k) => k === drag.i ? [wx, wy] : p)); return;
+    case "phMove": { const dx = wx - drag.w0[0], dy = wy - drag.w0[1]; photoXform(([px, py]) => [px + dx, py + dy], drag.q0, true); return; }
+    case "phRot": {
+      const c = quadMid(drag.q0);
+      let ang = Math.atan2(wy - c[1], wx - c[0]) - Math.atan2(drag.w0[1] - c[1], drag.w0[0] - c[0]);
+      if (e.shiftKey) ang = Math.round(ang / (Math.PI / 12)) * Math.PI / 12;
+      photoXform(rotAbout(c, ang), drag.q0, true); return;
+    }
+    case "phCorner": {
+      if (e.shiftKey) {   // resize evenly about the photo's center
+        const c = quadMid(drag.q0), p0 = drag.q0[drag.i];
+        const f = Math.hypot(wx - c[0], wy - c[1]) / (Math.hypot(p0[0] - c[0], p0[1] - c[1]) || 1);
+        if (f > 0.02) photoXform(scaleAbout(c, f), drag.q0, true);
+      } else {            // stretch just this corner (perspective)
+        photoXform((p, k) => p, drag.q0.map((p, k) => k === drag.i ? [wx, wy] : p), true);
+      }
+      return;
+    }
     case "pan":
       view.ox = drag.ox + x - drag.x0; view.oy = drag.oy + y - drag.y0;
       if (moved(e, drag)) drag.moved = true;
@@ -2709,6 +3375,8 @@ cv.addEventListener("pointermove", e => {
 cv.addEventListener("pointerup", e => {
   if (!drag) return;
   const d = drag; drag = null; guides = [];
+  if (d.mode.startsWith("ph")) { warpPhoto(); savePhoto(); draw(); return; }   // full-quality redraw once you let go
+  if (d.mode.startsWith("mk")) { draw(); return; }
   if (d.mode === "measure") {
     if (d.moved && Math.hypot(d.b[0] - d.a[0], d.b[1] - d.a[1]) > 0.5) { addMeasures([{ a: d.a, b: d.b }]); return; }
     // a click (no drag): pick two elements and measure between them
@@ -2773,9 +3441,25 @@ document.addEventListener("keydown", e => {
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
   const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri", m: "measure" };
   const pts = tool === "points";
+  if (aligning && !mod && e.key !== " " && !toolKeys[k]) {   // keys that adjust the photo while lining it up
+    const mark = !!markBox, xf = mark ? boxXform : photoXform;   // marking: the keys move the box instead
+    const big = e.shiftKey, step = big ? 50 : 5, c = quadMid(mark ? markBox : photo.q);
+    const mv = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, step], arrowdown: [0, -step] }[k];
+    if (mv) xf(([x, y]) => [x + mv[0], y + mv[1]]);
+    else if (k === "[" || k === "{" || k === "]" || k === "}") xf(rotAbout(c, ("[{".includes(k) ? 1 : -1) * (big ? 5 : 0.5) * Math.PI / 180));
+    else if (k === "-" || k === "_") xf(scaleAbout(c, big ? 0.95 : 0.995));
+    else if (k === "=" || k === "+") xf(scaleAbout(c, big ? 1.05 : 1.005));
+    else if (k === "enter" && mark) applyMark();
+    else if (k === "enter" || k === "escape") endAlign();
+    else return;
+    e.preventDefault();
+    if (!mv && !mark && aligning) savePhoto();
+    return;
+  }
   if (e.key === " ") { e.preventDefault(); spaceDown = true; }
   else if (mod && k === "z") { e.preventDefault(); e.shiftKey ? restore(redoStack, undoStack) : restore(undoStack, redoStack); }
   else if (mod && k === "y") { e.preventDefault(); restore(redoStack, undoStack); }
+  else if (mod && k === "s") { e.preventDefault(); saveProject(); }
   else if (mod && k === "a") {
     e.preventDefault();
     if (pts) ptSel = new Set(cmds.map((c, i) => i).filter(i => cmds[i].t !== "c"));
@@ -2891,7 +3575,22 @@ $("selType").onchange = () => { const i = [...ptSel][0]; snapshot(); cmds[i].t =
 
 $("undoBtn").onclick = () => restore(undoStack, redoStack);
 $("redoBtn").onclick = () => restore(redoStack, undoStack);
-$("fitBtn").onclick = fit;
+$("fitBtn").onclick = () => fit();
+// the Fit switch and the "On open" setting (both remembered in this browser)
+function syncFitSwitch() {
+  const hoop = $("fitHoop").checked;
+  $("fitLblH").classList.toggle("on", hoop); $("fitLblD").classList.toggle("on", !hoop);
+  $("fitBtn").title = "Zoom to fit the " + (hoop ? "hoop" : "design");
+}
+try { $("fitHoop").checked = localStorage.getItem("jefFitMode") !== "design"; } catch (e) { $("fitHoop").checked = true; }
+try { const v = localStorage.getItem("jefOpenFit"); if (v === "design" || v === "hoop") $("openFit").value = v; } catch (e) {}
+syncFitSwitch();
+$("fitHoop").addEventListener("change", () => {
+  syncFitSwitch();
+  try { localStorage.setItem("jefFitMode", fitModeNow()); } catch (e) {}
+  fit();   // flipping the switch fits right away
+});
+$("openFit").addEventListener("change", () => { try { localStorage.setItem("jefOpenFit", openFitMode()); } catch (e) {} });
 document.querySelectorAll("[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
 ["showJumps", "showPts", "lw", "tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", draw));
 // ---------- Sew-out player ----------
@@ -3026,27 +3725,43 @@ $("ctxMenu").querySelectorAll("button").forEach(b => b.onclick = () => {
 document.addEventListener("pointerdown", e => { if (!$("ctxMenu").contains(e.target)) hideMenu(); }, true);
 
 // Sew order list width (hidden / normal / full) and the right-hand panel — remembered in this browser
-let orderMode = "normal";
+let orderMode = "normal", lastOrderMode = "normal";
+// The slim vertical tab beside each side panel stays visible and toggles it; its arrow shows which way a click moves it.
+// (the arrow sits upright in its own span; the left tabs are turned 180°, so their arrow character is flipped to match)
+function edgeTab(id, label, open, side) {
+  const goLeft = side === "left" ? open : !open;   // a click moves the panel's edge to the left?
+  const ch = side === "left" ? (goLeft ? "▶" : "◀") : (goLeft ? "◀" : "▶");
+  const el = $(id), arw = `<span class="arw">${ch}</span>`;
+  el.innerHTML = side === "left" ? arw + label : label + arw;
+  el.title = (open ? "Hide " : "Show ") + ({ fileTab: "the file list", orderTab: "the sew order list", sideTab: "the properties panel" }[id] || label);
+  el.classList.toggle("open", open);
+}
 function setOrderMode(m) {
   orderMode = m;
   $("orderPanel").hidden = m === "hidden";
   $("orderResize").hidden = m === "hidden";
-  $("orderTab").hidden = m !== "hidden";
+  if (m !== "hidden") lastOrderMode = m;
+  edgeTab("orderTab", "Sew order", m !== "hidden", "left");
   $("wrap").classList.toggle("order-full", m === "full");
   document.querySelectorAll("[data-omode]").forEach(b => b.classList.toggle("active", b.dataset.omode === m));
+  const fullB = document.querySelector('[data-omode="full"]');
+  if (fullB) fullB.title = m === "full" ? "Back to the normal width (shows the canvas again)" : "Use the full width for the list (hides the canvas)";
   $("orderBtn").classList.toggle("active", m !== "hidden");
   try { localStorage.setItem("jefOrderMode", m); } catch (e) {}
   renderOrder();
 }
-document.querySelectorAll("[data-omode]").forEach(b => b.onclick = () => setOrderMode(b.dataset.omode));
-$("orderBtn").onclick = () => setOrderMode(orderMode === "hidden" ? "normal" : "hidden");
+// ⇔ toggles: full width, or back to the normal open width if it's already full
+document.querySelectorAll("[data-omode]").forEach(b => b.onclick = () =>
+  setOrderMode(b.dataset.omode === "full" && orderMode === "full" ? "normal" : b.dataset.omode));
+$("orderBtn").onclick = () => setOrderMode(orderMode === "hidden" ? lastOrderMode : "hidden");
 function setSide(show) {
-  $("side").hidden = !show;
-  $("sideTab").hidden = show;
+  $("side").hidden = $("sideResize").hidden = !show;
+  $("sideBtn").classList.toggle("active", show);
+  edgeTab("sideTab", "Properties", show, "right");
   try { localStorage.setItem("jefSide", show ? "shown" : "hidden"); } catch (e) {}
 }
 $("sideBtn").onclick = () => setSide($("side").hidden);
-$("orderTab").onclick = () => setOrderMode("normal");
+$("orderTab").onclick = () => setOrderMode(orderMode === "hidden" ? lastOrderMode : "hidden");
 // Drag the list's right edge to resize it (remembered in this browser); double-click resets to the default width.
 const ORDER_W = 250;
 function setOrderWidth(w, save = true) {
@@ -3069,13 +3784,307 @@ $("orderResize").addEventListener("pointerdown", e => {
   h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
 });
 $("orderResize").addEventListener("dblclick", () => setOrderWidth(ORDER_W));
-$("sideTab").onclick = () => setSide(true);
+$("sideTab").onclick = () => setSide($("side").hidden);
+// Drag the panel's left edge to resize it (remembered in this browser); double-click resets the width.
+const SIDE_W = 300;
+function setSideWidth(w, save = true) {
+  w = Math.round(Math.max(220, Math.min(w, (innerWidth || 1200) * 0.6)));
+  $("side").style.width = w + "px";
+  if (save) try { localStorage.setItem("jefSideWidth", String(w)); } catch (e) {}
+}
+try { const w = +localStorage.getItem("jefSideWidth"); if (w) setSideWidth(w, false); } catch (e) {}
+$("sideResize").addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const h = $("sideResize"), right = $("side").getBoundingClientRect().right;
+  h.setPointerCapture(e.pointerId); h.classList.add("active"); document.body.classList.add("resizing");
+  const move = ev => setSideWidth(right - ev.clientX, false);
+  const up = ev => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+    h.classList.remove("active"); document.body.classList.remove("resizing");
+    setSideWidth(right - ev.clientX);
+  };
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+});
+$("sideResize").addEventListener("dblclick", () => setSideWidth(SIDE_W));
 try {
   const m = localStorage.getItem("jefOrderMode"); if (m === "hidden" || m === "normal" || m === "full") orderMode = m;
-  if (localStorage.getItem("jefSide") === "hidden") setSide(false);
+  setSide(localStorage.getItem("jefSide") !== "hidden");
 } catch (e) {}
-$("sideTab").hidden = !$("side").hidden;
 setOrderMode(orderMode);
+
+// ---------- File explorer (left panel) ----------
+// Shows every .JEF / .jefproj under a folder you pick. Nested folders are columns: a folder's cell spans the rows of
+// everything inside it, and each folder that holds files gets a row of thumbnails. Chrome/Edge remember the folder
+// (File System Access handle kept in IndexedDB); other browsers use a folder upload, which has to be redone per visit.
+const FX = { tree: null, handle: null, mode: "horizontal", collapsed: new Set(), thumbs: new Map(), current: null, gen: 0 };
+try { if (localStorage.getItem("jefFilesLayout") === "rows") FX.mode = "rows"; } catch (e) {}
+try { FX.collapsed = new Set(JSON.parse(localStorage.getItem("jefFilesCollapsed") || "[]")); } catch (e) {}
+const FX_RE = /\.(jef\+?|jefproj)$/i;
+function idbFolder(val) {   // no argument: read the remembered folder handle; otherwise store it (null clears)
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("jefEditor", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const st = r.result.transaction("kv", val === undefined ? "readonly" : "readwrite").objectStore("kv");
+      const q = val === undefined ? st.get("folder") : val === null ? st.delete("folder") : st.put(val, "folder");
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    };
+  });
+}
+const fxSort = n => {
+  const cmp = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  n.dirs.sort(cmp); n.files.sort(cmp);
+  n.count = n.files.length + n.dirs.reduce((a, c) => a + c.count, 0);
+  return n;
+};
+async function fxScanHandle(dh, path, depth = 0) {
+  const n = { name: dh.name, path, dirs: [], files: [], handle: dh };   // (handle: for saving into this folder)
+  if (depth > 12) return fxSort(n);
+  for await (const [name, h] of dh.entries()) {
+    if (name.startsWith(".")) continue;
+    if (h.kind === "directory") n.dirs.push(await fxScanHandle(h, path + "/" + name, depth + 1));
+    else if (FX_RE.test(name)) n.files.push({ name, path: path + "/" + name, get: () => h.getFile() });
+  }
+  return fxSort(n);
+}
+// from a folder upload: [{ file, rel: "root/sub/name.JEF" }]
+function fxTreeFromFiles(list) {
+  const root = { name: (list[0] && list[0].rel.split("/")[0]) || "Folder", path: "", dirs: [], files: [] };
+  root.path = root.name;
+  for (const { file, rel } of list) {
+    const parts = rel.split("/");
+    if (!FX_RE.test(parts[parts.length - 1]) || parts.some(p => p.startsWith("."))) continue;
+    let n = root;
+    for (let i = 1; i < parts.length - 1; i++) {
+      let c = n.dirs.find(d => d.name === parts[i]);
+      if (!c) n.dirs.push(c = { name: parts[i], path: n.path + "/" + parts[i], dirs: [], files: [] });
+      n = c;
+    }
+    n.files.push({ name: file.name, path: rel, get: () => Promise.resolve(file) });
+  }
+  const fin = n => { n.dirs.forEach(fin); fxSort(n); n.dirs = n.dirs.filter(d => d.count); return n; };
+  return fin(root);
+}
+async function fxUseHandle(h, ask) {
+  let perm = await h.queryPermission({ mode: "read" });
+  if (perm !== "granted" && ask) perm = await h.requestPermission({ mode: "read" });
+  FX.handle = h;
+  if (perm !== "granted") {   // needs a click to ask again (browsers only allow that from a user gesture)
+    FX.tree = null; $("fxRoot").textContent = "";
+    $("fxOpen").textContent = `Reconnect “${h.name}”`; $("fxRefresh").hidden = true;
+    renderFiles(); return;
+  }
+  $("fxOpen").textContent = "Choose folder…"; $("fxRoot").textContent = h.name; $("fxRefresh").hidden = false;
+  $("fxTree").innerHTML = '<div class="help">Looking for JEF files…</div>';
+  FX.tree = await fxScanHandle(h, h.name);
+  renderFiles();
+}
+async function fxChoose() {
+  if (FX.handle && !FX.tree) { try { await fxUseHandle(FX.handle, true); } catch (e) {} if (FX.tree) return; }   // "Reconnect"
+  if (!window.showDirectoryPicker) { $("fxDirIn").click(); return; }
+  let h;
+  try { h = await showDirectoryPicker({ id: "jef-files", mode: "read" }); } catch (e) { return; }   // cancelled
+  try { await idbFolder(h); } catch (e) {}
+  await fxUseHandle(h, true);
+}
+$("fxOpen").onclick = fxChoose;
+$("fxRefresh").onclick = () => { FX.thumbs.clear(); if (FX.handle) fxUseHandle(FX.handle, true); else $("fxDirIn").click(); };
+$("fxDirIn").addEventListener("change", e => {
+  const list = [...e.target.files].map(file => ({ file, rel: file.webkitRelativePath || file.name }));
+  e.target.value = "";
+  if (!list.length) return;
+  FX.handle = null; FX.thumbs.clear();
+  FX.tree = fxTreeFromFiles(list);
+  $("fxRoot").textContent = FX.tree.name; $("fxRefresh").hidden = false;
+  renderFiles();
+});
+
+function renderFiles() {
+  const box = $("fxTree"), gen = ++FX.gen;
+  box.innerHTML = "";
+  if (!FX.tree) {
+    box.innerHTML = FX.handle
+      ? '<div class="help">Click <b>Reconnect</b> to let this page read the folder again.</div>'
+      : '<div class="help">Choose the folder that holds your JEF files. Folders inside it show as nested columns, and each file as a thumbnail you can click to open.</div>';
+    return;
+  }
+  const shut = n => FX.collapsed.has(n.path);
+  const depth = (n, d) => shut(n) || !n.dirs.length ? d : Math.max(...n.dirs.map(c => depth(c, d + 1)));
+  // (an empty folder still gets a row, so you can right-click it and save into it)
+  const rowsOf = n => shut(n) ? 1 : Math.max(1, (n.files.length ? 1 : 0) + n.dirs.reduce((a, c) => a + rowsOf(c), 0));
+  const D = depth(FX.tree, 0);
+  const grid = document.createElement("div");
+  grid.className = "fx " + FX.mode;
+  grid.style.gridTemplateColumns = `repeat(${D + 1}, minmax(56px, max-content)) minmax(0, 1fr)`;
+  const cell = (cls, row, col, span) => {
+    const el = document.createElement("div"); el.className = cls;
+    el.style.gridRow = span > 1 ? `${row} / span ${span}` : String(row);
+    el.style.gridColumn = col;
+    grid.appendChild(el); return el;
+  };
+  const tiles = [];
+  const emit = (n, d, row) => {   // returns the number of rows used
+    const rows = rowsOf(n), dir = cell("fx-dir", row, String(d + 1), rows);
+    dir.title = (shut(n) ? "Show" : "Hide") + " what's in " + n.name;
+    dir.innerHTML = `<span></span><small>${shut(n) ? "▸ " : ""}${n.count} file${n.count === 1 ? "" : "s"}</small>`;
+    dir.firstChild.textContent = n.name;
+    dir.oncontextmenu = e => { e.preventDefault(); showFxMenu(n, e.clientX, e.clientY); };
+    dir.onclick = () => {
+      shut(n) ? FX.collapsed.delete(n.path) : FX.collapsed.add(n.path);
+      try { localStorage.setItem("jefFilesCollapsed", JSON.stringify([...FX.collapsed])); } catch (e) {}
+      renderFiles();
+    };
+    if (shut(n)) {
+      const note = cell("fx-files note", row, `${d + 2} / -1`, 1);
+      note.textContent = `${n.count} file${n.count === 1 ? "" : "s"} hidden — click to show`; note.onclick = dir.onclick;
+      return 1;
+    }
+    let r = row;
+    if (!n.files.length && !n.dirs.length) {
+      const note = cell("fx-files note", r, `${d + 2} / -1`, 1);
+      note.textContent = "No JEF files · right-click to save here";
+      note.oncontextmenu = dir.oncontextmenu; note.onclick = null;
+      return 1;
+    }
+    if (n.files.length) {
+      const fc = cell("fx-files", r, `${d + 2} / -1`, 1);
+      fc.oncontextmenu = e => { e.preventDefault(); showFxMenu(n, e.clientX, e.clientY); };   // (right-click a file = its folder)
+      for (const f of n.files) {
+        const t = document.createElement("div"); t.className = "fx-tile" + (f.path === FX.current ? " cur" : "");
+        t.dataset.path = f.path; t.title = f.path;
+        const c = document.createElement("canvas"); c.width = c.height = 124;
+        const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = f.name;
+        t.append(c, nm);
+        if (/\.jefproj$/i.test(f.name)) { const b = document.createElement("span"); b.className = "badge"; b.textContent = "project"; t.appendChild(b); }
+        t.onclick = () => fxOpen(f);
+        // Shift + hover = show it in the preview tab
+        t.onmouseenter = e => { fxHover = f; if (e.shiftKey) queuePreview(f); };
+        t.onmousemove = e => { if (e.shiftKey) queuePreview(f); };
+        t.onmouseleave = () => { if (fxHover === f) fxHover = null; };
+        t.draggable = true;
+        t.addEventListener("dragstart", e => {
+          e.dataTransfer.setData(FX_DRAG, f.path); e.dataTransfer.setData("text/plain", f.name);
+          e.dataTransfer.effectAllowed = "copy";
+          const c = t.querySelector("canvas"); if (c) e.dataTransfer.setDragImage(c, 31, 31);
+        });
+        fc.appendChild(t); tiles.push([f, c, t]);
+      }
+      r++;
+    }
+    for (const c of n.dirs) r += emit(c, d + 1, r);
+    return rows;
+  };
+  emit(FX.tree, 0, 1);
+  box.appendChild(grid);
+  // thumbnails: drawn when they scroll into view, one file at a time
+  const queue = [];
+  let busy = false;
+  const pump = async () => {
+    if (busy) return; busy = true;
+    while (queue.length && gen === FX.gen) { const [f, c, t] = queue.shift(); await fxThumb(f, c, t); }
+    busy = false;
+  };
+  const io = window.IntersectionObserver ? new IntersectionObserver(es => {
+    for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); queue.push(e.target._fx); }
+    pump();
+  }, { root: box, rootMargin: "200px" }) : null;
+  for (const it of tiles) {
+    const cached = FX.thumbs.get(it[0].path);
+    if (cached) { fxPaint(it[1], it[2], cached); continue; }
+    if (io) { it[1]._fx = it; io.observe(it[1]); } else queue.push(it);
+  }
+  if (!io) pump();
+}
+function fxPaint(c, t, th) {
+  if (th.err) { const g = c.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#999"; g.font = "bold 40px system-ui"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", c.width / 2, c.height / 2); }
+  else c.getContext("2d").drawImage(th.img, 0, 0);
+  if (th.info) t.title = t.dataset.path + "\n" + th.info;
+}
+async function fxThumb(f, c, t) {
+  let th;
+  try {
+    const file = await f.get();
+    const { cmds: cm, threads: tr } = await fileStitches(file);   // (projects include their live shapes)
+    const img = document.createElement("canvas"); img.width = c.width; img.height = c.height;
+    if (cm.length) drawThumb(img, cm, tr, { from: 0, to: cm.length - 1 }, 0);
+    else { const g = img.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, img.width, img.height); }
+    const st = cm.filter(x => x.t === "s");
+    const xs = st.map(x => x.x), ys = st.map(x => x.y);
+    const info = st.length ? `${fmtSize(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))} · ${st.length} stitches · ${tr.length} color${tr.length === 1 ? "" : "s"}` : "";
+    th = { img, info };
+  } catch (e) { th = { err: true, info: "Couldn't read this file" }; }
+  FX.thumbs.set(f.path, th);
+  fxPaint(c, t, th);
+}
+// Shift+hover previews (see showPreview); a short delay so sweeping across tiles only loads where you pause briefly
+let fxHover = null, previewTimer = 0, previewWant = null;
+function queuePreview(f) {
+  if (!$("nameDlg").hidden || drag) return;
+  const p = docs[activeDoc];
+  if (previewWant === f.path || (p && p.preview && FX.current === f.path)) return;   // already showing / on its way
+  previewWant = f.path;
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { previewWant = null; showPreview(f); }, 70);
+}
+// pressing Shift while already over a tile previews it too
+document.addEventListener("keydown", e => { if (e.key === "Shift" && fxHover && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) queuePreview(fxHover); });
+async function fxOpen(f) {   // opens in its own tab (or switches to the tab that already has it)
+  try { const file = await f.get(); file.fxPath = f.path; await openInTab(file); }
+  catch (e) { alert("Couldn't open that file: " + e.message); }
+}
+function fxFileByPath(path) {
+  const find = n => n.files.find(f => f.path === path) || n.dirs.reduce((r, d) => r || find(d), null);
+  return FX.tree ? find(FX.tree) : null;
+}
+// highlight the file that's open (load() and newDesign() call this)
+function fxMark(path) {
+  FX.current = path || null;
+  document.querySelectorAll(".fx-tile").forEach(t => t.classList.toggle("cur", t.dataset.path === FX.current));
+}
+function setFxMode(m) {
+  FX.mode = m;
+  try { localStorage.setItem("jefFilesLayout", m); } catch (e) {}
+  document.querySelectorAll("[data-fxmode]").forEach(b => b.classList.toggle("active", b.dataset.fxmode === m));
+  const g = document.querySelector(".fx"); if (g) g.className = "fx " + m;
+}
+document.querySelectorAll("[data-fxmode]").forEach(b => b.onclick = () => setFxMode(b.dataset.fxmode));
+function setFiles(show) {
+  $("filePanel").hidden = $("fileResize").hidden = !show;
+  edgeTab("fileTab", "Files", show, "left");
+  $("filesBtn").classList.toggle("active", show);
+  try { localStorage.setItem("jefFiles", show ? "shown" : "hidden"); } catch (e) {}
+}
+$("filesBtn").onclick = () => setFiles($("filePanel").hidden);
+$("fileTab").onclick = () => setFiles($("filePanel").hidden);
+const FILES_W = 380;
+function setFilesWidth(w, save = true) {
+  w = Math.round(Math.max(200, Math.min(w, (innerWidth || 1200) * 0.7)));
+  $("filePanel").style.width = w + "px";
+  if (save) try { localStorage.setItem("jefFilesWidth", String(w)); } catch (e) {}
+}
+try { const w = +localStorage.getItem("jefFilesWidth"); if (w) setFilesWidth(w, false); } catch (e) {}
+$("fileResize").addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const h = $("fileResize"), left = $("filePanel").getBoundingClientRect().left;
+  h.setPointerCapture(e.pointerId); h.classList.add("active"); document.body.classList.add("resizing");
+  const move = ev => { setFilesWidth(ev.clientX - left, false); resize(); };
+  const up = ev => {
+    h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up);
+    h.classList.remove("active"); document.body.classList.remove("resizing");
+    setFilesWidth(ev.clientX - left); resize();
+  };
+  h.addEventListener("pointermove", move); h.addEventListener("pointerup", up);
+});
+$("fileResize").addEventListener("dblclick", () => { setFilesWidth(FILES_W); resize(); });
+try { setFiles(localStorage.getItem("jefFiles") !== "hidden"); } catch (e) { setFiles(true); }
+setFxMode(FX.mode);
+renderFiles();
+// bring back the folder from last time (Chrome/Edge)
+if (window.showDirectoryPicker && window.indexedDB)
+  idbFolder().then(h => { if (h) return fxUseHandle(h, false); }).catch(() => {});
 
 // Hoop choice (remembered in this browser)
 // Units choice (remembered in this browser)
@@ -3141,47 +4150,491 @@ function newDesign() {
   for (let i = 0; i < 14; i++) h[8 + i] = ds.charCodeAt(i);
   h.fill(0xff, 0x34, 0x74);
   meta = { header: h, types: [13], trailer: new Uint8Array(0), isNew: true };
-  cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = "new-design.JEF";
+  cmds = []; threads = [{ idx: 1 }]; shapes = []; fileName = defaultName(); untitled = true; renamed = false;
   measures = []; measSel = null; measPick = null; runSources = {};
   shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
   const r = cv.getBoundingClientRect(), W = r.width || 800, H = r.height || 600;
   view.s = Math.min(W, H) / 1300; view.ox = W / 2; view.oy = H / 2;
+  if (typeof fxMark === "function") fxMark(null);
   changed();
 }
+// ---------- Project files (.jefproj) ----------
+// A JSON file holding the whole editing state, so shapes stay live and groups, measurements, sew order,
+// the hoop and the photo alignment come back on reopening. The original JEF header/trailer bytes are kept,
+// so exporting an untouched design is still byte-identical to the JEF it came from.
+const PROJ_FORMAT = "jef-editor-project";
+const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s || ""), ch => ch.charCodeAt(0));
+const projName = () => fileName.replace(/(-edited)?\.jef\+?$/i, "") + ".jefproj";
+function buildProject() {
+  return JSON.stringify({
+    format: PROJ_FORMAT, version: 1, saved: new Date().toISOString(), fileName,
+    meta: { header: b64(meta.header), types: meta.types, trailer: b64(meta.trailer), isNew: !!meta.isNew, hoopTouched: !!meta.hoopTouched,
+            pre: meta.pre ? b64(meta.pre) : "", plus: !!meta.plus },
+    cmds, threads, threadsDirty, shapes, measures, runSources, nextId, nextMeasId,
+    hoop: { id: $("hoop").value, rot: $("hoopRot").checked },
+    photo: photo && photo.src ? { src: photo.src, q: photo.q, op: photo.op } : null,
+  });
+}
+function loadProject(text, name) {
+  const p = JSON.parse(text);
+  if (!p || p.format !== PROJ_FORMAT) throw new Error("this isn't a JEF editor project file");
+  if (p.version > 1) throw new Error("this project was saved by a newer version of the editor");
+  if (aligning) endAlign();
+  untitled = false; renamed = false;
+  meta = { header: unb64(p.meta.header), types: p.meta.types || [], trailer: unb64(p.meta.trailer), isNew: !!p.meta.isNew,
+           pre: unb64(p.meta.pre), plus: !!p.meta.plus };
+  if (p.meta.hoopTouched) meta.hoopTouched = true;
+  cmds = p.cmds || []; threads = p.threads || [{ idx: 1 }]; threadsDirty = !!p.threadsDirty;
+  shapes = p.shapes || []; measures = p.measures || []; runSources = p.runSources || {};
+  // named after the project file (so a renamed or copied project exports under its own name)
+  fileName = name ? name.replace(/\.jefproj$/i, "") + jefExt() : p.fileName || "design.JEF";
+  nextId = shapes.reduce((m, s) => Math.max(m, s.id + 1), +p.nextId || 1);
+  nextMeasId = measures.reduce((m, x) => Math.max(m, x.id + 1), +p.nextMeasId || 1);
+  measSel = null; measPick = null;
+  if (p.hoop && HOOPS.some(h => h.id === p.hoop.id)) { $("hoop").value = p.hoop.id; $("hoopRot").checked = !!p.hoop.rot; saveHoop(); }
+  shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; saved = true; sewAll = true;
+  if (p.photo && p.photo.src) {   // bring back the photo, already lined up
+    const im = new Image();
+    im.onload = () => { setPhoto(im, p.photo.src, p.photo.q, p.photo.op); updatePhotoUI(); draw(); };
+    im.src = p.photo.src;
+  }
+  changed(); fit(openFitMode());
+}
+// Exporting a JEF only counts as "saved" when there's nothing a JEF can't hold (live shapes, groups, measurements)
+const projectOnly = () => shapes.length || measures.length || Object.keys(runSources).length || cmds.some(c => c.g != null);
+async function saveProject() {
+  if (!(await ensureNamed())) return;
+  download(new Blob([buildProject()], { type: "application/json" }), projName());
+  saved = true; changed();
+}
+
+// load a .JEF or .jefproj into the current tab; resolves true if it worked
 function load(file) {
-  file.arrayBuffer().then(buf => {
+  if (/\.jefproj$/i.test(file.name)) {
+    return file.text().then(t => { try { loadProject(t, file.name); fxMark(file.fxPath); return true; } catch (err) { alert("Could not open project: " + err.message); return false; } });
+  }
+  return file.arrayBuffer().then(buf => {
     try {
       const r = parseJEF(buf);
-      cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = [];
+      cmds = r.cmds; threads = r.threads; meta = r.meta; fileName = file.name; shapes = []; untitled = false; renamed = false;
       measures = []; measSel = null; measPick = null; runSources = {};
       // show the hoop the file was made for, if it's one we know
       const code = new DataView(buf).getInt32(32, true), known = HOOPS.find(h => h.code === code);
       if (known) { $("hoop").value = known.id; $("hoopRot").checked = false; saveHoop(); }
       shapeSel.clear(); ptSel.clear(); runSel.clear(); undoStack = []; redoStack = []; threadsDirty = false; saved = true; sewAll = true;
-      changed(); fit();
-    } catch (err) { alert("Could not read file: " + err.message); }
+      changed(); fit(openFitMode()); fxMark(file.fxPath);
+      return true;
+    } catch (err) { alert("Could not read file: " + err.message); return false; }
   });
+}
+
+// ---------- Tabs: several designs open at once ----------
+// The open design lives in the usual globals; the others are parked in docs[i].d (captureDoc) and swapped back in
+// (applyDoc) when you switch. Each tab keeps its own undo history, selection, view and hoop.
+function captureDoc() {
+  return { cmds, threads, meta, fileName, threadsDirty, shapes, nextId, runSources, measures, nextMeasId,
+           undoStack, redoStack, saved, view: { ...view }, sewAll, sewN, shapeSel, runSel, ptSel, untitled, renamed,
+           hoop: { id: $("hoop").value, rot: $("hoopRot").checked }, fxPath: FX.current };
+}
+function applyDoc(d) {
+  ({ cmds, threads, meta, fileName, threadsDirty, shapes, nextId, runSources, measures, nextMeasId,
+     undoStack, redoStack, saved, sewAll, sewN, shapeSel, runSel, ptSel, untitled, renamed } = d);
+  view = { ...d.view }; measSel = null; measPick = null; hoverId = null; hoverRun = null; drag = null;
+  $("hoop").value = d.hoop.id; $("hoopRot").checked = d.hoop.rot; saveHoop();
+  fxMark(d.fxPath);
+  changed();
+}
+function leaveDoc() {   // tidy up the open tab before parking it
+  if (aligning) endAlign();
+  if (play.state !== "idle") playStop();
+  hideMenu();
+  docs[activeDoc].d = captureDoc();
+}
+// The preview tab (docs[i].preview): Shift+hover a file in the file list to look at it in the full renderer. There's
+// only ever one, it's reused for each file you sweep over, and it closes as soon as you go to another tab. Editing it,
+// renaming it, or clicking its file in the list turns it into a normal tab.
+function dropPreview() {   // remove the preview tab if it's no longer the one on screen
+  const p = docs.findIndex(x => x.preview);
+  if (p < 0 || p === activeDoc) return;
+  docs.splice(p, 1);
+  if (p < activeDoc) activeDoc--;
+}
+function keepPreview() {
+  const doc = docs[activeDoc];
+  if (doc && doc.preview) { doc.preview = false; tabSig = ""; }
+}
+function switchTab(i) {
+  if (i === activeDoc || !docs[i]) return;
+  leaveDoc();
+  activeDoc = i; applyDoc(docs[i].d); docs[i].d = null;
+  dropPreview(); renderTabs();
+}
+function newTab() {
+  leaveDoc();
+  docs.push({ id: nextDocId++, d: null }); activeDoc = docs.length - 1;
+  newDesign(); dropPreview(); renderTabs();
+}
+let previewToken = 0;
+async function showPreview(f) {
+  const token = ++previewToken;
+  let file;
+  try { file = await f.get(); } catch (e) { return; }
+  if (token !== previewToken) return;   // you've moved on to another file already
+  file.fxPath = f.path;
+  let p = docs.findIndex(x => x.preview);
+  if (p < 0) { leaveDoc(); docs.push({ id: nextDocId++, d: null, preview: true }); activeDoc = docs.length - 1; }
+  else if (p !== activeDoc) { leaveDoc(); activeDoc = p; applyDoc(docs[p].d); docs[p].d = null; }
+  if (aligning) endAlign();
+  if (play.state !== "idle") playStop();
+  newDesign();
+  const ok = await load(file);
+  if (!ok && docs[activeDoc] && docs[activeDoc].preview) newDesign();
+  tabSig = ""; renderTabs();
+}
+// an untouched "New" design: opening a file can reuse its tab instead of adding one
+const blankDoc = () => saved && meta && meta.isNew && !cmds.length && !shapes.length && !measures.length && !undoStack.length;
+function closeTab(i) {
+  const d = i === activeDoc ? null : docs[i].d, isSaved = d ? d.saved : saved, name = d ? d.fileName : fileName;
+  if (!isSaved && !confirm(`Close ${name}? Its unsaved changes will be lost.`)) return;
+  if (docs.length === 1) { docs[0].preview = false; newDesign(); renderTabs(); return; }
+  if (i !== activeDoc) { docs.splice(i, 1); if (i < activeDoc) activeDoc--; renderTabs(); return; }
+  if (aligning) endAlign();
+  if (play.state !== "idle") playStop();
+  docs.splice(i, 1);
+  activeDoc = Math.min(i, docs.length - 1);
+  applyDoc(docs[activeDoc].d); docs[activeDoc].d = null;
+  dropPreview(); renderTabs();
+}
+// open a file in its own tab (or switch to it if it's already open from the file list)
+async function openInTab(file) {
+  if (file.fxPath) {
+    const i = docs.findIndex((x, k) => (k === activeDoc ? FX.current : x.d && x.d.fxPath) === file.fxPath);
+    if (i >= 0) {
+      const wasPreview = docs[i].preview;
+      if (wasPreview) docs[i].preview = false;   // clicking the previewed file keeps it, as a normal tab
+      switchTab(i); tabSig = ""; renderTabs(); return true;
+    }
+  }
+  const fresh = !blankDoc();
+  if (fresh) newTab();
+  const ok = await load(file);
+  if (!ok && fresh) closeTab(activeDoc);
+  renderTabs();
+  return ok;
+}
+function renderTabs() {
+  const box = $("tabs");
+  box.innerHTML = "";
+  docs.forEach((doc, i) => {
+    const on = i === activeDoc, name = on ? fileName : doc.d.fileName, isSaved = on ? saved : doc.d.saved;
+    const t = document.createElement("div");
+    t.className = "tab" + (on ? " on" : "") + (doc.preview ? " preview" : "");
+    t.title = doc.preview ? `Preview of ${name} · closes when you switch tabs · edit it, rename it or click the file to keep it`
+                          : name + (isSaved ? "" : " (unsaved changes)") + " · double-click to rename";
+    t.ondblclick = e => { if (e.target.classList.contains("x")) return; if (i !== activeDoc) switchTab(i); startRename(); };
+    t.innerHTML = '<span class="tt"></span>' + (isSaved ? "" : '<span class="dot">•</span>') + '<button class="x" title="Close">×</button>';
+    t.firstChild.textContent = name;
+    t.onclick = e => { if (!e.target.classList.contains("x")) switchTab(i); };
+    t.onauxclick = e => { if (e.button === 1) { e.preventDefault(); closeTab(i); } };   // middle-click closes
+    t.querySelector(".x").onclick = () => closeTab(i);
+    // while dragging a file from the file list, hovering a tab switches to it, so you can drop into another design
+    t.addEventListener("dragenter", e => { if (fxDragging(e) && !on) { t.classList.add("drop-over"); clearTimeout(t._sw); t._sw = setTimeout(() => switchTab(i), 600); } });
+    t.addEventListener("dragleave", () => { t.classList.remove("drop-over"); clearTimeout(t._sw); });
+    box.appendChild(t);
+  });
+  const cur = box.children[activeDoc]; if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+// keep the open tab's name and unsaved dot current without rebuilding the bar on every change
+function syncTab() {
+  if (docs[activeDoc] && docs[activeDoc].preview && !saved) keepPreview();   // editing a preview keeps it
+  const sig = activeDoc + "|" + fileName + "|" + saved + "|" + docs.length;
+  if (sig !== tabSig) { tabSig = sig; renderTabs(); }
+}
+$("tabNew").onclick = newTab;
+
+// ---------- Design names ----------
+// The tab shows the design's file name; double-click it to rename. A new design starts as "new-design" (numbered when
+// several are open) and is "untitled" until you name it: saving or exporting one asks for a name first.
+const baseName = n => n.replace(/(\.jef\+?|\.jefproj)$/i, "");
+// the design's own file extension: a JEF+ stays a JEF+ (it keeps its thread block)
+const jefExt = () => meta && meta.plus ? ".JEF+" : ".JEF";
+// make a typed name safe to use as a file name (no extension, no characters Windows/macOS refuse)
+const cleanName = s => baseName(String(s).trim()).replace(/[\\/:*?"<>|\x00-\x1f]/g, "").replace(/[. ]+$/, "").trim().slice(0, 100);
+function defaultName() {
+  const taken = new Set(docs.filter((x, i) => i !== activeDoc && x.d).map(x => x.d.fileName.toLowerCase()));
+  for (let n = 1; ; n++) { const f = `new-design${n > 1 ? "-" + n : ""}.JEF`; if (!taken.has(f.toLowerCase())) return f; }
+}
+function setName(base) {
+  fileName = base + jefExt(); untitled = false; renamed = true;
+  changed();
+}
+// The name popup. o = { title, html (the explanation, already escaped), value, ext, ok, okWarn, def (label of a
+// "keep the default" button, or none), warn(name) → warning text or null }. Resolves to the cleaned name, "" if the
+// default button was used, or null if cancelled. While warn() reports something, the OK button reads o.okWarn.
+const escHTML = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+function askName(o) {
+  return new Promise(done => {
+    const dlg = $("nameDlg"), inp = $("ndName"), okB = $("ndOk"), defB = $("ndDefault"), warnEl = $("ndWarn");
+    $("ndTitle").textContent = o.title; $("ndText").innerHTML = o.html; $("ndExt").textContent = o.ext || ".JEF";
+    defB.hidden = !o.def; defB.textContent = o.def || "";
+    $("ndErr").textContent = "";
+    inp.value = o.value;
+    const check = () => {
+      const w = o.warn && cleanName(inp.value) ? o.warn(cleanName(inp.value)) : null;
+      warnEl.hidden = !w; warnEl.textContent = w ? "⚠ " + w : "";
+      okB.textContent = w && o.okWarn ? o.okWarn : o.ok;
+      return w;
+    };
+    check();
+    dlg.hidden = false;
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    const finish = r => {
+      // hand focus back first: a hidden input that keeps focus would swallow the keyboard shortcuts
+      if (dlg.contains(document.activeElement)) document.activeElement.blur();
+      dlg.hidden = true;
+      dlg.onkeydown = inp.oninput = dlg.onpointerdown = null;
+      okB.onclick = defB.onclick = $("ndCancel").onclick = null;
+      done(r);
+    };
+    okB.onclick = () => {
+      const n = cleanName(inp.value);
+      if (!n) { $("ndErr").textContent = "Type a name (letters, numbers, spaces, - and _ work everywhere)."; inp.focus(); return; }
+      finish(n);
+    };
+    defB.onclick = () => finish("");
+    $("ndCancel").onclick = () => finish(null);
+    inp.oninput = () => { $("ndErr").textContent = ""; check(); };
+    dlg.onkeydown = e => {
+      e.stopPropagation();
+      if (e.key === "Escape") finish(null);
+      else if (e.key === "Enter" && e.target.tagName !== "BUTTON") okB.click();
+    };
+    dlg.onpointerdown = e => { if (e.target === dlg) finish(null); };   // click outside the box = cancel
+  });
+}
+// before saving or exporting: an unnamed design asks for a name. Resolves true to go ahead, false if cancelled.
+async function ensureNamed() {
+  if (!untitled) return true;
+  const def = baseName(fileName);
+  const n = await askName({ title: "Name this design", value: def, ext: jefExt(), ok: "Use this name", def: `Use “${def}”`,
+    html: `This design is still called “${escHTML(def)}”. Keep that name, or give it a name now.` });
+  if (n === null) return false;
+  if (n) setName(n); else untitled = false;   // "" = keep the default, and don't ask again
+  return true;
+}
+
+// ---------- Save as… into a folder of the file list (right-click a folder) ----------
+// Needs a folder picked with "Choose folder…" in Chrome/Edge (a folder handle we can ask for write access);
+// the upload fallback in other browsers can only read.
+let fxMenuNode = null;
+function showFxMenu(node, x, y) {
+  fxMenuNode = node;
+  const m = $("fxMenu"), canWrite = !!(node.handle && FX.handle);
+  $("fxMenuHead").textContent = "📁 " + node.path;
+  m.querySelectorAll("[data-fx]").forEach(b => b.disabled = !canWrite);
+  $("fxMenuNote").hidden = canWrite;
+  $("fxMenuNote").textContent = window.showDirectoryPicker
+    ? "Click Choose folder… (or Reconnect) to let the editor save into this folder."
+    : "This browser can only read folders. Use Chrome or Edge to save straight into a folder.";
+  m.hidden = false;
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
+  m.style.top = Math.min(y, innerHeight - r.height - 8) + "px";
+}
+const hideFxMenu = () => { $("fxMenu").hidden = true; };
+document.addEventListener("pointerdown", e => { if (!$("fxMenu").contains(e.target)) hideFxMenu(); }, true);
+$("fxMenu").querySelectorAll("[data-fx]").forEach(b => b.onclick = () => { hideFxMenu(); if (fxMenuNode) saveToFolder(fxMenuNode, b.dataset.fx); });
+async function saveToFolder(node, kind) {
+  const ext = kind === "proj" ? ".jefproj" : jefExt();
+  const taken = n => node.files.some(f => f.name.toLowerCase() === (n + ext).toLowerCase());
+  const n = await askName({
+    title: kind === "proj" ? "Save project as" : "Export JEF as",
+    html: `Save “${escHTML(baseName(fileName))}” into <span class="where">${escHTML(node.path)}</span>` +
+          (kind === "proj" ? " as a project you can keep editing." : " as a JEF file for the machine."),
+    value: baseName(fileName), ext, ok: "Save", okWarn: "Replace",
+    warn: n => taken(n) ? `${node.name} already has a file called ${n}${ext}. Saving will replace it.` : null,
+  });
+  if (!n) return;
+  const fname = n + ext;
+  try {
+    // write access to the picked folder (asked once; the browser remembers it for the visit)
+    if ((await FX.handle.queryPermission({ mode: "readwrite" })) !== "granted" &&
+        (await FX.handle.requestPermission({ mode: "readwrite" })) !== "granted") {
+      alert("The browser didn't allow saving into this folder."); return;
+    }
+    // the list can be out of date: if the file turned up since, still warn before replacing it
+    if (!taken(n)) {
+      let exists = false;
+      try { await node.handle.getFileHandle(fname); exists = true; } catch (e) {}
+      if (exists && !confirm(`${node.name} already has a file called ${fname}. Replace it?`)) return;
+    }
+    setName(n);   // the design takes the name it's saved under (and a project stores it)
+    const blob = kind === "proj" ? new Blob([buildProject()], { type: "application/json" }) : new Blob([buildJEF()], { type: "application/octet-stream" });
+    const fh = await node.handle.getFileHandle(fname, { create: true }), w = await fh.createWritable();
+    await w.write(blob); await w.close();
+    if (kind === "proj" || !projectOnly()) saved = true;
+    const path = node.path + "/" + fname;
+    FX.thumbs.delete(path);
+    FX.tree = await fxScanHandle(FX.handle, FX.handle.name);   // show the new file in the list
+    FX.current = path; renderFiles();
+    changed();
+  } catch (e) { alert("Couldn't save there: " + e.message); }
+}
+// inline rename of the active tab
+function startRename() {
+  keepPreview();
+  const t = $("tabs").children[activeDoc], tt = t && t.querySelector(".tt");
+  if (!tt || t.querySelector("input")) return;
+  const inp = document.createElement("input");
+  inp.className = "ren"; inp.value = baseName(fileName); inp.spellcheck = false; inp.title = "Enter to rename · Esc to cancel";
+  tt.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const end = keep => {
+    if (done) return; done = true;
+    const n = cleanName(inp.value);
+    if (keep && n && n + jefExt() !== fileName) setName(n);
+    else if (keep && n && untitled) { untitled = false; renamed = true; }   // confirmed the default name as is
+    tabSig = ""; syncTab();
+  };
+  inp.onkeydown = e => { e.stopPropagation(); if (e.key === "Enter") end(true); else if (e.key === "Escape") end(false); };
+  inp.onblur = () => end(true);
+  inp.onclick = inp.ondblclick = e => e.stopPropagation();
+}
+
+// ---------- Dropping a file from the file list into the open design ----------
+// The dragged design's stitches are added at the end of the sew order, centered where you let go, as one group
+// (so it moves as a unit), with its own thread colors. Undo takes it back out.
+const FX_DRAG = "application/x-jef-file";
+const fxDragging = e => [...(e.dataTransfer && e.dataTransfer.types || [])].includes(FX_DRAG);
+// stitches + threads of a .JEF, or of a .jefproj with its live shapes sewn out the way an export would
+async function fileStitches(file) {
+  if (/\.jefproj$/i.test(file.name)) {
+    const p = JSON.parse(await file.text()), keep = [cmds, threads, shapes, runSources];
+    try {   // synchronous swap, so nothing else can see it
+      cmds = p.cmds || []; threads = p.threads && p.threads.length ? p.threads : [{ idx: 1 }]; shapes = p.shapes || []; runSources = p.runSources || {};
+      const r = compose(); return { cmds: r.all, threads: r.th };
+    } finally { [cmds, threads, shapes, runSources] = keep; }
+  }
+  const r = parseJEF(await file.arrayBuffer());
+  return { cmds: r.cmds, threads: r.threads };
+}
+function insertDesign(src, at) {
+  const pts = src.cmds.filter(c => c.t === "s");
+  if (!pts.length) { alert("That file has no stitches to add."); return false; }
+  // its own bounding box (bounds() always includes the origin, as JEF extents do, so it can't be used here)
+  const xs = pts.map(c => c.x), ys = pts.map(c => c.y);
+  const dx = Math.round(at[0] - (Math.min(...xs) + Math.max(...xs)) / 2), dy = Math.round(at[1] - (Math.min(...ys) + Math.max(...ys)) / 2);
+  // skip anything before the first stitch's jump, and make sure we jump (never stitch) to the new design
+  const first = src.cmds.findIndex(c => c.t === "s");
+  let body = src.cmds.slice(first).map(c => ({ t: c.t, x: c.x + dx, y: c.y + dy }));
+  let k0 = src.cmds.slice(0, first).filter(c => c.t === "c").length;   // thread in use at the first stitch
+  const th = src.threads.length ? src.threads.map(t => ({ ...t })) : [{ idx: 1 }];
+  snapshot();
+  const g = newGroupId();
+  body.forEach(c => { if (c.t !== "c") c.g = g; });
+  const lead = { t: "j", x: body[0].x, y: body[0].y, g };
+  const firstTh = th[Math.min(k0, th.length - 1)], laterTh = th.slice(k0 + 1);
+  if (!cmds.length && !shapes.length) {   // an empty design: the new design's first thread becomes the starting thread
+    cmds = [lead, ...body]; threads = [firstTh, ...laterTh];
+  } else {
+    const last = threads[cmds.filter(c => c.t === "c").length] || threads[threads.length - 1] || { idx: 1 };
+    const prev = cmds[cmds.length - 1] || lead;
+    const add = [];
+    if (firstTh.idx !== last.idx || JSON.stringify(firstTh.rgb) !== JSON.stringify(last.rgb)) {   // a new color
+      add.push({ t: "c", x: prev.x, y: prev.y }); threads = [...threads, firstTh];
+    }
+    cmds = [...cmds, ...add, lead, ...body]; threads = [...threads, ...laterTh];
+  }
+  threadsDirty = true;
+  shapeSel.clear(); ptSel.clear();
+  runSel = new Set(getRuns().filter(r => cmds[r.start].g === g).map(r => r.start));
+  changed();
+  return true;
 }
 function download(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-$("newBtn").onclick = () => { if (saved || confirm("Start a new design? Unsaved changes will be lost.")) newDesign(); };
+$("newBtn").onclick = newTab;
 $("openBtn").onclick = () => $("file").click();
-$("file").onchange = e => { e.target.files[0] && load(e.target.files[0]); e.target.value = ""; };
-$("saveBtn").onclick = () => {
-  const name = meta.isNew ? fileName : fileName.replace(/(-edited)?(\.jef)?$/i, "-edited.JEF");
+$("file").onchange = e => { e.target.files[0] && openInTab(e.target.files[0]); e.target.value = ""; };
+$("saveBtn").onclick = async () => {
+  if (!(await ensureNamed())) return;
+  // a loaded file you haven't renamed exports as "name-edited.JEF", so the original isn't overwritten by accident
+  const name = meta.isNew || renamed ? fileName : baseName(fileName).replace(/-edited$/i, "") + "-edited" + jefExt();
   download(new Blob([buildJEF()], { type: "application/octet-stream" }), name);
-  saved = true; changed();
+  if (!projectOnly()) { saved = true; changed(); }
 };
-$("pngBtn").onclick = () => cv.toBlob(b => download(b, fileName.replace(/\.jef$/i, "") + ".png"));
+$("projBtn").onclick = saveProject;
+$("pngBtn").onclick = async () => (await ensureNamed()) && cv.toBlob(b => download(b, baseName(fileName) + ".png"));
 const stage = $("stage");
-stage.addEventListener("dragover", e => { e.preventDefault(); stage.classList.add("over"); });
+stage.addEventListener("dragover", e => { e.preventDefault(); if (fxDragging(e)) e.dataTransfer.dropEffect = "copy"; stage.classList.add("over"); });
 stage.addEventListener("dragleave", () => stage.classList.remove("over"));
-stage.addEventListener("drop", e => { e.preventDefault(); stage.classList.remove("over"); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); });
-window.addEventListener("beforeunload", e => { if (!saved) e.preventDefault(); });
+stage.addEventListener("drop", async e => {
+  e.preventDefault(); stage.classList.remove("over");
+  if (fxDragging(e)) {   // a file from the file list: add it to this design where it was dropped
+    const f = fxFileByPath(e.dataTransfer.getData(FX_DRAG));
+    if (!f) return;
+    const [x, y] = mpos(e);
+    try { insertDesign(await fileStitches(await f.get()), toW(x, y)); }
+    catch (err) { alert("Couldn't add that file: " + err.message); }
+    return;
+  }
+  const f = e.dataTransfer.files[0];
+  if (f) /^image\//.test(f.type) ? loadPhoto(f) : openInTab(f);
+});
+
+// ---------- Hoop photo controls ----------
+$("photoBtn").onclick = () => $("photoFile").click();
+$("photoFile").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) loadPhoto(f); });
+$("photoAlign").onclick = () => aligning ? endAlign() : startAlign();
+$("photoDel").onclick = removePhoto;
+$("alDone").onclick = endAlign;
+const setPhotoOp = v => { if (!photo) return; photo.op = v / 100; updatePhotoUI(); draw(); };
+["photoOp", "alOp"].forEach(id => {
+  $(id).addEventListener("input", () => setPhotoOp(+$(id).value));
+  $(id).addEventListener("change", savePhoto);
+});
+$("alRotL").onclick = () => { photoXform(rotAbout(quadMid(photo.q), Math.PI / 2)); savePhoto(); };
+$("alRotR").onclick = () => { photoXform(rotAbout(quadMid(photo.q), -Math.PI / 2)); savePhoto(); };
+$("alFlat").onclick = flattenPhoto;
+$("alModeMark").onclick = () => setAlignMode("mark");
+$("alModeMove").onclick = () => setAlignMode("move");
+$("alApply").onclick = applyMark;
+$("alBoxReset").onclick = () => { if (currentHoop()) { markBox = hoopInnerQuad(); draw(); } };
+$("alReset").onclick = () => { photo.q = defaultQuad(photo.img); warpPhoto(); savePhoto(); draw(); };
+// the hoop picker in the align bar just drives the one in the side panel
+$("alHoop").addEventListener("input", () => { $("hoop").value = $("alHoop").value; $("hoop").dispatchEvent(new Event("input")); });
+$("alHoopRot").addEventListener("input", () => { $("hoopRot").checked = $("alHoopRot").checked; $("hoopRot").dispatchEvent(new Event("input")); });
+["hoop", "hoopRot"].forEach(id => $(id).addEventListener("input", () => { if (aligning) syncAlignHoop(); }));
+// bring back the photo from last time
+try {
+  const saved = JSON.parse(localStorage.getItem(PHOTO_KEY) || "null");
+  if (saved && saved.src && saved.q) {
+    const im = new Image();
+    im.onload = () => { photo = { img: im, src: saved.src, q: saved.q, op: saved.op == null ? 1 : saved.op }; warpPhoto(); updatePhotoUI(); changed(); };
+    im.src = saved.src;
+  }
+} catch (e) {}
+updatePhotoUI();
+window.addEventListener("beforeunload", e => { if (!saved || docs.some((x, i) => i !== activeDoc && x.d && !x.d.saved)) e.preventDefault(); });
 new ResizeObserver(resize).observe(stage);
 newDesign();
 </script>
+<div id="nameDlg" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="ndTitle">
+    <h3 id="ndTitle">Name this design</h3>
+    <p id="ndText"></p>
+    <div class="nrow"><input id="ndName" spellcheck="false" autocomplete="off"><span class="ext" id="ndExt">.JEF</span></div>
+    <div class="err" id="ndErr"></div>
+    <div class="warn" id="ndWarn" hidden></div>
+    <div class="btns">
+      <button id="ndCancel">Cancel</button>
+      <button id="ndDefault"></button>
+      <button id="ndOk" class="primary">Use this name</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

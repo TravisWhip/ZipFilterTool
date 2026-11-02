@@ -4,8 +4,10 @@ Browser-based tools for Janome `.JEF` embroidery files. No install needed: open 
 
 - **jef-editor.html** — stitch editor. Draw rectangles, ovals, lines and triangles (satin, running or triple-running stitch),
   move/resize/rotate them with draw.io-style handles and snap guides, edit individual stitch points, preview with realistic
-  thread width, and save back to `.JEF`.
-- **jef-viewer.html** — simple read-only viewer that renders a `.JEF` file and can save a PNG.
+  thread width, and export to `.JEF`. **Save** writes a `.jefproj` project (JSON) that keeps live shapes, groups,
+  measurements, sew order, hoop and photo alignment; reopen it with **Open…** and keep editing, then **Export JEF**.
+  Upload a photo of your hooped fabric and line it up: mark the hoop's inside edge and press Apply to straighten and size
+  it automatically, or move, rotate, resize and stretch it by hand onto the ghost hoop, to design directly on it.
 - **date.JEF** — sample design (single color, 77.4 × 8.0 mm).
 
 ## JEF format notes
