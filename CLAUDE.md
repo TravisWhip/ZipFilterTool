@@ -148,6 +148,20 @@ are kept (as "right-click to save here" rows). Upload-fallback folders have no h
 **Fit:** `fit(mode)` with "hoop" (whole frame + any design outside it) or "design" (true bbox). Toolbar switch `#fitHoop`
 picks the Fit button's mode (`jefFitMode`); side panel "On open" `#openFit` (`jefOpenFit`, default hoop) is used by `load`/`loadProject`.
 
+### Performance (keep it smooth on low-end PCs)
+- **Stitch layer cache** (`drawStitchLayer` / `drawStitches`, state `SL`): `draw()` paints the stitches into an offscreen canvas and
+  reuses it while the key (settings, canvas size, view) and `stitchHash(all)` are unchanged, so hover/selection/handles/guides
+  only redraw the overlay. Sewing forward (play, slider) adds just the new stitches (not with the realistic ghost on). When a
+  full redraw took > 12 ms and the view is moving (`viewBusy()` from wheel/pan), the old layer is shifted/scaled and a sharp
+  redraw follows 200 ms later. While moving/resizing/rotating, the layer holds everything except the selected items (hashed
+  in order, not by index), which are drawn on top each frame (realistic: their pull from `pullField` on just them).
+  Anything new that changes how stitches look must go into that key or the hash.
+- `getRuns()` is memoized per event (cleared by a microtask, keyed on the `cmds` array and length); code that changes
+  `cmds` in place without changing its length (e.g. toggling `t`, `regenRun`) must call `runsDirty()`.
+- `changed()` during a drag only redraws; the side panels catch up every 150 ms and on pointerup. The sew slider only
+  calls `syncPlayUI(); draw()`. Sew-order card thumbnails are cached by content (`orderThumb`). The selection trace is one
+  path and is skipped (boxes only) for big selections. Use `ptBox` instead of `Math.min(...list)` (stack overflow on big files).
+
 ### Testing
 - Node simulations with a stubbed DOM: extract the `<script>` from the HTML, `eval` it with fake `document`/canvas/
   `localStorage`, expose internals through a `globalThis` hook, then drive `pointerdown/move/up` and `keydown`.
