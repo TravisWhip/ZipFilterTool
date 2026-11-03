@@ -2449,17 +2449,6 @@ function togglePause(i) {
 }
 
 function runCmds(r) { return cmds.slice(r.start, r.end + 1).map(c => ({ ...c })); }
-// Add copies of runs at the end of the loaded stitches; returns the new runs' start indices.
-function appendRuns(list, dx, dy) {
-  const starts = [];
-  for (const run of list) {
-    const moved = run.map(c => ({ ...c, x: Math.round(c.x + dx), y: Math.round(c.y + dy) }));
-    if (moved[0].t !== "j") moved.unshift({ t: "j", x: moved[0].x, y: moved[0].y });
-    starts.push(cmds.length);
-    cmds.push(...moved);
-  }
-  return starts;
-}
 
 // ---------- Snapping (draw.io-style guides) ----------
 let GRID = U().snap; // 0.5 mm, or 1/32" in imperial
@@ -3405,20 +3394,23 @@ function deleteShapes() {
   else shapes = shapes.filter(s => !shapeSel.has(s.id));
   shapeSel.clear(); runSel.clear(); changed();
 }
+// The clipboard keeps each stitch run with its own thread, so a copy of a multi-color design keeps its colors
+// (pasting rebuilds the sew order with applyOrder, which adds a color change wherever the thread changes).
 function copyShapes() {
   if (!shapeSel.size && !runSel.size) return;
-  clipboard = { shapes: selShapes().map(s => JSON.parse(JSON.stringify(s))), runs: selRuns().map(runCmds) };
+  clipboard = {
+    shapes: selShapes().map(s => JSON.parse(JSON.stringify(s))),
+    runs: runObjects().filter(o => runSel.has(o.start)).map(o => ({ cmds: o.cmds, thread: o.thread, pause: o.pause, pauseNote: o.pauseNote })),
+  };
 }
 function pasteShapes(offset = 50) {
   if (!clipboard.shapes) return;
   snapshot();
-  shapeSel.clear(); runSel.clear();
   clipboard.shapes = clipboard.shapes.map(c => ({ ...c, cx: c.cx + offset, cy: c.cy - offset }));
-  clipboard.runs = clipboard.runs.map(run => run.map(c => ({ ...c, x: c.x + offset, y: c.y - offset })));
+  clipboard.runs = clipboard.runs.map(r => ({ ...r, cmds: r.cmds.map(c => ({ ...c, x: c.x + offset, y: c.y - offset })) }));
   // pasted copies get their own groups (a copy of a group is a new group)
   const gmap = new Map(); let gNext = newGroupId();
   const remap = g => { if (g == null) return undefined; if (!gmap.has(g)) gmap.set(g, gNext++); return gmap.get(g); };
-  for (const c of clipboard.shapes) { const s = { ...c, id: nextId++, group: remap(c.group) }; if (s.group == null) delete s.group; shapes.push(s); shapeSel.add(s.id); }
   // pasted runs made from shapes get their own copy of the source settings (so editing one doesn't change the other)
   const smap = new Map();
   const remapSid = sid => {
@@ -3426,15 +3418,22 @@ function pasteShapes(offset = 50) {
     if (!smap.has(sid)) { const n = newSid(); runSources[n] = JSON.parse(JSON.stringify(runSources[sid])); smap.set(sid, n); }
     return smap.get(sid);
   };
-  const runs = clipboard.runs.map(run => run.map(c => {
-    const n = { ...c, g: remap(c.g), sid: remapSid(c.sid) };
-    if (n.g == null) delete n.g; if (n.sid == null) delete n.sid; return n;
-  }));
-  for (const st of appendRuns(runs, 0, 0)) runSel.add(st);
-  if (gmap.size) {   // keep each new group together in the sew order
-    const order = orderList(), sel = order.filter(isSelItem), starts = applyOrder(normalizeGroups(order));
-    reselect(sel, starts);
+  const order = orderList(), items = [];
+  clipboard.runs.forEach((r, k) => {
+    const run = r.cmds.map(c => {
+      const n = { ...c, g: remap(c.g), sid: remapSid(c.sid) };
+      if (n.g == null) delete n.g; if (n.sid == null) delete n.sid; return n;
+    });
+    // (the copy goes at the end; a stop that came before the first copied run isn't repeated at the join)
+    items.push({ type: "run", obj: { cmds: run, thread: { ...r.thread }, pause: k ? r.pause : false, pauseNote: r.pauseNote } });
+  });
+  for (const c of clipboard.shapes) {
+    const s = { ...c, id: nextId++, group: remap(c.group), after: null };
+    if (s.group == null) delete s.group;
+    items.push({ type: "shape", s });
   }
+  const starts = applyOrder(normalizeGroups([...order, ...items]));
+  reselect(items, starts);
   setTool("select"); changed();
 }
 function nudgeShapes(dx, dy) {

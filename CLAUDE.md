@@ -48,6 +48,8 @@ covers it.) Local-only, not committed: `SavedDesigns/`, `HoopImage.jpeg`, `SQ14b
   under, lock, color, corner, stop, applique, appPlace, after, group}`.
 - `compose()` interleaves shapes into the stitch runs (by `shape.after`) → `{all, th, marks}`; everything draws from it.
 - A **stitch run** = block of stitches between jumps. `applyOrder(order)` rebuilds `cmds` from run objects.
+- Copy/paste (`copyShapes`/`pasteShapes`, also Duplicate): the clipboard keeps each run with its thread (`runObjects()`), and paste
+  appends the copies to the order and calls `applyOrder`, so a multi-color copy keeps its colors (color changes added as needed).
 - `runSources[sid] = {def, stage, xf}` keeps shape settings editable after "To stitches" (regenerated with `fitAffine`).
 - Undo/redo: JSON snapshots of `{cmds, threads, threadsDirty, shapes, measures, runSources}` via `snapshot()`/`restore()`.
 - View: `view = {s, ox, oy}`; `toS(x,y)` design→screen, `toW(sx,sy)` screen→design. `changed()` refreshes panels + `draw()`.
