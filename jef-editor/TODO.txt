@@ -1,0 +1,7 @@
+Do the following 3 tasks. Commit & push inbetween each task. Make reasonable assumptions - I will not be around to approve or provide answers.
+
+1. When I copy something, the thread color is set to yellow. I bring in the 3inchPatchTemplate.JEF+ design, select all and make it a group, then copy - but when I copy the copy is all of one color (hellow). 
+
+2. If I select a text, show me what the default size is in the RHS. Also allow me to shift mouse over fonts to "preview" what my font would look like.
+
+3. Optimize the performance so this site runs well on lowend PCs.

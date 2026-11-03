@@ -78,8 +78,12 @@
   input.sm { width:60px; }
   .card { background:#f3faff; border:1px solid #bfe3f7; border-radius:8px; padding:8px 10px; margin-bottom:8px; }
   .card h2 { margin-top:0 !important; color:#1477a8; }
+  #txText { flex:1; min-width:0; font:15px system-ui, sans-serif; resize:vertical; padding:4px 6px; }
+  #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%); background:rgba(30,30,30,.88); color:#fff; padding:6px 12px;
+           border-radius:6px; font-size:13px; pointer-events:none; z-index:20; max-width:80%; }
   .val { color:var(--muted); min-width:44px; }
   .align button { padding:3px 7px; font-size:12px; }
+  .align button.active { background:#333; color:#fff; border-color:#333; }
   #realBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:7px 12px;
              background:#fbf8f1; border-bottom:1px solid var(--line); }
   #realBar .grp { display:flex; align-items:center; gap:6px; }
@@ -198,6 +202,12 @@
   #fileResize:hover::after, #fileResize.active::after { background:#29b6f2; }
   #fileTab { border-right:1px solid var(--line); transform:rotate(180deg); }
   .fxbar { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+  .fxfilter { display:flex; margin-bottom:6px; }
+  .fxfilter button { flex:1; padding:2px 4px; font-size:12px; border-radius:0; margin-left:-1px; white-space:nowrap; }
+  .fxfilter button:first-child { border-radius:4px 0 0 4px; margin-left:0; }
+  .fxfilter button:last-child { border-radius:0 4px 4px 0; }
+  .fxfilter button.active { background:#333; color:#fff; border-color:#333; position:relative; }
+  .fxfilter button small { opacity:.7; margin-left:3px; }
   .fxbar .root { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1; }
   #fxTree { flex:1; overflow:auto; min-height:0; }
   .fx { display:grid; border-top:1px solid #555; border-left:1px solid #555; background:#fff; }
@@ -218,6 +228,35 @@
   .fx-tile.cur .nm { font-weight:600; color:#1477a8; }
   .fx-tile .nm { font-size:11px; margin-top:4px; max-width:86px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .fx-tile .badge { position:absolute; top:3px; right:6px; font-size:9px; background:#6a4fb3; color:#fff; border-radius:3px; padding:0 3px; }
+  .fx-tile .badge.font { background:#0b7a5a; }
+  /* small thumbnails */
+  .fx.small .fx-files { flex-wrap:wrap; overflow-x:hidden; }
+  .fx.small .fx-tile { width:58px; padding:4px 2px 3px; }
+  .fx.small .fx-tile canvas { width:42px; height:42px; border-width:1px; border-radius:7px; }
+  .fx.small .fx-tile.cur canvas { box-shadow:0 0 0 2px rgba(41,182,242,.45); }
+  .fx.small .fx-tile .nm { font-size:10px; max-width:54px; margin-top:2px; }
+  .fx.small .fx-tile .badge { font-size:8px; top:1px; right:1px; padding:0 2px; }
+  .fx.small .fx-dir { padding:3px 4px; font-size:12px; }
+  .fx.small .fx-dir small { font-size:10px; }
+  /* tree list */
+  .fxt { font-size:12.5px; user-select:none; padding:2px 0; }
+  .fxt-row { display:flex; align-items:center; gap:5px; height:24px; padding-right:6px; white-space:nowrap; cursor:pointer; border-radius:3px; }
+  .fxt-row:hover { background:#eef6fd; }
+  .fxt-row.cur { background:#d3eafb; }
+  .fxt-row.cur .fxt-nm { font-weight:600; color:#1477a8; }
+  .fxt-car { width:11px; flex:none; color:#888; font-size:9px; text-align:center; }
+  .fxt-row svg { flex:none; }
+  .fxt-file canvas { width:20px; height:20px; flex:none; border:1px solid #b9b9b4; border-radius:4px; background:#ecebe6; }
+  .fxt-file:hover canvas { border-color:#29b6f2; }
+  .fxt-nm { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .fxt-meta { flex:none; color:var(--muted); font-size:11px; }
+  .fxt-kind { flex:none; font-size:9px; color:#fff; background:#6a4fb3; border-radius:3px; padding:0 3px; line-height:13px; }
+  .fxt-kind.font { background:#0b7a5a; }
+  .fxt-dir.none { opacity:.5; cursor:default; }
+  .fxt-dir.none:hover { background:none; }
+  #fxPeek { position:fixed; z-index:60; background:#fff; border:1px solid #bbb; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.2);
+            padding:6px; pointer-events:none; font-size:11px; color:var(--muted); max-width:220px; }
+  #fxPeek canvas { width:124px; height:124px; display:block; border-radius:6px; margin-bottom:4px; }
   /* Sew order list */
   #orderPanel { width:250px; flex:none; overflow:auto; background:var(--panel); border-right:1px solid var(--line); padding:8px; }
   .ophead { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
@@ -257,7 +296,7 @@
   <h1>JEF Stitch Editor</h1>
   <button id="newBtn">New</button>
   <button id="openBtn">Open…</button>
-  <input id="file" type="file" accept=".jef,.JEF,.jef+,.JEF+,.jefproj" hidden>
+  <input id="file" type="file" accept=".jef,.JEF,.jef+,.JEF+,.jefproj,.bx,.BX" hidden>
   <button id="projBtn" title="Save everything (shapes, groups, measurements, sew order, hoop and photo) as a .jefproj project you can reopen and keep editing (Ctrl+S)">Save</button>
   <button id="saveBtn" title="Export the stitches as a .JEF file for the machine">Export JEF</button>
   <button id="pngBtn" title="Save a PNG picture of the canvas">PNG</button>
@@ -281,6 +320,7 @@
     <button data-tool="rect" title="Rectangle (R)">Rectangle</button>
     <button data-tool="oval" title="Oval / circle (O)">Oval</button>
     <button data-tool="tri" title="Triangle (T)">Triangle</button>
+    <button data-tool="text" title="Text (X): click where the text should go. Uses embroidery fonts (.bx) — load them here, from the Files panel, or drop them on the canvas">Text</button>
   </span>
   <span class="tools">
     <button data-tool="measure" title="Measure distances and gaps (M)">📏 Measure</button>
@@ -331,13 +371,22 @@
       <span class="opmodes">
         <button data-fxmode="horizontal" title="Files in one horizontal strip per folder (scroll sideways)">⇢</button>
         <button data-fxmode="rows" title="Files wrap onto rows">▦</button>
+        <button data-fxmode="small" title="Small thumbnails, packed tightly">⊞</button>
+        <button data-fxmode="tree" title="Compact tree list (like an IDE): tiny thumbnails, rest on a file for a bigger preview">☰</button>
       </span></div>
     <div class="fxbar">
       <button id="fxOpen" title="Pick the folder that holds your JEF files">Choose folder…</button>
       <button id="fxRefresh" title="Look for new or changed files" hidden>↻</button>
       <span class="root" id="fxRoot"></span>
     </div>
+    <div class="fxfilter" id="fxFilter" title="Which kinds of files to show">
+      <button data-fxfilter="all">All</button>
+      <button data-fxfilter="proj" title="Projects (.jefproj)">Projects</button>
+      <button data-fxfilter="jef" title="Machine files (.JEF and .JEF+)">JEF</button>
+      <button data-fxfilter="bx" title="Embroidery fonts (.bx)">Fonts</button>
+    </div>
     <input id="fxDirIn" type="file" webkitdirectory multiple hidden>
+    <div id="fxPeek" hidden><canvas width="124" height="124"></canvas><div></div></div>
     <div id="fxTree"></div>
   </div>
   <div id="fileResize" title="Drag to resize the file list · double-click to reset"></div>
@@ -356,7 +405,8 @@
   <div id="center">
   <div id="stage">
     <canvas id="cv"></canvas>
-    <div id="drophint"><span>Pick Rectangle, Oval, Line or Triangle and drag here to draw,</span><span>or drop a .JEF file or a saved project to edit it — or a photo of your hooped fabric to design on it.</span></div>
+    <div id="drophint"><span>Pick Rectangle, Oval, Line or Triangle and drag here to draw, or Text and click,</span><span>or drop a .JEF file or a saved project to edit it — a .bx embroidery font to write with — or a photo of your hooped fabric to design on it.</span></div>
+    <div id="toast" hidden></div>
     <!-- lining up a hoop photo with the ghost hoop -->
     <div id="alignBar" hidden>
       <div class="ab-row">
@@ -453,7 +503,24 @@
         <button data-align="cy" title="Align middles (vertical)">↕</button>
         <button data-align="bottom" title="Align bottom edges">⤓</button>
       </div>
-      <div class="row"><label class="lbl">Stitch</label>
+      <!-- text (embroidery fonts) -->
+      <div class="textOnly">
+        <div class="row" id="txTextRow"><textarea id="txText" rows="2" spellcheck="false" placeholder="Type your text (Enter = new line)"></textarea></div>
+        <div class="row"><label class="lbl">Font</label><select id="txFont" style="flex:1;min-width:0"></select></div>
+        <div class="row"><span class="lbl"></span>
+          <button id="txLoad" title="Add .bx embroidery fonts (they're remembered in this browser)">Load…</button>
+          <button id="txDrop" title="Take this font off the list (text already written with it keeps its stitches)">Remove</button></div>
+        <div class="row"><label class="lbl" title="Height of the capital letters">Letter size</label><input id="txSize" class="len" type="number" step="0.5" min="0.5"> <span class="unit">mm</span></div>
+        <div class="row"><label class="lbl">Letters</label><input id="txLs" type="range" min="-20" max="60" step="1" title="Space between letters" style="width:100px"><span class="val" id="txLsV"></span></div>
+        <div class="row" id="txLhRow"><label class="lbl">Lines</label><input id="txLh" type="range" min="60" max="200" step="5" title="Space between lines" style="width:100px"><span class="val" id="txLhV"></span></div>
+        <div class="row align" id="txAlignRow"><span class="lbl">Lines align</span>
+          <button data-talign="left" title="Line up the left ends of the lines">⇤</button>
+          <button data-talign="center" title="Center the lines">↔</button>
+          <button data-talign="right" title="Line up the right ends of the lines">⇥</button></div>
+        <div class="help" id="txHelp"></div>
+      </div>
+      <input id="txFile" type="file" accept=".bx,.BX" multiple hidden>
+      <div class="row notText"><label class="lbl">Stitch</label>
         <select id="shStyle">
           <option value="satin">Satin (zigzag)</option>
           <option value="run">Running (thin line)</option>
@@ -462,8 +529,8 @@
       <div class="row satinOnly"><label class="lbl">Thickness</label><input id="shThick" type="range" min="0.5" max="10" step="0.5"><span class="val" id="shThickV"></span></div>
       <div class="row satinOnly"><label class="lbl">Spacing</label><input id="shDens" type="range" min="0.2" max="3" step="0.1"><span class="val" id="shDensV"></span></div>
       <div class="row cornerOnly"><label class="lbl">Corners</label><span class="val" style="min-width:0">Sharp</span><input id="shCorner" type="range" min="0" max="100" step="5" style="width:90px"><span class="val" style="min-width:0">Round</span></div>
-      <div class="row runOnly"><label class="lbl">Stitch len</label><input id="shLen" type="range" min="1" max="7" step="0.5"><span class="val" id="shLenV"></span></div>
-      <div class="row"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
+      <div class="row runOnly notText"><label class="lbl">Stitch len</label><input id="shLen" type="range" min="1" max="7" step="0.5"><span class="val" id="shLenV"></span></div>
+      <div class="row notText"><label class="satinOnly"><input type="checkbox" id="shUnder"> Underlay</label>
         <label><input type="checkbox" id="shLock"> Lock stitches</label></div>
       <div class="row liveOnly"><label class="lbl">Thread</label><select id="shColor" style="flex:1;min-width:0"></select></div>
       <div class="row liveOnly"><span class="lbl"></span><label title="The machine stops before sewing this shape, even if the thread stays the same (e.g. to place appliqué fabric)"><input type="checkbox" id="shStop"> Stop before this shape</label></div>
@@ -1114,6 +1181,7 @@ let docs = [{ id: 1, d: null }], activeDoc = 0, nextDocId = 2, tabSig = "";
 let untitled = true, renamed = false;
 let tool = "select", spaceDown = false, drag = null, guides = [], hoverId = null;
 let alignTool = false, alignRef = null, alignHover = null;   // Align mode (see "Align (TinkerCad style)")
+let pendingText = null;   // Text tool clicked with no font loaded: where to put the text once one is
 let sewAll = true, sewN = 0;
 let defaults = { style: "satin", thick: 30, dens: 4, len: 25, under: true, lock: true, color: "cur", corner: 100 };
 const $ = id => document.getElementById(id);
@@ -1218,12 +1286,331 @@ function readEnhance(tr, th) {
   }
 }
 
+// ---------- Embroidery fonts (.bx) ----------
+// bzip2 decompressor (BX fonts keep their glyphs in a bzip2 stream).
+function bunzip2(src, at = 0) {
+  let pos = at, cur = 0, left = 0;
+  const bits = n => {
+    let r = 0;
+    while (n > 0) {
+      if (!left) { if (pos >= src.length) throw new Error("bzip2: unexpected end"); cur = src[pos++]; left = 8; }
+      const t = Math.min(n, left);
+      r = r * (1 << t) + ((cur >> (left - t)) & ((1 << t) - 1));
+      left -= t; n -= t;
+    }
+    return r;
+  };
+  if (bits(8) !== 0x42 || bits(8) !== 0x5a || bits(8) !== 0x68) throw new Error("bzip2: bad header");
+  const level = bits(8) - 0x30;
+  if (level < 1 || level > 9) throw new Error("bzip2: bad block size");
+  const tt = new Uint32Array(level * 100000), chunks = [];
+  let total = 0;
+  for (;;) {
+    const m1 = bits(24), m2 = bits(24);
+    if (m1 === 0x177245 && m2 === 0x385090) break;               // end of stream
+    if (m1 !== 0x314159 || m2 !== 0x265359) throw new Error("bzip2: bad block");
+    bits(32);                                                     // block CRC (not checked)
+    if (bits(1)) throw new Error("bzip2: randomised blocks aren't supported");
+    const origPtr = bits(24);
+    // symbols in use
+    const used = bits(16), seqToUnseq = [];
+    for (let i = 0; i < 16; i++) if (used & (0x8000 >> i)) { const w = bits(16); for (let j = 0; j < 16; j++) if (w & (0x8000 >> j)) seqToUnseq.push(i * 16 + j); }
+    const nInUse = seqToUnseq.length, alpha = nInUse + 2;
+    const nGroups = bits(3), nSel = bits(15);
+    if (nGroups < 2 || nGroups > 6 || !nSel) throw new Error("bzip2: bad tables");
+    const mtfG = [...Array(nGroups).keys()], selectors = new Uint8Array(nSel);
+    for (let i = 0; i < nSel; i++) {
+      let j = 0; while (bits(1)) if (++j >= nGroups) throw new Error("bzip2: bad selector");
+      const v = mtfG[j]; mtfG.splice(j, 1); mtfG.unshift(v); selectors[i] = v;
+    }
+    // Huffman tables (canonical: limit/base/perm per group)
+    const tables = [];
+    for (let g = 0; g < nGroups; g++) {
+      const len = new Uint8Array(alpha);
+      let c = bits(5);
+      for (let i = 0; i < alpha; i++) {
+        for (;;) { if (c < 1 || c > 20) throw new Error("bzip2: bad code length"); if (!bits(1)) break; c += bits(1) ? -1 : 1; }
+        len[i] = c;
+      }
+      let minLen = 32, maxLen = 0;
+      for (const l of len) { minLen = Math.min(minLen, l); maxLen = Math.max(maxLen, l); }
+      const perm = [], base = new Int32Array(23), limit = new Int32Array(23);
+      for (let l = minLen; l <= maxLen; l++) for (let s = 0; s < alpha; s++) if (len[s] === l) perm.push(s);
+      for (const l of len) base[l + 1]++;
+      for (let i = 1; i < 23; i++) base[i] += base[i - 1];
+      let vec = 0;
+      for (let l = minLen; l <= maxLen; l++) { vec += base[l + 1] - base[l]; limit[l] = vec - 1; vec <<= 1; }
+      for (let l = minLen + 1; l <= maxLen; l++) base[l] = ((limit[l - 1] + 1) << 1) - base[l];
+      tables.push({ minLen, maxLen, perm, base, limit });
+    }
+    // symbols → MTF/RLE2 → block
+    const yy = [...Array(256).keys()], cnt = new Int32Array(256);
+    let gSel = -1, gLeft = 0, tab = null, n = 0;
+    const sym = () => {
+      if (!gLeft) { gSel++; if (gSel >= nSel) throw new Error("bzip2: out of selectors"); gLeft = 50; tab = tables[selectors[gSel]]; }
+      gLeft--;
+      let l = tab.minLen, v = bits(l);
+      while (l <= tab.maxLen && v > tab.limit[l]) { l++; v = v * 2 + bits(1); }
+      if (l > tab.maxLen) throw new Error("bzip2: bad code");
+      return tab.perm[v - tab.base[l]];
+    };
+    let s = sym();
+    for (;;) {
+      if (s === nInUse + 1) break;                                   // end of block
+      if (s <= 1) {                                                  // RUNA / RUNB: a run of the front symbol
+        let run = 0, w = 1;
+        do { run += (s + 1) * w; w *= 2; s = sym(); } while (s <= 1);
+        const u = seqToUnseq[yy[0]];
+        if (n + run > tt.length) throw new Error("bzip2: block too big");
+        cnt[u] += run; while (run--) tt[n++] = u;
+        continue;
+      }
+      const v = yy[s - 1]; yy.splice(s - 1, 1); yy.unshift(v);
+      const u = seqToUnseq[v];
+      if (n >= tt.length) throw new Error("bzip2: block too big");
+      cnt[u]++; tt[n++] = u; s = sym();
+    }
+    if (origPtr >= n) throw new Error("bzip2: bad pointer");
+    // inverse BWT, then undo the initial run-length step (4 equal bytes + a count)
+    const cf = new Int32Array(256);
+    for (let i = 0, sum = 0; i < 256; i++) { cf[i] = sum; sum += cnt[i]; }
+    for (let i = 0; i < n; i++) { const u = tt[i] & 255; tt[cf[u]++] |= i << 8; }
+    let out = new Uint8Array(n * 2 + 1024), o = 0, p = tt[origPtr] >>> 8, last = -1, rl = 0;
+    const room = k => { if (o + k > out.length) { const nb = new Uint8Array((o + k) * 2); nb.set(out.subarray(0, o)); out = nb; } };
+    for (let k = 0; k < n; k++) {
+      p = tt[p]; const b = p & 255; p >>>= 8;
+      if (rl === 4) { room(b); for (let r = 0; r < b; r++) out[o++] = last; rl = 0; continue; }
+      if (b === last) rl++; else { rl = 1; last = b; }
+      room(1); out[o++] = b;
+    }
+    chunks.push(out.subarray(0, o)); total += o;
+  }
+  const res = new Uint8Array(total);
+  let q = 0; for (const c of chunks) { res.set(c, q); q += c.length; }
+  return res;
+}
+
+// Embrilliance BX font → { name, glyphs: Map(char → { st: [[x, y, jump]], w, top, bot }), asc, desc, capH, lineH, space }
+// Coordinates in 0.1 mm, +Y up, x from the glyph's left edge, y from its baseline.
+// (Format worked out from sample files: a header with the font name and the character list, then a bzip2 stream with,
+// per glyph, a stitch block — u32 2, u32 2, u32 n, n×4 zero bytes, n×4 flag bytes (byte 0 bit 1 = jump to this point),
+// n int16 dx then n int16 dy in 1/4 of 0.1 mm — followed by records for its baseline ("outline") and its character.)
+const BX_NAMES = { "?": /quest/, ";": /semi/, ":": /^colon/, "/": /^(forward)?slash/, "\\": /back/, "*": /aste|astr|star/, ".": /period|dot|stop/,
+  ",": /comma/, '"': /quot/, "'": /apos|single/, "_": /under/, "-": /minus|dash|hyph/, "|": /bar|pipe/, "!": /excl/, "&": /amp|and/,
+  "@": /^at$/, "#": /hash|pound|numb/, "$": /dollar/, "%": /perc/, "+": /plus/, "=": /equal/, "<": /less/, ">": /more|great/,
+  "(": /open|left.*paren/, ")": /close|right.*paren/, "[": /left.*brack/, "]": /right.*brack/, "^": /caret/, "~": /tilde/ };
+function parseBX(buf, fallbackName = "Font") {
+  const b = new Uint8Array(buf);
+  const find = (pat, from = 0, src = b) => {
+    const p = typeof pat === "string" ? [...pat].map(c => c.charCodeAt(0)) : pat;
+    outer: for (let i = from; i <= src.length - p.length; i++) { for (let j = 0; j < p.length; j++) if (src[i + j] !== p[j]) continue outer; return i; }
+    return -1;
+  };
+  if (find("BX0") !== 0) throw new Error("not a .bx font");
+  const dv0 = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const strAt = (src, i, L) => new TextDecoder().decode(src.subarray(i, i + L)).replace(/\0+$/, "");
+  let name = fallbackName;
+  const ni = find("installName\0");
+  if (ni > 0) { const L = dv0.getUint32(ni + 12, true); if (L > 0 && L < 200) name = strAt(b, ni + 16, L) || name; }
+  // the glyphs: one bzip2 stream (its "BZh" header is replaced, so look for the first block's magic)
+  const bz = find([0x31, 0x41, 0x59, 0x26, 0x53, 0x59]);
+  if (bz < 0) throw new Error("no glyph data in this font");
+  const src = new Uint8Array(4 + b.length - bz);
+  src.set([0x42, 0x5a, 0x68, 0x39]); src.set(b.subarray(bz), 4);
+  const d = bunzip2(src), dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  const u32 = i => dv.getUint32(i, true);
+  // stitch blocks
+  const blocks = [];
+  for (let i = 0; i + 12 <= d.length; i++) {
+    if (d[i] !== 2 || u32(i) !== 2 || u32(i + 4) !== 2) continue;
+    const n = u32(i + 8), a1 = i + 12;
+    if (n < 2 || n > 100000 || a1 + n * 12 > d.length) continue;
+    let zero = true; for (let k = a1; k < a1 + n * 4; k++) if (d[k]) { zero = false; break; }
+    if (!zero) continue;
+    blocks.push({ o: i, n });
+    i = a1 + n * 12 - 1;
+  }
+  const cands = [];
+  blocks.forEach((g, gi) => {
+    const a2 = g.o + 12 + g.n * 4, a3 = a2 + g.n * 4, end = a3 + g.n * 4;
+    const segEnd = gi + 1 < blocks.length ? blocks[gi + 1].o : d.length, seg = d.subarray(end, segEnd);
+    // which character: the record after the glyph's file path, which follows its "index" record
+    const ix = find("index\0", 0, seg);
+    if (ix < 0) return;
+    const sv = new DataView(seg.buffer, seg.byteOffset, seg.byteLength);
+    let p = ix + 6 + 8;                                 // past "index" and its value
+    if (p + 10 > seg.length) return;
+    p += 6;
+    const PL = sv.getUint32(p, true);
+    if (PL > 2000 || p + 4 + PL > seg.length) return;
+    const file = strAt(seg, p + 4, PL).split(/[\\/]/).pop().replace(/\.\w+\s*$/, "").trim();   // (only to break ties)
+    p += 4 + PL;                                        // past the path record
+    if (p + 10 > seg.length) return;
+    const L = sv.getUint32(p + 6, true);
+    if (L < 2 || L > 16 || p + 10 + L > seg.length) return;
+    const ch = [...strAt(seg, p + 10, L)][0];
+    if (!ch) return;
+    // baseline (the "outline" record: a 1-unit line along the baseline, in glyph-centered 0.1 mm)
+    const io = find("outline\0", 0, seg);
+    // stitches: centered on the glyph's box, 1/4 of 0.1 mm
+    const pts = [];
+    let x = 0, y = 0;
+    for (let k = 0; k < g.n; k++) {
+      x += dv.getInt16(a3 + k * 2, true); y += dv.getInt16(a3 + g.n * 2 + k * 2, true);
+      pts.push([x / 4, y / 4, d[a2 + k * 4] & 2 ? 1 : 0]);
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [px, py] of pts) { minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py); }
+    const base = io >= 0 && io + 8 + 10 + 24 <= seg.length ? sv.getFloat32(io + 8 + 10 + 4, true) : minY;
+    const st = pts.map(([px, py, j]) => [px - minX, py - base, j]);
+    cands.push({ ch, file, g: { st, w: maxX - minX, top: maxY - base, bot: minY - base } });
+  });
+  // Some fonts give two glyphs the same character by mistake: keep the one whose file name fits that character best
+  // (e.g. "zz-question" over "zz-backslash" for "?"), otherwise the first.
+  const fits = (ch, file) => {
+    const f = file.toLowerCase().replace(/^zz-|[-_ ]?(cap|sm)$|[()]/g, "");
+    if (f === ch.toLowerCase() || f === ch.toLowerCase().repeat(2)) return 3;
+    const re = BX_NAMES[ch];
+    return re && re.test(f) ? 2 : 0;
+  };
+  const glyphs = new Map(), score = new Map();
+  for (const c of cands) {
+    const s = fits(c.ch, c.file);
+    if (!glyphs.has(c.ch) || s > score.get(c.ch)) { glyphs.set(c.ch, c.g); score.set(c.ch, s); }
+  }
+  if (!glyphs.size) throw new Error("couldn't find any letters in this font");
+  let asc = 0, desc = 0, wsum = 0;
+  for (const g of glyphs.values()) { asc = Math.max(asc, g.top); desc = Math.min(desc, g.bot); wsum += g.w; }
+  const caps = [..."HEIKLMNTXZ"].map(c => glyphs.get(c)).filter(Boolean);
+  const capH = caps.length ? caps.reduce((a, g) => a + g.top, 0) / caps.length
+             : Math.max(...[...glyphs.values()].map(g => g.top));
+  const nW = glyphs.get("n") || glyphs.get("N");
+  return { name, glyphs, asc, desc, capH, lineH: (asc - desc) * 1.1, space: nW ? nW.w * 0.7 : wsum / glyphs.size * 0.5 };
+}
+
+// Lay out text (lines split on \n) with a font. ls = letter spacing, lh = line spacing, both in % of the cap height.
+// Returns stitches [[x, y, jump]] centered on their box, plus that box's size, and the characters the font lacks.
+function layoutText(font, text, ls = 8, lh = 100, align = "center") {
+  const gap = font.capH * ls / 100, lineH = font.lineH * lh / 100;
+  const lines = String(text).split("\n"), placed = [], missing = new Set();
+  lines.forEach((line, li) => {
+    const row = [];
+    let x = 0;
+    for (const ch of line) {
+      const g = font.glyphs.get(ch) || font.glyphs.get(ch.toUpperCase()) || font.glyphs.get(ch.toLowerCase());
+      if (ch === " " || !g) { if (ch !== " ") missing.add(ch); x += font.space + gap; continue; }
+      row.push({ g, x });
+      x += g.w + gap;
+    }
+    const w = row.length ? row[row.length - 1].x + row[row.length - 1].g.w : 0;
+    placed.push({ row, w, y: -li * lineH });
+  });
+  const W = Math.max(0, ...placed.map(l => l.w)), st = [];
+  for (const l of placed) {
+    const off = align === "left" ? 0 : align === "right" ? W - l.w : (W - l.w) / 2;
+    for (const { g, x } of l.row) g.st.forEach(([px, py, j], k) => st.push([px + x + off, py + l.y, k === 0 ? 1 : j]));
+  }
+  if (!st.length) return { st, w: 0, h: 0, missing: [...missing] };
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of st) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  return { st: st.map(([x, y, j]) => [Math.round((x - cx) * 4) / 4, Math.round((y - cy) * 4) / 4, j]), w: maxX - minX, h: maxY - minY, missing: [...missing] };
+}
+
+// ---- Font library ----
+// Loaded fonts by name. Their files are kept in IndexedDB ("fonts": [{ name, buf }]) so they're there next time.
+const FONTS = new Map();
+const TEXT_DEF = { text: "Text", font: null, ls: 8, lh: 100, align: "center" };   // what the next text starts with
+// (remembering is done in the background: the font is usable right away even if storage is slow or unavailable)
+let fontStore = Promise.resolve();
+const storeFonts = fn => fontStore = fontStore.then(() => idbKV("fonts")).then(list => idbKV("fonts", fn(list || []))).catch(() => {});
+function addFont(buf, fileName = "Font", persist = true) {
+  const f = parseBX(buf, fileName.replace(/\.bx$/i, ""));
+  FONTS.set(f.name, f);
+  if (persist && window.indexedDB) storeFonts(list => [...list.filter(x => x.name !== f.name), { name: f.name, buf }]);
+  return f;
+}
+function removeFont(name) {
+  FONTS.delete(name);
+  if (TEXT_DEF.font === name) TEXT_DEF.font = null;
+  if (window.indexedDB) storeFonts(list => list.filter(x => x.name !== name));
+}
+// Load .bx files (from the picker, a drop or the Files panel). Returns the fonts that loaded.
+async function loadFontFiles(files) {
+  const ok = [], bad = [];
+  for (const file of files) {
+    try { ok.push(await addFont(await file.arrayBuffer(), file.name)); }
+    catch (e) { bad.push(`${file.name}: ${e.message}`); }
+  }
+  if (ok.length) TEXT_DEF.font = ok[ok.length - 1].name;
+  if (bad.length) alert("Couldn't read " + (bad.length === 1 ? "this font" : "these fonts") + ":\n" + bad.join("\n"));
+  if (ok.length) toast(ok.length === 1 ? `Font “${ok[0].name}” loaded (${ok[0].glyphs.size} characters)` : `${ok.length} fonts loaded`);
+  return ok;
+}
+function fontsRestored() {
+  return idbKV("fonts").then(list => {
+    for (const x of list || []) { try { FONTS.set(x.name, parseBX(x.buf, x.name)); } catch (e) {} }
+  }).catch(() => {});
+}
+let toastTimer = 0;
+function toast(msg, ms = 3500) {
+  const el = $("toast"); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.hidden = true, ms);
+}
+
+// ---- Text shapes ----
+// A text is a live shape (kind "text"): its letters' stitches at the font's own size are kept in the shape (tst, centered,
+// natural size nw × nh), so it still sews — and saves, and opens in a project — without the font. w / h scale them.
+// Changing the text, font or spacing lays it out again from the font (when it's loaded).
+function newText(cx, cy, font, text = TEXT_DEF.text) {
+  const s = { id: nextId++, kind: "text", cx: Math.round(cx), cy: Math.round(cy), w: 5, h: 5, rot: 0, ...defaults,
+              style: "text", under: false, lock: false, text, font: font.name, ls: TEXT_DEF.ls, lh: TEXT_DEF.lh, align: TEXT_DEF.align,
+              tst: [], nw: 0, nh: 0 };
+  regenText(s, true);
+  shapes.push(s);
+  return s;
+}
+// Lay the text out again. fresh: at the font's own size; otherwise keep the current scale, and keep the side the lines
+// are aligned to (and the top) where it was, so the text grows the way you'd expect while typing.
+function regenText(s, fresh = false) {
+  const f = FONTS.get(s.font);
+  if (!f) return false;
+  const L = layoutText(f, s.text, s.ls, s.lh, s.align);
+  const kx = !fresh && s.nw ? s.w / s.nw : 1, ky = !fresh && s.nh ? s.h / s.nh : 1, ow = s.w, oh = s.h;
+  s.tst = L.st; s.nw = Math.round(L.w * 10) / 10; s.nh = Math.round(L.h * 10) / 10; s.capH = f.capH; s.missing = L.missing;
+  s.tkey = Math.random().toString(36).slice(2);   // (for the stitch cache)
+  s.w = Math.max(5, Math.round(s.nw * kx)); s.h = Math.max(5, Math.round(s.nh * ky));
+  if (!fresh) {
+    const dx = s.align === "left" ? (s.w - ow) / 2 : s.align === "right" ? -(s.w - ow) / 2 : 0, dy = -(s.h - oh) / 2;
+    [s.cx, s.cy] = toWorld(s, dx, dy).map(v => Math.round(v * 2) / 2);
+  }
+  return true;
+}
+// world stitches of a text shape: [x, y] or [x, y, 1] where the needle jumps to that point (between letters)
+function textStitches(s) {
+  const kx = s.nw ? s.w / s.nw : 1, ky = s.nh ? s.h / s.nh : 1;
+  return (s.tst || []).map(([x, y, j], i) => {
+    const [X, Y] = toWorld(s, x * kx, y * ky);
+    return i && j ? [Math.round(X), Math.round(Y), 1] : [Math.round(X), Math.round(Y)];
+  });
+}
+// the height of the capital letters as the text is now
+const textLetterSize = s => (s.capH || s.nh) * (s.nh ? s.h / s.nh : 1);
+// Size the text so its capital letters are `size` tall (keeping any sideways stretch, the top and the aligned side).
+function setTextSize(s, size) {
+  if (!s.nw || !s.nh || !(size > 0)) return;
+  const ky = size / (s.capH || s.nh), kx = ky * (s.w / s.nw) / (s.h / s.nh), ow = s.w, oh = s.h;
+  s.w = Math.max(5, Math.round(s.nw * kx)); s.h = Math.max(5, Math.round(s.nh * ky));
+  const dx = s.align === "left" ? (s.w - ow) / 2 : s.align === "right" ? -(s.w - ow) / 2 : 0, dy = -(s.h - oh) / 2;
+  [s.cx, s.cy] = toWorld(s, dx, dy).map(v => Math.round(v * 2) / 2);
+}
+
 // ---------- Shapes → stitches ----------
 function shapeOutline(p) {
   const { kind, w, h } = p;
   let pts = [], closed = true;
   if (kind === "line") { pts = [[-w / 2, 0], [w / 2, 0]]; closed = false; }
-  else if (kind === "rect") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+  else if (kind === "rect" || kind === "text") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
   else if (kind === "tri") pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [0, h / 2]];
   else {
     const n = Math.max(32, Math.ceil(Math.PI * (w + h) / 2 / 3));
@@ -1390,8 +1777,15 @@ function filletPolygon(pts, R) {
 
 const stitchCache = new Map();
 function stitchesFor(s) {
-  const key = JSON.stringify([s.kind, s.cx, s.cy, s.w, s.h, s.rot, s.style, s.thick, s.dens, s.len, s.under, s.lock, s.corner]);
+  const key = s.kind === "text" ? JSON.stringify([s.kind, s.cx, s.cy, s.w, s.h, s.rot, s.tkey, (s.tst || []).length])
+            : JSON.stringify([s.kind, s.cx, s.cy, s.w, s.h, s.rot, s.style, s.thick, s.dens, s.len, s.under, s.lock, s.corner]);
   if (stitchCache.has(key)) return stitchCache.get(key);
+  if (s.kind === "text") {   // (points can carry a jump flag: [x, y, 1])
+    const out = textStitches(s);
+    if (stitchCache.size > 500) stitchCache.clear();
+    stitchCache.set(key, out);
+    return out;
+  }
   let { pts, smooth, closed } = shapeOutline(s);
   let path, sharp = null;
   if (s.style === "satin" && closed && !smooth) {
@@ -1454,7 +1848,7 @@ function appendShape(list, th, s) {
     changedThreads = true;
   }
   list.push({ t: "j", x: st[0][0], y: st[0][1] });
-  for (const [x, y] of st) list.push({ t: "s", x, y });
+  for (const [x, y, j] of st) { if (j) list.push({ t: "j", x, y }); list.push({ t: "s", x, y }); }   // (text jumps between letters)
   // appliqué: each further stage starts with a same-thread stop (carrying what to do) and a jump to its start
   for (const stage of stages.slice(1)) {
     if (stage.st.length < 2) continue;
@@ -1636,6 +2030,7 @@ function shapeAt(wx, wy) {
     const s = shapes[i], reach = pad + (s.style === "satin" ? s.thick / 2 : 0);
     const [lx, ly] = toLocal(s, wx, wy);
     if (Math.abs(lx) > s.w / 2 + reach || Math.abs(ly) > s.h / 2 + reach) continue;   // quick reject
+    if (s.kind === "text") return s;   // text is solid: anywhere in its box
     const { pts } = shapeOutline(s);
     for (let k = 1; k < pts.length; k++) {
       const [ax, ay] = pts[k - 1], [bx, by] = pts[k], dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
@@ -2670,7 +3065,7 @@ function renderThreads(th) {
   });
 }
 
-const SHAPE_NAMES = { line: "Line", rect: "Rectangle", oval: "Oval", tri: "Triangle" };
+const SHAPE_NAMES = { line: "Line", rect: "Rectangle", oval: "Oval", tri: "Triangle", text: "Text" };
 let panelMode = "shapes";   // "shapes": live shapes · "runsrc": stitch settings of runs made with "To stitches"
 function renderShapePanel() {
   let sel = selShapes();
@@ -2730,6 +3125,37 @@ function renderShapePanel() {
   }
   const i = orderIndexOfShape(s.id), total = getRuns().length + shapes.length;
   $("shEarlier").disabled = !single || i === 0; $("shLater").disabled = !single || i === total - 1;
+  // text: its own settings instead of the stitch style
+  const anyText = sel.some(x => x.kind === "text"), allText = !src && sel.every(x => x.kind === "text");
+  document.querySelectorAll(".notText").forEach(el => el.hidden = anyText || (el.classList.contains("runOnly") && s.style === "satin"));
+  document.querySelectorAll(".textOnly").forEach(el => el.hidden = !allText);
+  if (allText) renderTextPanel(sel);
+}
+function renderTextPanel(sel) {
+  const s = sel[0], single = sel.length === 1, f = FONTS.get(s.font), active = document.activeElement;
+  $("txTextRow").hidden = !single;
+  $("txText").disabled = !f;
+  if (single && active !== $("txText")) $("txText").value = s.text;
+  const fs = $("txFont");
+  if (active !== fs) {
+    fs.innerHTML = "";
+    for (const name of [...FONTS.keys()].sort((a, b) => a.localeCompare(b))) fs.add(new Option(name, name));
+    if (!f) { const o = new Option(`${s.font} (not loaded)`, s.font); o.disabled = true; fs.add(o, 0); }
+    fs.value = sel.every(x => x.font === s.font) ? s.font : "";
+  }
+  $("txDrop").disabled = !f;
+  if (active !== $("txSize")) $("txSize").value = +toU(textLetterSize(s)).toFixed(U().dec);
+  if (active !== $("txLs")) $("txLs").value = s.ls;
+  if (active !== $("txLh")) $("txLh").value = s.lh;
+  $("txLsV").textContent = (s.ls > 0 ? "+" : "") + s.ls + "%";
+  $("txLhV").textContent = s.lh + "%";
+  const multi = sel.some(x => x.text.includes("\n"));   // line settings only matter with more than one line
+  $("txLhRow").hidden = $("txAlignRow").hidden = !multi;
+  document.querySelectorAll("[data-talign]").forEach(b => b.classList.toggle("active", b.dataset.talign === s.align));
+  const miss = [...new Set(sel.flatMap(x => x.missing || []))];
+  $("txHelp").innerHTML = !f ? `The font <b></b> isn't loaded, so this text can't be changed. Load the font to edit it — its stitches stay in the design either way.`
+    : miss.length ? `Not in this font (left as gaps): <b></b>` : "";
+  const b = $("txHelp").querySelector("b"); if (b) b.textContent = !f ? s.font : miss.join(" ");
 }
 
 // ---------- Sew order panel ----------
@@ -2859,6 +3285,10 @@ function renderOrder() {
     const nSt = (() => { let n = 0; for (let q = m.from; q <= m.to; q++) if (all[q].t === "s") n++; return n; })();
     lab.innerHTML = m.type === "run" ? `Stitch run<br><small>${nSt} stitches</small>`
                                      : `${SHAPE_NAMES[m.s.kind]}${m.s.applique && canApplique(m.s) ? " · appliqué" : ""}<br><small>live shape · ${nSt} st</small>`;
+    if (m.type === "shape" && m.s.kind === "text") {   // show what it says
+      const q = document.createElement("span"); q.textContent = ` “${m.s.text.replace(/\s+/g, " ").slice(0, 24)}${m.s.text.length > 24 ? "…" : ""}”`;
+      lab.insertBefore(q, lab.firstChild.nextSibling);
+    }
     row.append(num, cvs, lab);
     row.onclick = e => {
       if (tool !== "select") setTool("select");
@@ -2934,6 +3364,35 @@ function newShape(kind, cx, cy, w, h, rot = 0) {
   const s = { id: nextId++, kind, cx: Math.round(cx), cy: Math.round(cy), w: Math.max(5, Math.round(w)), h: kind === "line" ? 0 : Math.max(5, Math.round(h)), rot, ...defaults };
   shapes.push(s);
   return s;
+}
+// Text tool click (or a font dropped on the canvas): a new text there, selected, with its text ready to type over.
+// No font loaded yet: ask for one first, then place it (pendingText = where).
+function placeText(wx, wy) {
+  const font = FONTS.get(TEXT_DEF.font) || FONTS.values().next().value;
+  guides = [];
+  if (!font) { pendingText = [wx, wy]; toast("Pick a .bx embroidery font to write with"); $("txFile").click(); return null; }
+  pendingText = null;
+  snapshot();
+  const s = newText(wx, wy, font);
+  shapeSel = new Set([s.id]); runSel.clear();
+  setTool("select");
+  const ta = $("txText"); ta.focus(); ta.select();
+  return s;
+}
+// Fonts from Open…, the Files panel or a drop: load them, then write with them. at = a drop point: a new text there;
+// otherwise a selected text switches to the font, or the Text tool comes on so you can click where it goes.
+async function useFontFiles(files, at = null) {
+  const got = await loadFontFiles(files);
+  if (!got.length) return;
+  const v = got[got.length - 1].name;
+  if (at) { placeText(...at); return; }
+  if (selShapes().some(s => s.kind === "text")) {
+    editing = false;
+    editTexts(s => { const size = textLetterSize(s); s.font = v; if (regenText(s)) setTextSize(s, size); });
+    return;
+  }
+  setTool("text");
+  toast(`Font “${v}” loaded · click where the text should go`);
 }
 // These act on everything selected with the Select tool: shapes and stitch runs.
 function deleteShapes() {
@@ -3134,12 +3593,24 @@ function bakeShapes() {
   if (!shapeSel.size) return;
   snapshot();
   // each selected shape becomes a stitch run at the same place in the sew order, with the same thread and pause
-  let last = { ...(threads[0] || { idx: 1 }) };
+  let last = { ...(threads[0] || { idx: 1 }) }, gNext = newGroupId();
+  const textGroups = new Set();
   const order = orderList().map(it => {
     if (it.type === "run") { last = it.obj.thread; return it; }
     const s = it.s, thread = s.color === "cur" ? { ...last } : { idx: s.color };
     last = thread;
     if (!shapeSel.has(s.id)) return it;
+    if (s.kind === "text") {
+      // text jumps between letters, so it becomes several stitch runs: kept together as a group (no shape settings
+      // to go back to — the letters come from the font)
+      const st = stitchesFor(s);
+      if (st.length < 2) return null;
+      const g = s.group != null ? s.group : gNext++;
+      textGroups.add(g);
+      const cm = [{ t: "j", x: st[0][0], y: st[0][1], g }];
+      for (const [x, y, j] of st) { if (j) cm.push({ t: "j", x, y, g }); cm.push({ t: "s", x, y, g }); }
+      return { type: "run", baked: true, obj: { cmds: cm, thread, pause: !!s.stop } };
+    }
     // one run per stage (appliqué shapes have several, with labelled pauses between them). Each run remembers the
     // shape it came from (sid → runSources) so its stitch settings stay editable.
     return shapeStages(s).map((stg, k) => ({ stg, k })).filter(({ stg }) => stg.st.length >= 2).map(({ stg, k }) => {
@@ -3153,6 +3624,7 @@ function bakeShapes() {
   const starts = applyOrder(order);
   shapeSel.clear();
   runSel = new Set(order.filter(it => it.baked).map(it => starts.get(it.obj)));   // keep them selected and editable
+  if (textGroups.size) for (const r of getRuns()) if (textGroups.has(runGroupOf(r))) runSel.add(r.start);
   changed();
 }
 
@@ -3219,8 +3691,9 @@ function setTool(t) {
   if (aligning) endAlign();
   if (alignTool) { alignTool = false; alignRef = null; alignHover = null; $("alignBtn").classList.remove("active"); }
   tool = t;
+  if (t !== "text") pendingText = null;
   document.querySelectorAll("[data-tool]").forEach(b => b.classList.toggle("active", b.dataset.tool === t));
-  cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : "copy";
+  cv.style.cursor = t === "select" ? "default" : t === "points" || t === "measure" ? "crosshair" : t === "text" ? "text" : "copy";
   measPick = null;
   if (t !== "points") ptSel.clear();
   changed();
@@ -3273,6 +3746,9 @@ cv.addEventListener("pointerdown", e => {
     drag = { mode: "measure", x0: x, y0: y, a, b: a, moved: false, wx, wy };
     return;
   }
+
+  // --- Text tool: click where the text goes ---
+  if (tool === "text") { placeText(...snapPoint(wx, wy, new Set(), e.altKey)); return; }
 
   // --- drawing a new shape ---
   if (SHAPE_NAMES[tool]) {
@@ -3439,7 +3915,8 @@ cv.addEventListener("pointermove", e => {
     case "resize": {
       if (!drag.started) { if (!moved(e, drag)) return; snapshot(); drag.started = true; }
       const o = drag.orig, s = drag.runs ? drag.proxy : byId(drag.id), [hx, hy] = HSIGN[drag.handle];
-      const fromCenter = e.ctrlKey, keepRatio = e.shiftKey;
+      // (text keeps its proportions on the corner handles; the side handles stretch it)
+      const fromCenter = e.ctrlKey, keepRatio = e.shiftKey || (o.kind === "text" && hx && hy);
       let [mx, my] = [wx, wy];
       // snap the moving edge(s) to guides — only when the shape isn't rotated. The handle sits on the outline, but
       // the stitched outer and inner edges (± half the satin thickness) can snap too.
@@ -3594,7 +4071,7 @@ document.addEventListener("keyup", e => { if (e.key === " ") spaceDown = false; 
 document.addEventListener("keydown", e => {
   if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
   const k = e.key.toLowerCase(), mod = e.ctrlKey || e.metaKey;
-  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri", m: "measure" };
+  const toolKeys = { v: "select", p: "points", l: "line", r: "rect", o: "oval", t: "tri", x: "text", m: "measure" };
   const pts = tool === "points";
   if (aligning && !mod && e.key !== " " && !toolKeys[k]) {   // keys that adjust the photo while lining it up
     const mark = !!markBox, xf = mark ? boxXform : photoXform;   // marking: the keys move the box instead
@@ -3677,6 +4154,32 @@ styleField("shLock", "lock", () => $("shLock").checked);
 styleField("shColor", "color", () => $("shColor").value === "cur" ? "cur" : +$("shColor").value);
 $("shColor").add(new Option("Keep current thread", "cur"));
 PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`, i)); });
+// text settings
+const editTexts = fn => editShapes(sel => { for (const s of sel) if (s.kind === "text") fn(s); });
+$("txText").addEventListener("input", () => editTexts(s => { s.text = $("txText").value; regenText(s); }));
+$("txFont").addEventListener("input", () => {
+  const v = $("txFont").value; if (!FONTS.has(v)) return;
+  TEXT_DEF.font = v;
+  editTexts(s => { const size = textLetterSize(s); s.font = v; if (regenText(s)) setTextSize(s, size); });   // same letter size in the new font
+});
+$("txSize").addEventListener("input", () => num("txSize") > 0 && editTexts(s => setTextSize(s, fromU(num("txSize")))));
+$("txLs").addEventListener("input", () => { TEXT_DEF.ls = +$("txLs").value; editTexts(s => { s.ls = TEXT_DEF.ls; regenText(s); }); });
+$("txLh").addEventListener("input", () => { TEXT_DEF.lh = +$("txLh").value; editTexts(s => { s.lh = TEXT_DEF.lh; regenText(s); }); });
+document.querySelectorAll("[data-talign]").forEach(b => b.onclick = () => {
+  editing = false; TEXT_DEF.align = b.dataset.talign;
+  editTexts(s => { s.align = b.dataset.talign; regenText(s); });
+});
+$("txLoad").onclick = () => $("txFile").click();
+$("txFile").addEventListener("cancel", () => pendingText = null);
+$("txFile").onchange = e => {   // (pendingText: the Text tool asked for a font first, so the text goes where you clicked)
+  const files = [...e.target.files], at = pendingText; e.target.value = ""; pendingText = null;
+  useFontFiles(files, at);
+};
+$("txDrop").onclick = async () => {
+  const name = $("txFont").value;
+  if (!FONTS.has(name) || !confirm(`Take the font “${name}” off the list?\nText already written with it keeps its stitches.`)) return;
+  await removeFont(name); changed();
+};
 document.querySelectorAll("[data-align]").forEach(b => b.onclick = () => alignShapes(b.dataset.align));
 $("alignBtn").onclick = () => setAlignTool(!alignTool);
 $("shDup").onclick = () => { copyShapes(); pasteShapes(); };
@@ -3982,21 +4485,39 @@ setOrderMode(orderMode);
 // everything inside it, and each folder that holds files gets a row of thumbnails. Chrome/Edge remember the folder
 // (File System Access handle kept in IndexedDB); other browsers use a folder upload, which has to be redone per visit.
 const FX = { tree: null, handle: null, mode: "horizontal", collapsed: new Set(), thumbs: new Map(), current: null, gen: 0 };
-try { if (localStorage.getItem("jefFilesLayout") === "rows") FX.mode = "rows"; } catch (e) {}
+const FX_MODES = ["horizontal", "rows", "small", "tree"];
+try { const m = localStorage.getItem("jefFilesLayout"); if (FX_MODES.includes(m)) FX.mode = m; } catch (e) {}
 try { FX.collapsed = new Set(JSON.parse(localStorage.getItem("jefFilesCollapsed") || "[]")); } catch (e) {}
-const FX_RE = /\.(jef\+?|jefproj)$/i;
-function idbFolder(val) {   // no argument: read the remembered folder handle; otherwise store it (null clears)
+// file-type filter: all | proj (.jefproj) | jef (.JEF / .JEF+) | bx (fonts)
+const FX_KINDS = { proj: /\.jefproj$/i, jef: /\.jef\+?$/i, bx: /\.bx$/i };
+FX.filter = "all";
+try { const v = localStorage.getItem("jefFilesFilter"); if (FX_KINDS[v]) FX.filter = v; } catch (e) {}
+function setFxFilter(v) {
+  FX.filter = FX_KINDS[v] ? v : "all";
+  try { localStorage.setItem("jefFilesFilter", FX.filter); } catch (e) {}
+  renderFiles();
+}
+document.querySelectorAll("[data-fxfilter]").forEach(b => b.onclick = () => setFxFilter(b.dataset.fxfilter));
+// the folder tree with only the files the filter lets through (folders stay, so you can still save into them)
+function fxFiltered(n, re) {
+  const dirs = n.dirs.map(d => fxFiltered(d, re)), files = re ? n.files.filter(f => re.test(f.name)) : n.files;
+  return { ...n, orig: n.orig || n, files, dirs, count: files.length + dirs.reduce((a, d) => a + d.count, 0) };
+}
+function fxCount(n, re) { return n.files.filter(f => !re || re.test(f.name)).length + n.dirs.reduce((a, d) => a + fxCount(d, re), 0); }
+const FX_RE = /\.(jef\+?|jefproj|bx)$/i;
+function idbKV(key, val) {   // no value: read key; otherwise store it (null deletes it)
   return new Promise((res, rej) => {
     const r = indexedDB.open("jefEditor", 1);
     r.onupgradeneeded = () => r.result.createObjectStore("kv");
     r.onerror = () => rej(r.error);
     r.onsuccess = () => {
       const st = r.result.transaction("kv", val === undefined ? "readonly" : "readwrite").objectStore("kv");
-      const q = val === undefined ? st.get("folder") : val === null ? st.delete("folder") : st.put(val, "folder");
+      const q = val === undefined ? st.get(key) : val === null ? st.delete(key) : st.put(val, key);
       q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
     };
   });
 }
+const idbFolder = val => idbKV("folder", val);   // the remembered folder handle
 const fxSort = n => {
   const cmp = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
   n.dirs.sort(cmp); n.files.sort(cmp);
@@ -4068,17 +4589,29 @@ $("fxDirIn").addEventListener("change", e => {
 function renderFiles() {
   const box = $("fxTree"), gen = ++FX.gen;
   box.innerHTML = "";
+  $("fxFilter").hidden = !FX.tree;
+  document.querySelectorAll("[data-fxfilter]").forEach(b => {
+    const k = b.dataset.fxfilter;
+    b.classList.toggle("active", k === FX.filter);
+    if (FX.tree) { b.querySelector("small")?.remove(); const s = document.createElement("small"); s.textContent = fxCount(FX.tree, FX_KINDS[k]); b.append(s); }
+  });
   if (!FX.tree) {
     box.innerHTML = FX.handle
       ? '<div class="help">Click <b>Reconnect</b> to let this page read the folder again.</div>'
       : '<div class="help">Choose the folder that holds your JEF files. Folders inside it show as nested columns, and each file as a thumbnail you can click to open.</div>';
     return;
   }
-  const shut = n => FX.collapsed.has(n.path);
+  // filtered: a folder with nothing that matches (here or in its subfolders) folds up to one row
+  const none = n => FX.filter !== "all" && n.count === 0;
+  const shut = n => FX.collapsed.has(n.path) || none(n);
   const depth = (n, d) => shut(n) || !n.dirs.length ? d : Math.max(...n.dirs.map(c => depth(c, d + 1)));
   // (an empty folder still gets a row, so you can right-click it and save into it)
   const rowsOf = n => shut(n) ? 1 : Math.max(1, (n.files.length ? 1 : 0) + n.dirs.reduce((a, c) => a + rowsOf(c), 0));
-  const D = depth(FX.tree, 0);
+  const tree = fxFiltered(FX.tree, FX_KINDS[FX.filter]);
+  const tiles = [];   // [file, canvas, element] whose thumbnails to draw
+  if (FX.mode === "tree") fxTreeList(tree, box, tiles, shut, none);
+  else {
+  const D = depth(tree, 0);
   const grid = document.createElement("div");
   grid.className = "fx " + FX.mode;
   grid.style.gridTemplateColumns = `repeat(${D + 1}, minmax(56px, max-content)) minmax(0, 1fr)`;
@@ -4088,14 +4621,15 @@ function renderFiles() {
     el.style.gridColumn = col;
     grid.appendChild(el); return el;
   };
-  const tiles = [];
   const emit = (n, d, row) => {   // returns the number of rows used
     const rows = rowsOf(n), dir = cell("fx-dir", row, String(d + 1), rows);
     dir.title = (shut(n) ? "Show" : "Hide") + " what's in " + n.name;
-    dir.innerHTML = `<span></span><small>${shut(n) ? "▸ " : ""}${n.count} file${n.count === 1 ? "" : "s"}</small>`;
+    dir.innerHTML = `<span></span><small>${shut(n) && !none(n) ? "▸ " : ""}${n.count} file${n.count === 1 ? "" : "s"}</small>`;
     dir.firstChild.textContent = n.name;
-    dir.oncontextmenu = e => { e.preventDefault(); showFxMenu(n, e.clientX, e.clientY); };
+    dir.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };   // (the real folder, all its files)
+    if (none(n)) dir.title = "Nothing in " + n.name + " matches the filter · right-click to save here";
     dir.onclick = () => {
+      if (none(n)) return;   // (nothing to show with this filter)
       shut(n) ? FX.collapsed.delete(n.path) : FX.collapsed.add(n.path);
       try { localStorage.setItem("jefFilesCollapsed", JSON.stringify([...FX.collapsed])); } catch (e) {}
       renderFiles();
@@ -4103,18 +4637,23 @@ function renderFiles() {
     if (shut(n)) {
       const note = cell("fx-files note", row, `${d + 2} / -1`, 1);
       note.textContent = `${n.count} file${n.count === 1 ? "" : "s"} hidden — click to show`; note.onclick = dir.onclick;
+      if (none(n)) {
+        const other = fxCount(n.orig);
+        note.textContent = "No " + { proj: "projects", jef: "JEF files", bx: "fonts" }[FX.filter] + " here" + (other ? ` (${other} other file${other === 1 ? "" : "s"})` : "") + " · right-click to save here";
+        note.oncontextmenu = dir.oncontextmenu; note.onclick = null;
+      }
       return 1;
     }
     let r = row;
     if (!n.files.length && !n.dirs.length) {
       const note = cell("fx-files note", r, `${d + 2} / -1`, 1);
-      note.textContent = "No JEF files · right-click to save here";
+      note.textContent = (FX.filter === "all" || !fxCount(n.orig) ? "No JEF files" : "No " + { proj: "projects", jef: "JEF files", bx: "fonts" }[FX.filter] + " here") + " · right-click to save here";
       note.oncontextmenu = dir.oncontextmenu; note.onclick = null;
       return 1;
     }
     if (n.files.length) {
       const fc = cell("fx-files", r, `${d + 2} / -1`, 1);
-      fc.oncontextmenu = e => { e.preventDefault(); showFxMenu(n, e.clientX, e.clientY); };   // (right-click a file = its folder)
+      fc.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };   // (right-click a file = its folder)
       for (const f of n.files) {
         const t = document.createElement("div"); t.className = "fx-tile" + (f.path === FX.current ? " cur" : "");
         t.dataset.path = f.path; t.title = f.path;
@@ -4122,17 +4661,8 @@ function renderFiles() {
         const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = f.name;
         t.append(c, nm);
         if (/\.jefproj$/i.test(f.name)) { const b = document.createElement("span"); b.className = "badge"; b.textContent = "project"; t.appendChild(b); }
-        t.onclick = () => fxOpen(f);
-        // Shift + hover = show it in the preview tab
-        t.onmouseenter = e => { fxHover = f; if (e.shiftKey) queuePreview(f); };
-        t.onmousemove = e => { if (e.shiftKey) queuePreview(f); };
-        t.onmouseleave = () => { if (fxHover === f) fxHover = null; };
-        t.draggable = true;
-        t.addEventListener("dragstart", e => {
-          e.dataTransfer.setData(FX_DRAG, f.path); e.dataTransfer.setData("text/plain", f.name);
-          e.dataTransfer.effectAllowed = "copy";
-          const c = t.querySelector("canvas"); if (c) e.dataTransfer.setDragImage(c, 31, 31);
-        });
+        if (/\.bx$/i.test(f.name)) { const b = document.createElement("span"); b.className = "badge font"; b.textContent = "font"; t.appendChild(b); }
+        fxWire(t, f);
         fc.appendChild(t); tiles.push([f, c, t]);
       }
       r++;
@@ -4140,8 +4670,9 @@ function renderFiles() {
     for (const c of n.dirs) r += emit(c, d + 1, r);
     return rows;
   };
-  emit(FX.tree, 0, 1);
+  emit(tree, 0, 1);
   box.appendChild(grid);
+  }
   // thumbnails: drawn when they scroll into view, one file at a time
   const queue = [];
   let busy = false;
@@ -4150,6 +4681,7 @@ function renderFiles() {
     while (queue.length && gen === FX.gen) { const [f, c, t] = queue.shift(); await fxThumb(f, c, t); }
     busy = false;
   };
+  box.onscroll = fxPeekHide;
   const io = window.IntersectionObserver ? new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) { io.unobserve(e.target); queue.push(e.target._fx); }
     pump();
@@ -4161,23 +4693,114 @@ function renderFiles() {
   }
   if (!io) pump();
 }
+// what a file tile / tree row does: click opens, Shift+hover previews in a tab, drag adds it to the design
+function fxWire(t, f) {
+  t.onclick = () => { fxPeekHide(); fxOpen(f); };
+  t.onmouseenter = e => { fxHover = f; if (e.shiftKey) queuePreview(f); };
+  t.onmousemove = e => { if (e.shiftKey) queuePreview(f); };
+  t.onmouseleave = () => { if (fxHover === f) fxHover = null; };
+  t.draggable = true;
+  t.addEventListener("dragstart", e => {
+    fxPeekHide();
+    e.dataTransfer.setData(FX_DRAG, f.path); e.dataTransfer.setData("text/plain", f.name);
+    e.dataTransfer.effectAllowed = "copy";
+    const c = t.querySelector("canvas"); if (c) e.dataTransfer.setDragImage(c, c.clientWidth / 2, c.clientHeight / 2);
+  });
+}
+// The tree list: one 24 px row per folder and file, indented, folders first (like IntelliJ's project view).
+// Files get a tiny thumbnail and their size; resting on one pops up a bigger preview beside the panel.
+const FOLDER_SVG = '<svg width="15" height="12" viewBox="0 0 15 12"><path d="M1 2.2C1 1.5 1.5 1 2.2 1h3.3l1.4 1.5h5.9c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H2.2C1.5 11 1 10.5 1 9.8z" fill="#e8c35a" stroke="#b8932a" stroke-width=".8"/></svg>';
+function fxTreeList(tree, box, tiles, shut, none) {
+  const list = document.createElement("div"); list.className = "fxt";
+  const save = () => { try { localStorage.setItem("jefFilesCollapsed", JSON.stringify([...FX.collapsed])); } catch (e) {} };
+  const walk = (n, d) => {
+    const open = !shut(n), kids = n.files.length || n.dirs.length, row = document.createElement("div");
+    row.className = "fxt-row fxt-dir" + (none(n) ? " none" : "");
+    row.style.paddingLeft = 4 + d * 14 + "px";
+    row.innerHTML = '<span class="fxt-car">' + (none(n) || !kids ? "" : open ? "▼" : "▶") + "</span>" + FOLDER_SVG + '<span class="fxt-nm"></span><span class="fxt-meta"></span>';
+    row.querySelector(".fxt-nm").textContent = n.name;
+    row.querySelector(".fxt-meta").textContent = none(n) ? "no matches" : n.count;
+    row.title = none(n) ? "Nothing in " + n.name + " matches the filter · right-click to save here" : n.path + " · right-click to save here";
+    row.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };
+    row.onclick = () => {
+      if (none(n) || !kids) return;
+      open ? FX.collapsed.add(n.path) : FX.collapsed.delete(n.path); save(); renderFiles();
+    };
+    list.appendChild(row);
+    if (!open) return;
+    for (const c of n.dirs) walk(c, d + 1);
+    for (const f of n.files) {
+      const t = document.createElement("div");
+      t.className = "fxt-row fxt-file" + (f.path === FX.current ? " cur" : "");
+      t.dataset.path = f.path; t.title = f.path;
+      t.style.paddingLeft = 4 + (d + 1) * 14 + 16 + "px";
+      const c = document.createElement("canvas"); c.width = c.height = 40;
+      const nm = document.createElement("span"); nm.className = "fxt-nm"; nm.textContent = f.name;
+      const meta = document.createElement("span"); meta.className = "fxt-meta";
+      t.append(c, nm);
+      if (/\.jefproj$/i.test(f.name)) { const b = document.createElement("span"); b.className = "fxt-kind"; b.textContent = "project"; t.append(b); }
+      if (/\.bx$/i.test(f.name)) { const b = document.createElement("span"); b.className = "fxt-kind font"; b.textContent = "font"; t.append(b); }
+      t.append(meta);
+      t.oncontextmenu = row.oncontextmenu;   // (right-click a file = its folder)
+      fxWire(t, f);
+      t.addEventListener("mouseenter", () => fxPeekSoon(f, t));
+      t.addEventListener("mouseleave", fxPeekHide);
+      list.appendChild(t); tiles.push([f, c, t]);
+    }
+  };
+  walk(tree, 0);
+  box.appendChild(list);
+}
+// the bigger preview for a tree row (after a short rest, so sweeping down the list doesn't flash it)
+let fxPeekTimer = 0;
+function fxPeekSoon(f, row) {
+  clearTimeout(fxPeekTimer);
+  fxPeekTimer = setTimeout(async () => {
+    let th = FX.thumbs.get(f.path);
+    if (!th) { await fxThumb(f, row.querySelector("canvas"), row); th = FX.thumbs.get(f.path); }
+    if (!th || !row.isConnected || !row.matches(":hover")) return;
+    fxPeekShow(f, row, th);
+  }, 250);
+}
+function fxPeekShow(f, row, th) {
+  const p = $("fxPeek"), c = p.querySelector("canvas");
+  if (th.err) fxPaint(c, row, th); else { const g = c.getContext("2d"); g.clearRect(0, 0, 124, 124); g.drawImage(th.img, 0, 0); }
+  p.lastChild.textContent = f.name + (th.info ? " · " + th.info.split(" · click")[0] : "");
+  const r = row.getBoundingClientRect(), panel = $("filePanel").getBoundingClientRect();
+  p.hidden = false;
+  p.style.left = Math.min(panel.right + 6, innerWidth - p.offsetWidth - 4) + "px";
+  p.style.top = Math.max(4, Math.min(r.top - 8, innerHeight - p.offsetHeight - 4)) + "px";
+}
+function fxPeekHide() { clearTimeout(fxPeekTimer); $("fxPeek").hidden = true; }
 function fxPaint(c, t, th) {
-  if (th.err) { const g = c.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#999"; g.font = "bold 40px system-ui"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", c.width / 2, c.height / 2); }
-  else c.getContext("2d").drawImage(th.img, 0, 0);
+  if (th.err) { const g = c.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#999"; g.font = `bold ${Math.round(c.width * 0.32)}px system-ui`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", c.width / 2, c.height / 2); }
+  else { const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height); g.drawImage(th.img, 0, 0, c.width, c.height); }
   if (th.info) t.title = t.dataset.path + "\n" + th.info;
+  const m = t.querySelector(".fxt-meta"); if (m) m.textContent = th.short || "";
 }
 async function fxThumb(f, c, t) {
   let th;
   try {
     const file = await f.get();
+    if (/\.bx$/i.test(f.name)) {   // a font: a sample of its letters
+      const font = parseBX(await file.arrayBuffer(), f.name.replace(/\.bx$/i, ""));
+      const sample = [..."Abc"].every(c => font.glyphs.has(c)) ? "Abc" : [...font.glyphs.keys()].slice(0, 3).join("");
+      const L = layoutText(font, sample), cm = [];
+      L.st.forEach(([x, y, j], k) => { if (!k || j) cm.push({ t: "j", x, y }); cm.push({ t: "s", x, y }); });
+      const img = document.createElement("canvas"); img.width = img.height = 124;
+      drawThumb(img, cm, [{ idx: 1 }], { from: 0, to: cm.length - 1 }, 0);
+      th = { img, short: font.glyphs.size + " chars", info: `${font.name} · embroidery font · ${font.glyphs.size} characters · click to write with it, or drag it onto the design` };
+      FX.thumbs.set(f.path, th); fxPaint(c, t, th);
+      return;
+    }
     const { cmds: cm, threads: tr } = await fileStitches(file);   // (projects include their live shapes)
-    const img = document.createElement("canvas"); img.width = c.width; img.height = c.height;
+    const img = document.createElement("canvas"); img.width = img.height = 124;   // (every layout scales this)
     if (cm.length) drawThumb(img, cm, tr, { from: 0, to: cm.length - 1 }, 0);
     else { const g = img.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, img.width, img.height); }
     const st = cm.filter(x => x.t === "s");
     const xs = st.map(x => x.x), ys = st.map(x => x.y);
     const info = st.length ? `${fmtSize(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))} · ${st.length} stitches · ${tr.length} color${tr.length === 1 ? "" : "s"}` : "";
-    th = { img, info };
+    th = { img, info, short: st.length ? fmtSize(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) : "" };
   } catch (e) { th = { err: true, info: "Couldn't read this file" }; }
   FX.thumbs.set(f.path, th);
   fxPaint(c, t, th);
@@ -4185,7 +4808,7 @@ async function fxThumb(f, c, t) {
 // Shift+hover previews (see showPreview); a short delay so sweeping across tiles only loads where you pause briefly
 let fxHover = null, previewTimer = 0, previewWant = null;
 function queuePreview(f) {
-  if (!$("nameDlg").hidden || drag) return;
+  if (!$("nameDlg").hidden || drag || /\.bx$/i.test(f.name)) return;   // (fonts aren't designs)
   const p = docs[activeDoc];
   if (previewWant === f.path || (p && p.preview && FX.current === f.path)) return;   // already showing / on its way
   previewWant = f.path;
@@ -4195,6 +4818,7 @@ function queuePreview(f) {
 // pressing Shift while already over a tile previews it too
 document.addEventListener("keydown", e => { if (e.key === "Shift" && fxHover && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) queuePreview(fxHover); });
 async function fxOpen(f) {   // opens in its own tab (or switches to the tab that already has it)
+  if (/\.bx$/i.test(f.name)) return useFontFiles([await f.get()]);   // a font: load it to write with
   try { const file = await f.get(); file.fxPath = f.path; await openInTab(file); }
   catch (e) { alert("Couldn't open that file: " + e.message); }
 }
@@ -4205,13 +4829,17 @@ function fxFileByPath(path) {
 // highlight the file that's open (load() and newDesign() call this)
 function fxMark(path) {
   FX.current = path || null;
-  document.querySelectorAll(".fx-tile").forEach(t => t.classList.toggle("cur", t.dataset.path === FX.current));
+  document.querySelectorAll(".fx-tile, .fxt-file").forEach(t => t.classList.toggle("cur", t.dataset.path === FX.current));
 }
 function setFxMode(m) {
+  if (!FX_MODES.includes(m)) m = "horizontal";
+  const was = FX.mode;
   FX.mode = m;
   try { localStorage.setItem("jefFilesLayout", m); } catch (e) {}
   document.querySelectorAll("[data-fxmode]").forEach(b => b.classList.toggle("active", b.dataset.fxmode === m));
-  const g = document.querySelector(".fx"); if (g) g.className = "fx " + m;
+  const g = document.querySelector(".fx");
+  if (g && m !== "tree" && was !== "tree") g.className = "fx " + m;   // same grid, another look
+  else if (was !== m) renderFiles();
 }
 document.querySelectorAll("[data-fxmode]").forEach(b => b.onclick = () => setFxMode(b.dataset.fxmode));
 function setFiles(show) {
@@ -4249,6 +4877,8 @@ renderFiles();
 // bring back the folder from last time (Chrome/Edge)
 if (window.showDirectoryPicker && window.indexedDB)
   idbFolder().then(h => { if (h) return fxUseHandle(h, false); }).catch(() => {});
+// and the embroidery fonts loaded before
+if (window.indexedDB) fontsRestored().then(() => { if (FONTS.size && !drag) changed(); });
 
 // Hoop choice (remembered in this browser)
 // Units choice (remembered in this browser)
@@ -4729,7 +5359,10 @@ function download(blob, name) {
 }
 $("newBtn").onclick = newTab;
 $("openBtn").onclick = () => $("file").click();
-$("file").onchange = e => { e.target.files[0] && openInTab(e.target.files[0]); e.target.value = ""; };
+$("file").onchange = e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (f) /\.bx$/i.test(f.name) ? useFontFiles([f]) : openInTab(f);
+};
 $("saveBtn").onclick = async () => {
   if (!(await ensureNamed())) return;
   // a loaded file you haven't renamed exports as "name-edited.JEF", so the original isn't overwritten by accident
@@ -4748,10 +5381,13 @@ stage.addEventListener("drop", async e => {
     const f = fxFileByPath(e.dataTransfer.getData(FX_DRAG));
     if (!f) return;
     const [x, y] = mpos(e);
+    if (/\.bx$/i.test(f.name)) { useFontFiles([await f.get()], toW(x, y)); return; }   // a font: write with it there
     try { insertDesign(await fileStitches(await f.get()), toW(x, y)); }
     catch (err) { alert("Couldn't add that file: " + err.message); }
     return;
   }
+  const fonts = [...e.dataTransfer.files].filter(x => /\.bx$/i.test(x.name));
+  if (fonts.length) { useFontFiles(fonts, toW(...mpos(e))); return; }
   const f = e.dataTransfer.files[0];
   if (f) /^image\//.test(f.type) ? loadPhoto(f) : openInTab(f);
 });

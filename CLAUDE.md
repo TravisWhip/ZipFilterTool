@@ -20,7 +20,7 @@ No build step, no dependencies, no server: every tool is a single self-contained
 - Platform: Windows, Git Bash + PowerShell. Node is available; Python is not. Headless Edge is at
   `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`.
 
-## JEF editor (`jef-editor/jef-editor.html`, ~4600 lines, vanilla JS + canvas)
+## JEF editor (`jef-editor/jef-editor.html`, ~5300 lines, vanilla JS + canvas)
 Also `date.JEF` (sample: 15 runs, 1692 stitches), `README.md`, `TODO.txt`. (The old `jef-viewer.html` was removed; the editor
 covers it.) Local-only, not committed: `SavedDesigns/`, `HoopImage.jpeg`, `SQ14b.webp`, `DirectoryFileViewer.drawio`.
 
@@ -76,6 +76,21 @@ Right-click menu "Align to this" (`alignFromMenu`): `showMenu(x, y, anchor)` get
 Sew order card) as `menuAnchor`, which becomes `alignRef`. Right-clicking a selected element keeps the selection.
 `selTarget()` returns null in align mode (no handles); `drawAlign` runs last in `draw()`, above the rulers.
 
+**Text (embroidery fonts, `.bx`):** toolbar Text / key X. `.bx` = Embrilliance BX font (format reverse-engineered from
+`SavedDesigns/fonts/`, not committed): header "BX001" with `installName` (font name) and the character list, then a bzip2 stream
+whose "BZh9" is replaced (find the block magic `1AY&SY`; decompressed by our own `bunzip2`). Per glyph: `u32 2, u32 2, u32 n`,
+n×4 zero bytes, n×4 flag bytes (byte 0 bit 1 = jump to this point), n int16 dx then n int16 dy (planar!) in ¼ of 0.1 mm, +Y up,
+centered on the glyph box; then records incl. "outline" (6 floats; [1] = baseline y) and, after the "index" record and the
+path record, the character string (uppercase stored as e.g. "AU": take the first code point). Duplicate characters (author
+mistakes) are resolved by file name (`BX_NAMES`). `parseBX` → `{ name, glyphs: Map(ch → {st:[[x,y,jump]], w, top, bot}), capH,
+lineH, space }`; `layoutText(font, text, ls%, lh%, align)`. Fonts live in `FONTS` (by name) and IndexedDB `kv/fonts`
+(`idbKV`; stored in the background — headless Edge on file:// never answers IndexedDB). A text is a shape `kind:"text"`
+(style "text") with `text, font, ls, lh, align` plus its laid-out stitches `tst` at natural size `nw × nh` (so it sews/saves
+without the font); `w/h` scale them (`textStitches`, jump flags → `appendShape` emits j + s). `regenText` keeps the scale, the
+top and the aligned side; `setTextSize` sets the capital height. Corner handles keep proportions. "To stitches" makes one
+group of runs (no runSources). Loading: Open…, drop (`useFontFiles(files, at)`), Files panel tile (`.bx` listed with a "font"
+badge and an "Abc" thumbnail), or the Text tool asks (`pendingText`).
+
 **Hoop photo:** View → Hoop photo → Upload (or drop an image on the canvas). Align mode
 shows a pink ghost hoop; the photo is placed by 4 corners `photo.q` (perspective warp via `squareToQuad` + triangle
 mesh `drawImageTri`, cached in `photo.warp`). Stored in `localStorage["jefHoopPhoto"]` (downscaled JPEG), never in the JEF.
@@ -91,7 +106,7 @@ applied to `photo.q`) or "Move photo" (manual). Hoops can carry real frame sizes
 
 **Files panel (left):** `FX` state; folder via `showDirectoryPicker` (handle kept in IndexedDB `jefEditor/kv/folder`) or a
 `webkitdirectory` upload fallback. Nested folders are CSS-grid columns with spanning rows (`renderFiles`); thumbnails via
-`fileStitches` + `drawThumb`, lazy with IntersectionObserver. Lists `.JEF` and `.jefproj`. Layout toggle horizontal/rows.
+`fileStitches` + `drawThumb`, lazy with IntersectionObserver. Lists `.JEF`, `.jefproj` and `.bx` fonts; filter bar `#fxFilter` (All / Projects / JEF incl. JEF+ / Fonts, with counts; `FX.filter`, `FX_KINDS`, localStorage `jefFilesFilter`) renders `fxFiltered(FX.tree)` — a copy whose folders keep `orig` (the real node, used for the save-here menu); folders stay even when empty, and with a filter on, a folder with nothing matching (incl. subfolders) folds to one row (`none(n)`: "No fonts here (3 other files)", not clickable, right-click still saves). Layouts (`FX.mode`, `FX_MODES`, localStorage `jefFilesLayout`): horizontal / rows / small (CSS-only variants of the grid) and tree (`fxTreeList`: IntelliJ-style 24 px rows, folders first, 20 px thumbnail + size via `th.short`, hover → `#fxPeek` big preview beside the panel). Thumbnails are always drawn at 124 px and scaled by `fxPaint`; tiles and rows share `fxWire` (click, Shift+hover, drag).
 
 **Tabs (bottom of canvas):** active design lives in the globals; others are parked as `docs[i].d` (`captureDoc`/`applyDoc`).
 `openInTab` (file list, Open…, OS drop) reuses an untouched new tab (`blankDoc`) or switches to the tab already showing that
