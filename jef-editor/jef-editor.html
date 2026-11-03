@@ -78,6 +78,17 @@
   input.sm { width:60px; }
   .card { background:#f3faff; border:1px solid #bfe3f7; border-radius:8px; padding:8px 10px; margin-bottom:8px; }
   .card h2 { margin-top:0 !important; color:#1477a8; }
+  #txFonts { flex:1; min-width:0; max-height:134px; overflow:auto; border:1px solid #ccd; border-radius:4px; background:#fff; }
+  #txFonts .fi { display:flex; align-items:center; gap:6px; padding:1px 5px 1px 2px; cursor:pointer; font-size:12px; white-space:nowrap; }
+  #txFonts .fi canvas { width:48px; height:20px; flex:none; }
+  #txFonts .fi span { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  #txFonts .fi:hover { background:#eef8fe; }
+  #txFonts .fi.on { background:#d7eefb; box-shadow:inset 3px 0 #29b6f2; font-weight:600; }
+  #txFonts .fi.prev { outline:1px dashed #29b6f2; outline-offset:-1px; }
+  #txFonts .fi.off { color:#aaa; cursor:default; font-style:italic; }
+  #txFonts .empty { padding:4px 6px; color:var(--muted); font-size:12px; }
+  .txdef { color:var(--muted); font-size:12px; }
+  #txDefBtn { padding:1px 8px; font-size:12px; margin-left:6px; }
   #txText { flex:1; min-width:0; font:15px system-ui, sans-serif; resize:vertical; padding:4px 6px; }
   #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%); background:rgba(30,30,30,.88); color:#fff; padding:6px 12px;
            border-radius:6px; font-size:13px; pointer-events:none; z-index:20; max-width:80%; }
@@ -506,11 +517,12 @@
       <!-- text (embroidery fonts) -->
       <div class="textOnly">
         <div class="row" id="txTextRow"><textarea id="txText" rows="2" spellcheck="false" placeholder="Type your text (Enter = new line)"></textarea></div>
-        <div class="row"><label class="lbl">Font</label><select id="txFont" style="flex:1;min-width:0"></select></div>
+        <div class="row" style="align-items:flex-start"><label class="lbl">Font</label><div id="txFonts" title="Click a font to use it · hold Shift and point at a font to try it on the text"></div></div>
         <div class="row"><span class="lbl"></span>
           <button id="txLoad" title="Add .bx embroidery fonts (they're remembered in this browser)">Load…</button>
           <button id="txDrop" title="Take this font off the list (text already written with it keeps its stitches)">Remove</button></div>
         <div class="row"><label class="lbl" title="Height of the capital letters">Letter size</label><input id="txSize" class="len" type="number" step="0.5" min="0.5"> <span class="unit">mm</span></div>
+        <div class="row" id="txDefRow"><span class="lbl"></span><span class="txdef" id="txDef"></span><button id="txDefBtn" title="Set the letters back to the font's own size">Use</button></div>
         <div class="row"><label class="lbl">Letters</label><input id="txLs" type="range" min="-20" max="60" step="1" title="Space between letters" style="width:100px"><span class="val" id="txLsV"></span></div>
         <div class="row" id="txLhRow"><label class="lbl">Lines</label><input id="txLh" type="range" min="60" max="200" step="5" title="Space between lines" style="width:100px"><span class="val" id="txLhV"></span></div>
         <div class="row align" id="txAlignRow"><span class="lbl">Lines align</span>
@@ -1607,6 +1619,54 @@ function setTextSize(s, size) {
   const dx = s.align === "left" ? (s.w - ow) / 2 : s.align === "right" ? -(s.w - ow) / 2 : 0, dy = -(s.h - oh) / 2;
   [s.cx, s.cy] = toWorld(s, dx, dy).map(v => Math.round(v * 2) / 2);
 }
+// A small stitched sample of a font ("Abc") for the font list, drawn once per font.
+const fontSamples = new Map();
+function fontSample(font) {
+  let c = fontSamples.get(font);
+  if (c) return c;
+  c = document.createElement("canvas"); c.width = 96; c.height = 40;
+  const txt = [..."Abc"].every(ch => font.glyphs.has(ch)) ? "Abc" : [...font.glyphs.keys()].slice(0, 3).join("");
+  const L = layoutText(font, txt, 8, 100, "center"), g = c.getContext("2d");
+  if (L.st.length) {
+    const k = Math.min((c.width - 6) / (L.w || 1), (c.height - 6) / (L.h || 1));
+    g.strokeStyle = "#2b2b2b"; g.lineWidth = 1.3; g.lineJoin = g.lineCap = "round"; g.beginPath();
+    L.st.forEach(([x, y, j], i) => { const X = c.width / 2 + x * k, Y = c.height / 2 - y * k; i && !j ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+    g.stroke();
+  }
+  fontSamples.set(font, c);
+  return c;
+}
+// Try a font on the selected text(s) without changing anything: hold Shift and point at a font (in the Properties font
+// list, or a .bx file in the Files panel). Moving away, letting go of Shift, clicking or typing puts the text back;
+// clicking a font in the list then uses it for real (one undo step).
+let fontPrev = null, fontHover = null;   // fontPrev: { name, font, orig, saved: Map(id → shape JSON) }
+function previewFont(font) {
+  const texts = selShapes().filter(s => s.kind === "text");
+  if (!font || !texts.length) return false;
+  if (fontPrev && fontPrev.name === font.name) return true;
+  if (!fontPrev) fontPrev = { saved: new Map(texts.map(s => [s.id, JSON.stringify(s)])), orig: texts[0].font };
+  else fontPrevRestore();
+  fontPrev.name = font.name; fontPrev.font = font;
+  const had = FONTS.get(font.name);
+  FONTS.set(font.name, font);   // (only while laying it out: a font from the Files panel isn't loaded by a preview)
+  for (const s of texts) { const size = textLetterSize(s); s.font = font.name; if (regenText(s)) setTextSize(s, size); }
+  if (had) FONTS.set(font.name, had); else FONTS.delete(font.name);
+  changed();
+  return true;
+}
+function fontPrevRestore() { for (const s of shapes) { const j = fontPrev.saved.get(s.id); if (j) Object.assign(s, JSON.parse(j)); } }
+function endFontPreview() {
+  if (!fontPrev) return;
+  fontPrevRestore(); fontPrev = null;
+  changed();
+}
+document.addEventListener("keydown", e => {
+  if (e.key !== "Shift") { endFontPreview(); return; }
+  if (fontHover && FONTS.has(fontHover)) previewFont(FONTS.get(fontHover));
+}, true);
+document.addEventListener("keyup", e => { if (e.key === "Shift") endFontPreview(); });
+document.addEventListener("pointerdown", () => endFontPreview(), true);
+window.addEventListener("blur", () => endFontPreview());
 
 // ---------- Shapes → stitches ----------
 function shapeOutline(p) {
@@ -3124,18 +3184,43 @@ function renderShapePanel() {
   if (allText) renderTextPanel(sel);
 }
 function renderTextPanel(sel) {
-  const s = sel[0], single = sel.length === 1, f = FONTS.get(s.font), active = document.activeElement;
+  const s = sel[0], single = sel.length === 1, active = document.activeElement;
+  const cur = fontPrev ? fontPrev.orig : s.font, f = FONTS.get(s.font) || (fontPrev && fontPrev.name === s.font ? fontPrev.font : null);
   $("txTextRow").hidden = !single;
   $("txText").disabled = !f;
   if (single && active !== $("txText")) $("txText").value = s.text;
-  const fs = $("txFont");
-  if (active !== fs) {
-    fs.innerHTML = "";
-    for (const name of [...FONTS.keys()].sort((a, b) => a.localeCompare(b))) fs.add(new Option(name, name));
-    if (!f) { const o = new Option(`${s.font} (not loaded)`, s.font); o.disabled = true; fs.add(o, 0); }
-    fs.value = sel.every(x => x.font === s.font) ? s.font : "";
+  // the font list (rebuilt only when the fonts change, so pointing at it keeps working while it previews)
+  const box = $("txFonts"), names = [...FONTS.keys()].sort((a, b) => a.localeCompare(b));
+  const lost = FONTS.has(cur) ? null : cur, key = names.join("\n") + "|" + (lost || "");
+  if (box.dataset.key !== key) {
+    box.dataset.key = key; box.innerHTML = "";
+    if (lost) { const it = document.createElement("div"); it.className = "fi off"; it.dataset.font = lost; it.innerHTML = "<canvas></canvas><span></span>"; it.lastChild.textContent = lost + " (not loaded)"; box.append(it); }
+    for (const name of names) {
+      const it = document.createElement("div"); it.className = "fi"; it.dataset.font = name; it.title = name + " · click to use · Shift+point to try it";
+      const c = document.createElement("canvas"); c.width = 96; c.height = 40; c.getContext("2d").drawImage(fontSample(FONTS.get(name)), 0, 0);
+      const nm = document.createElement("span"); nm.textContent = name;
+      it.append(c, nm);
+      it.onclick = () => { if (FONTS.has(name)) chooseFont(name); };
+      it.onmouseenter = e => { fontHover = name; if (e.shiftKey) previewFont(FONTS.get(name)); };
+      it.onmousemove = e => { if (e.shiftKey && !(fontPrev && fontPrev.name === name)) previewFont(FONTS.get(name)); };
+      it.onmouseleave = () => { if (fontHover === name) fontHover = null; endFontPreview(); };
+      box.append(it);
+    }
+    if (!names.length && !lost) box.innerHTML = '<div class="empty">No fonts loaded yet: Load…</div>';
   }
-  $("txDrop").disabled = !f;
+  const same = sel.every(x => (fontPrev ? JSON.parse(fontPrev.saved.get(x.id) || "{}").font : x.font) === cur);
+  box.querySelectorAll(".fi").forEach(it => {
+    it.classList.toggle("on", same && it.dataset.font === cur);
+    it.classList.toggle("prev", !!fontPrev && it.dataset.font === fontPrev.name);
+  });
+  $("txDrop").disabled = !FONTS.has(cur);
+  // the font's own letter size (what a new text in it starts at)
+  const own = f ? f.capH : s.capH;
+  $("txDefRow").hidden = !own || !same || !!fontPrev;
+  if (own) {
+    $("txDef").textContent = "Font's own size: " + fmtLen(own);
+    $("txDefBtn").disabled = sel.every(x => Math.abs(textLetterSize(x) - own) < 0.5);
+  }
   if (active !== $("txSize")) $("txSize").value = +toU(textLetterSize(s)).toFixed(U().dec);
   if (active !== $("txLs")) $("txLs").value = s.ls;
   if (active !== $("txLh")) $("txLh").value = s.lh;
@@ -3145,6 +3230,7 @@ function renderTextPanel(sel) {
   $("txLhRow").hidden = $("txAlignRow").hidden = !multi;
   document.querySelectorAll("[data-talign]").forEach(b => b.classList.toggle("active", b.dataset.talign === s.align));
   const miss = [...new Set(sel.flatMap(x => x.missing || []))];
+  if (fontPrev) { $("txHelp").innerHTML = "Trying <b></b> · click it in the list to use it"; $("txHelp").querySelector("b").textContent = fontPrev.name; return; }
   $("txHelp").innerHTML = !f ? `The font <b></b> isn't loaded, so this text can't be changed. Load the font to edit it — its stitches stay in the design either way.`
     : miss.length ? `Not in this font (left as gaps): <b></b>` : "";
   const b = $("txHelp").querySelector("b"); if (b) b.textContent = !f ? s.font : miss.join(" ");
@@ -4159,11 +4245,12 @@ PALETTE.forEach((p, i) => { if (i) $("shColor").add(new Option(`${i} · ${p[0]}`
 // text settings
 const editTexts = fn => editShapes(sel => { for (const s of sel) if (s.kind === "text") fn(s); });
 $("txText").addEventListener("input", () => editTexts(s => { s.text = $("txText").value; regenText(s); }));
-$("txFont").addEventListener("input", () => {
-  const v = $("txFont").value; if (!FONTS.has(v)) return;
-  TEXT_DEF.font = v;
+function chooseFont(v) {
+  if (!FONTS.has(v)) return;
+  TEXT_DEF.font = v; editing = false;
   editTexts(s => { const size = textLetterSize(s); s.font = v; if (regenText(s)) setTextSize(s, size); });   // same letter size in the new font
-});
+}
+$("txDefBtn").onclick = () => { editing = false; editTexts(s => { const f = FONTS.get(s.font); setTextSize(s, f ? f.capH : s.capH); }); };
 $("txSize").addEventListener("input", () => num("txSize") > 0 && editTexts(s => setTextSize(s, fromU(num("txSize")))));
 $("txLs").addEventListener("input", () => { TEXT_DEF.ls = +$("txLs").value; editTexts(s => { s.ls = TEXT_DEF.ls; regenText(s); }); });
 $("txLh").addEventListener("input", () => { TEXT_DEF.lh = +$("txLh").value; editTexts(s => { s.lh = TEXT_DEF.lh; regenText(s); }); });
@@ -4178,7 +4265,7 @@ $("txFile").onchange = e => {   // (pendingText: the Text tool asked for a font 
   useFontFiles(files, at);
 };
 $("txDrop").onclick = async () => {
-  const name = $("txFont").value;
+  const t = selShapes().find(x => x.kind === "text"), name = t && t.font;
   if (!FONTS.has(name) || !confirm(`Take the font “${name}” off the list?\nText already written with it keeps its stitches.`)) return;
   await removeFont(name); changed();
 };
@@ -4740,7 +4827,7 @@ function fxWire(t, f) {
   t.onclick = () => { fxPeekHide(); fxOpen(f); };
   t.onmouseenter = e => { fxHover = f; if (e.shiftKey) queuePreview(f); };
   t.onmousemove = e => { if (e.shiftKey) queuePreview(f); };
-  t.onmouseleave = () => { if (fxHover === f) fxHover = null; };
+  t.onmouseleave = () => { if (fxHover === f) fxHover = null; if (/\.bx$/i.test(f.name)) endFontPreview(); };
   t.draggable = true;
   t.addEventListener("dragstart", e => {
     fxPeekHide();
@@ -4856,12 +4943,27 @@ async function fxThumb(f, c, t) {
 // Shift+hover previews (see showPreview); a short delay so sweeping across tiles only loads where you pause briefly
 let fxHover = null, previewTimer = 0, previewWant = null;
 function queuePreview(f) {
-  if (!$("nameDlg").hidden || drag || /\.bx$/i.test(f.name)) return;   // (fonts aren't designs)
+  if (!$("nameDlg").hidden || drag) return;
+  if (/\.bx$/i.test(f.name)) { previewFontFile(f); return; }   // a font: try it on the selected text instead
   const p = docs[activeDoc];
   if (previewWant === f.path || (p && p.preview && FX.current === f.path)) return;   // already showing / on its way
   previewWant = f.path;
   clearTimeout(previewTimer);
   previewTimer = setTimeout(() => { previewWant = null; showPreview(f); }, 70);
+}
+// Shift+point at a font file: lay the selected text out in it (parsed fonts are kept per file, so it's instant the next time)
+const fxFonts = new Map();
+let fontHint = null;
+async function previewFontFile(f) {
+  if (fontPrev && fontPrev.path === f.path) return;
+  let font = fxFonts.get(f.path);
+  if (!font) {
+    try { font = parseBX(await (await f.get()).arrayBuffer(), f.name.replace(/\.bx$/i, "")); fxFonts.set(f.path, font); }
+    catch (e) { return; }
+    if (fxHover !== f) return;   // (moved on while it was reading)
+  }
+  if (previewFont(font)) fontPrev.path = f.path;
+  else if (fontHint !== f.path) { fontHint = f.path; toast("Select a text, then Shift+point at a font to try it on the text"); }
 }
 // pressing Shift while already over a tile previews it too
 document.addEventListener("keydown", e => { if (e.key === "Shift" && fxHover && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) queuePreview(fxHover); });

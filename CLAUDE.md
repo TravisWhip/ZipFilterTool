@@ -89,7 +89,11 @@ lineH, space }`; `layoutText(font, text, ls%, lh%, align)`. Fonts live in `FONTS
 (`idbKV`; stored in the background — headless Edge on file:// never answers IndexedDB). A text is a shape `kind:"text"`
 (style "text") with `text, font, ls, lh, align` plus its laid-out stitches `tst` at natural size `nw × nh` (so it sews/saves
 without the font); `w/h` scale them (`textStitches`, jump flags → `appendShape` emits j + s). `regenText` keeps the scale, the
-top and the aligned side; `setTextSize` sets the capital height. Corner handles keep proportions. "To stitches" makes one
+top and the aligned side; `setTextSize` sets the capital height. The Properties panel shows the font's own size (`f.capH`, row `#txDefRow`, “Use” resets to it)
+and a font list `#txFonts` (stitched “Abc” samples from `fontSample`; click = `chooseFont`). **Font preview:** Shift+point at a font in
+that list or a `.bx` file in the Files panel (`previewFontFile`, parsed fonts cached in `fxFonts`, not loaded) → `previewFont(font)`
+lays the selected texts out in it without an undo step (`fontPrev` keeps their JSON); pointing away, Shift up, any other key,
+any pointerdown or window blur → `endFontPreview()` restores them. Corner handles keep proportions. "To stitches" makes one
 group of runs (no runSources). Loading: Open…, drop (`useFontFiles(files, at)`), Files panel tile (`.bx` listed with a "font"
 badge and an "Abc" thumbnail), or the Text tool asks (`pendingText`).
 
