@@ -375,7 +375,7 @@
         <button data-fxmode="tree" title="Compact tree list (like an IDE): tiny thumbnails, rest on a file for a bigger preview">☰</button>
       </span></div>
     <div class="fxbar">
-      <button id="fxOpen" title="Pick the folder that holds your JEF files">Choose folder…</button>
+      <button id="fxOpen" title="List a folder of JEF files or fonts (from anywhere on your PC; add as many as you like)">Add folder…</button>
       <button id="fxRefresh" title="Look for new or changed files" hidden>↻</button>
       <span class="root" id="fxRoot"></span>
     </div>
@@ -656,6 +656,9 @@
   <button data-fx="proj">Save project here…</button>
   <button data-fx="jef">Export JEF here…</button>
   <div class="note" id="fxMenuNote" hidden></div>
+  <hr id="fxMenuHr">
+  <button id="fxMenuRemove" title="Take this folder off the list (nothing on your PC is deleted)">Remove folder from list</button>
+  <button id="fxMenuAdd" title="List another folder from anywhere on your PC (added at the top level)">Add folder…</button>
 </div>
 <div id="ctxMenu" hidden>
   <button data-act="group">Group <kbd>Ctrl+G</kbd></button>
@@ -4481,10 +4484,10 @@ try {
 setOrderMode(orderMode);
 
 // ---------- File explorer (left panel) ----------
-// Shows every .JEF / .jefproj under a folder you pick. Nested folders are columns: a folder's cell spans the rows of
+// Shows every .JEF / .jefproj / .bx under the folders you add. Nested folders are columns: a folder's cell spans the rows of
 // everything inside it, and each folder that holds files gets a row of thumbnails. Chrome/Edge remember the folder
 // (File System Access handle kept in IndexedDB); other browsers use a folder upload, which has to be redone per visit.
-const FX = { tree: null, handle: null, mode: "horizontal", collapsed: new Set(), thumbs: new Map(), current: null, gen: 0 };
+const FX = { tree: null, mode: "horizontal", collapsed: new Set(), thumbs: new Map(), current: null, gen: 0 };
 const FX_MODES = ["horizontal", "rows", "small", "tree"];
 try { const m = localStorage.getItem("jefFilesLayout"); if (FX_MODES.includes(m)) FX.mode = m; } catch (e) {}
 try { FX.collapsed = new Set(JSON.parse(localStorage.getItem("jefFilesCollapsed") || "[]")); } catch (e) {}
@@ -4517,7 +4520,6 @@ function idbKV(key, val) {   // no value: read key; otherwise store it (null del
     };
   });
 }
-const idbFolder = val => idbKV("folder", val);   // the remembered folder handle
 const fxSort = n => {
   const cmp = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
   n.dirs.sort(cmp); n.files.sort(cmp);
@@ -4535,9 +4537,9 @@ async function fxScanHandle(dh, path, depth = 0) {
   return fxSort(n);
 }
 // from a folder upload: [{ file, rel: "root/sub/name.JEF" }]
-function fxTreeFromFiles(list) {
+function fxTreeFromFiles(list, path) {
   const root = { name: (list[0] && list[0].rel.split("/")[0]) || "Folder", path: "", dirs: [], files: [] };
-  root.path = root.name;
+  root.path = path || root.name;
   for (const { file, rel } of list) {
     const parts = rel.split("/");
     if (!FX_RE.test(parts[parts.length - 1]) || parts.some(p => p.startsWith("."))) continue;
@@ -4547,43 +4549,73 @@ function fxTreeFromFiles(list) {
       if (!c) n.dirs.push(c = { name: parts[i], path: n.path + "/" + parts[i], dirs: [], files: [] });
       n = c;
     }
-    n.files.push({ name: file.name, path: rel, get: () => Promise.resolve(file) });
+    n.files.push({ name: file.name, path: n.path + "/" + parts[parts.length - 1], get: () => Promise.resolve(file) });
   }
   const fin = n => { n.dirs.forEach(fin); fxSort(n); n.dirs = n.dirs.filter(d => d.count); return n; };
   return fin(root);
 }
-async function fxUseHandle(h, ask) {
-  let perm = await h.queryPermission({ mode: "read" });
-  if (perm !== "granted" && ask) perm = await h.requestPermission({ mode: "read" });
-  FX.handle = h;
-  if (perm !== "granted") {   // needs a click to ask again (browsers only allow that from a user gesture)
-    FX.tree = null; $("fxRoot").textContent = "";
-    $("fxOpen").textContent = `Reconnect “${h.name}”`; $("fxRefresh").hidden = true;
-    renderFiles(); return;
-  }
-  $("fxOpen").textContent = "Choose folder…"; $("fxRoot").textContent = h.name; $("fxRefresh").hidden = false;
-  $("fxTree").innerHTML = '<div class="help">Looking for JEF files…</div>';
-  FX.tree = await fxScanHandle(h, h.name);
+// Several folders, each from anywhere on the PC, are listed together: FX.roots, under one invisible root (FX.tree.virtual)
+// so the filter, counts and lookups work across all of them. New folders go at the root, after the others. Chrome/Edge
+// remember them (handles in IndexedDB kv/folders); a folder upload (other browsers) lasts for the visit.
+FX.roots = [];   // [{ path, handle? | upload?, tree?, lost?, scanning? }]
+function fxRootPath(name, skip) {   // a unique top-level path (two folders can share a name)
+  let p = name, k = 2;
+  while (FX.roots.some(r => r !== skip && r.path === p)) p = `${name} (${k++})`;
+  return p;
+}
+const fxRootOf = node => node && FX.roots.find(r => node.path === r.path || node.path.startsWith(r.path + "/"));
+function fxRebuild() {
+  const dirs = FX.roots.map(r => r.tree || { name: r.path, path: r.path, dirs: [], files: [], count: 0, root: r, stub: r.scanning ? "scan" : "lost" });
+  FX.tree = dirs.length ? { name: "", path: "", virtual: true, files: [], dirs, count: dirs.reduce((a, d) => a + d.count, 0) } : null;
+  $("fxRefresh").hidden = !FX.roots.some(r => r.handle);
+  $("fxRoot").textContent = FX.roots.length > 1 ? FX.roots.length + " folders" : "";
   renderFiles();
 }
-async function fxChoose() {
-  if (FX.handle && !FX.tree) { try { await fxUseHandle(FX.handle, true); } catch (e) {} if (FX.tree) return; }   // "Reconnect"
+const fxSaveRoots = () => { if (window.indexedDB) idbKV("folders", FX.roots.filter(r => r.handle).map(r => r.handle)).catch(() => {}); };
+async function fxScanRoot(r, ask) {
+  let perm = await r.handle.queryPermission({ mode: "read" });
+  if (perm !== "granted" && ask) perm = await r.handle.requestPermission({ mode: "read" });
+  r.lost = perm !== "granted";
+  if (r.lost) { r.tree = null; fxRebuild(); return; }   // needs a click to ask again (only allowed from a user gesture)
+  r.tree = null; r.scanning = true; fxRebuild();
+  try { r.tree = await fxScanHandle(r.handle, r.path); r.tree.root = r; r.tree.name = r.path; }   // (name: "Designs (2)" when two share one)
+  catch (e) { r.lost = true; }
+  r.scanning = false; fxRebuild();
+}
+async function fxAddHandle(h) {
+  for (const r of FX.roots) if (r.handle && await r.handle.isSameEntry(h)) {   // already listed: just look again
+    toast(`“${h.name}” is already in the list`); FX.collapsed.delete(r.path); await fxScanRoot(r, true); return r;
+  }
+  const r = { handle: h, path: fxRootPath(h.name) };
+  FX.roots.push(r); fxSaveRoots(); FX.collapsed.delete(r.path);
+  await fxScanRoot(r, true);
+  return r;
+}
+async function fxAddFolder() {
   if (!window.showDirectoryPicker) { $("fxDirIn").click(); return; }
   let h;
   try { h = await showDirectoryPicker({ id: "jef-files", mode: "read" }); } catch (e) { return; }   // cancelled
-  try { await idbFolder(h); } catch (e) {}
-  await fxUseHandle(h, true);
+  await fxAddHandle(h);
 }
-$("fxOpen").onclick = fxChoose;
-$("fxRefresh").onclick = () => { FX.thumbs.clear(); if (FX.handle) fxUseHandle(FX.handle, true); else $("fxDirIn").click(); };
+function fxRemoveRoot(r) {
+  FX.roots = FX.roots.filter(x => x !== r); fxSaveRoots();
+  for (const k of [...FX.thumbs.keys()]) if (k.startsWith(r.path + "/")) FX.thumbs.delete(k);
+  fxRebuild();
+  toast(`Removed “${r.path}” from the list · the folder itself is untouched`);
+}
+$("fxOpen").onclick = fxAddFolder;
+$("fxRefresh").onclick = async () => {
+  FX.thumbs.clear();
+  for (const r of FX.roots) if (r.handle) await fxScanRoot(r, true);
+};
 $("fxDirIn").addEventListener("change", e => {
   const list = [...e.target.files].map(file => ({ file, rel: file.webkitRelativePath || file.name }));
   e.target.value = "";
   if (!list.length) return;
-  FX.handle = null; FX.thumbs.clear();
-  FX.tree = fxTreeFromFiles(list);
-  $("fxRoot").textContent = FX.tree.name; $("fxRefresh").hidden = false;
-  renderFiles();
+  const r = { upload: true, path: fxRootPath((list[0].rel.split("/")[0]) || "Folder") };
+  r.tree = fxTreeFromFiles(list, r.path); r.tree.root = r; r.tree.name = r.path;
+  FX.roots.push(r); FX.collapsed.delete(r.path);
+  fxRebuild();
 });
 
 function renderFiles() {
@@ -4595,15 +4627,15 @@ function renderFiles() {
     b.classList.toggle("active", k === FX.filter);
     if (FX.tree) { b.querySelector("small")?.remove(); const s = document.createElement("small"); s.textContent = fxCount(FX.tree, FX_KINDS[k]); b.append(s); }
   });
+  // right-click the empty space: add another folder
+  box.oncontextmenu = e => { if (e.target.closest(".fx-dir, .fx-files, .fxt-row")) return; e.preventDefault(); showFxMenu(null, e.clientX, e.clientY); };
   if (!FX.tree) {
-    box.innerHTML = FX.handle
-      ? '<div class="help">Click <b>Reconnect</b> to let this page read the folder again.</div>'
-      : '<div class="help">Choose the folder that holds your JEF files. Folders inside it show as nested columns, and each file as a thumbnail you can click to open.</div>';
+    box.innerHTML = '<div class="help">Add the folders that hold your JEF files and fonts (from anywhere on your PC, as many as you like: <b>Add folder…</b> or right-click here). Folders inside them show as nested columns, and each file as a thumbnail you can click to open.</div>';
     return;
   }
   // filtered: a folder with nothing that matches (here or in its subfolders) folds up to one row
-  const none = n => FX.filter !== "all" && n.count === 0;
-  const shut = n => FX.collapsed.has(n.path) || none(n);
+  const none = n => !n.stub && FX.filter !== "all" && n.count === 0;
+  const shut = n => !!n.stub || FX.collapsed.has(n.path) || none(n);
   const depth = (n, d) => shut(n) || !n.dirs.length ? d : Math.max(...n.dirs.map(c => depth(c, d + 1)));
   // (an empty folder still gets a row, so you can right-click it and save into it)
   const rowsOf = n => shut(n) ? 1 : Math.max(1, (n.files.length ? 1 : 0) + n.dirs.reduce((a, c) => a + rowsOf(c), 0));
@@ -4611,7 +4643,8 @@ function renderFiles() {
   const tiles = [];   // [file, canvas, element] whose thumbnails to draw
   if (FX.mode === "tree") fxTreeList(tree, box, tiles, shut, none);
   else {
-  const D = depth(tree, 0);
+  const tops = tree.virtual ? tree.dirs : [tree];   // (the top level = the added folders)
+  const D = Math.max(0, ...tops.map(c => depth(c, 0)));
   const grid = document.createElement("div");
   grid.className = "fx " + FX.mode;
   grid.style.gridTemplateColumns = `repeat(${D + 1}, minmax(56px, max-content)) minmax(0, 1fr)`;
@@ -4627,6 +4660,15 @@ function renderFiles() {
     dir.innerHTML = `<span></span><small>${shut(n) && !none(n) ? "▸ " : ""}${n.count} file${n.count === 1 ? "" : "s"}</small>`;
     dir.firstChild.textContent = n.name;
     dir.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };   // (the real folder, all its files)
+    if (n.stub) {   // an added folder the browser needs your OK to read again (or is still reading)
+      dir.innerHTML = "<span></span><small>" + (n.stub === "scan" ? "…" : "🔒") + "</small>"; dir.firstChild.textContent = n.name;
+      const note = cell("fx-files note", row, `${d + 2} / -1`, 1);
+      note.textContent = n.stub === "scan" ? "Looking for files…" : "Click to reconnect (the browser needs your OK to read this folder again)";
+      dir.title = note.textContent + " · right-click to remove it from the list";
+      dir.onclick = note.onclick = () => { if (n.stub === "lost") fxScanRoot(n.root, true); };
+      note.oncontextmenu = dir.oncontextmenu;
+      return 1;
+    }
     if (none(n)) dir.title = "Nothing in " + n.name + " matches the filter · right-click to save here";
     dir.onclick = () => {
       if (none(n)) return;   // (nothing to show with this filter)
@@ -4670,7 +4712,8 @@ function renderFiles() {
     for (const c of n.dirs) r += emit(c, d + 1, r);
     return rows;
   };
-  emit(tree, 0, 1);
+  let row = 1;
+  for (const c of tops) row += emit(c, 0, row);
   box.appendChild(grid);
   }
   // thumbnails: drawn when they scroll into view, one file at a time
@@ -4715,13 +4758,19 @@ function fxTreeList(tree, box, tiles, shut, none) {
   const save = () => { try { localStorage.setItem("jefFilesCollapsed", JSON.stringify([...FX.collapsed])); } catch (e) {} };
   const walk = (n, d) => {
     const open = !shut(n), kids = n.files.length || n.dirs.length, row = document.createElement("div");
-    row.className = "fxt-row fxt-dir" + (none(n) ? " none" : "");
+    row.className = "fxt-row fxt-dir" + (none(n) || n.stub ? " none" : "");
     row.style.paddingLeft = 4 + d * 14 + "px";
     row.innerHTML = '<span class="fxt-car">' + (none(n) || !kids ? "" : open ? "▼" : "▶") + "</span>" + FOLDER_SVG + '<span class="fxt-nm"></span><span class="fxt-meta"></span>';
     row.querySelector(".fxt-nm").textContent = n.name;
     row.querySelector(".fxt-meta").textContent = none(n) ? "no matches" : n.count;
     row.title = none(n) ? "Nothing in " + n.name + " matches the filter · right-click to save here" : n.path + " · right-click to save here";
     row.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };
+    if (n.stub) {
+      row.querySelector(".fxt-meta").textContent = n.stub === "scan" ? "reading…" : "🔒 click to reconnect";
+      row.title = (n.stub === "scan" ? "Looking for files…" : "Click to let the browser read this folder again") + " · right-click to remove it from the list";
+      row.onclick = () => { if (n.stub === "lost") fxScanRoot(n.root, true); };
+      list.appendChild(row); return;
+    }
     row.onclick = () => {
       if (none(n) || !kids) return;
       open ? FX.collapsed.add(n.path) : FX.collapsed.delete(n.path); save(); renderFiles();
@@ -4748,7 +4797,7 @@ function fxTreeList(tree, box, tiles, shut, none) {
       list.appendChild(t); tiles.push([f, c, t]);
     }
   };
-  walk(tree, 0);
+  for (const c of tree.virtual ? tree.dirs : [tree]) walk(c, 0);
   box.appendChild(list);
 }
 // the bigger preview for a tree row (after a short rest, so sweeping down the list doesn't flash it)
@@ -4874,9 +4923,15 @@ $("fileResize").addEventListener("dblclick", () => { setFilesWidth(FILES_W); res
 try { setFiles(localStorage.getItem("jefFiles") !== "hidden"); } catch (e) { setFiles(true); }
 setFxMode(FX.mode);
 renderFiles();
-// bring back the folder from last time (Chrome/Edge)
-if (window.showDirectoryPicker && window.indexedDB)
-  idbFolder().then(h => { if (h) return fxUseHandle(h, false); }).catch(() => {});
+// bring back the folders from last time (Chrome/Edge; older versions kept just one, under "folder")
+if (window.showDirectoryPicker && window.indexedDB) (async () => {
+  let hs = await idbKV("folders");
+  if (!hs) { const h = await idbKV("folder"); hs = h ? [h] : []; if (h) { await idbKV("folders", hs); idbKV("folder", null); } }
+  for (const h of hs) if (h) FX.roots.push({ handle: h, path: fxRootPath(h.name) });
+  if (!FX.roots.length) return;
+  fxRebuild();
+  for (const r of FX.roots) { try { await fxScanRoot(r, false); } catch (e) { r.lost = true; fxRebuild(); } }
+})().catch(() => {});
 // and the embroidery fonts loaded before
 if (window.indexedDB) fontsRestored().then(() => { if (FONTS.size && !drag) changed(); });
 
@@ -5226,18 +5281,22 @@ async function ensureNamed() {
 }
 
 // ---------- Save as… into a folder of the file list (right-click a folder) ----------
-// Needs a folder picked with "Choose folder…" in Chrome/Edge (a folder handle we can ask for write access);
+// Needs a folder added with "Add folder…" in Chrome/Edge (a folder handle we can ask for write access);
 // the upload fallback in other browsers can only read.
 let fxMenuNode = null;
-function showFxMenu(node, x, y) {
+function showFxMenu(node, x, y) {   // node = a folder, or null for the empty space (just "Add folder…")
   fxMenuNode = node;
-  const m = $("fxMenu"), canWrite = !!(node.handle && FX.handle);
-  $("fxMenuHead").textContent = "📁 " + node.path;
-  m.querySelectorAll("[data-fx]").forEach(b => b.disabled = !canWrite);
-  $("fxMenuNote").hidden = canWrite;
-  $("fxMenuNote").textContent = window.showDirectoryPicker
-    ? "Click Choose folder… (or Reconnect) to let the editor save into this folder."
+  const m = $("fxMenu"), root = fxRootOf(node), canWrite = !!(node && node.handle && root && root.handle && !root.lost);
+  $("fxMenuHead").textContent = node ? "📁 " + node.path : "Files";
+  m.querySelectorAll("[data-fx]").forEach(b => { b.disabled = !canWrite; b.hidden = !node || !!node.stub; });
+  $("fxMenuNote").hidden = !node || canWrite || !!node.stub;
+  $("fxMenuNote").textContent = window.showDirectoryPicker && root && !root.upload
+    ? "Click the folder to reconnect it, so the editor can save into it."
     : "This browser can only read folders. Use Chrome or Edge to save straight into a folder.";
+  const isRoot = !!(root && node.path === root.path);
+  $("fxMenuRemove").hidden = !isRoot;
+  $("fxMenuAdd").hidden = !!node;
+  $("fxMenuHr").hidden = !node || !isRoot || !!node.stub;
   m.hidden = false;
   const r = m.getBoundingClientRect();
   m.style.left = Math.min(x, innerWidth - r.width - 8) + "px";
@@ -5246,6 +5305,8 @@ function showFxMenu(node, x, y) {
 const hideFxMenu = () => { $("fxMenu").hidden = true; };
 document.addEventListener("pointerdown", e => { if (!$("fxMenu").contains(e.target)) hideFxMenu(); }, true);
 $("fxMenu").querySelectorAll("[data-fx]").forEach(b => b.onclick = () => { hideFxMenu(); if (fxMenuNode) saveToFolder(fxMenuNode, b.dataset.fx); });
+$("fxMenuAdd").onclick = () => { hideFxMenu(); fxAddFolder(); };
+$("fxMenuRemove").onclick = () => { hideFxMenu(); const r = fxRootOf(fxMenuNode); if (r) fxRemoveRoot(r); };
 async function saveToFolder(node, kind) {
   const ext = kind === "proj" ? ".jefproj" : jefExt();
   const taken = n => node.files.some(f => f.name.toLowerCase() === (n + ext).toLowerCase());
@@ -5257,11 +5318,11 @@ async function saveToFolder(node, kind) {
     warn: n => taken(n) ? `${node.name} already has a file called ${n}${ext}. Saving will replace it.` : null,
   });
   if (!n) return;
-  const fname = n + ext;
+  const fname = n + ext, root = fxRootOf(node);
   try {
     // write access to the picked folder (asked once; the browser remembers it for the visit)
-    if ((await FX.handle.queryPermission({ mode: "readwrite" })) !== "granted" &&
-        (await FX.handle.requestPermission({ mode: "readwrite" })) !== "granted") {
+    if ((await root.handle.queryPermission({ mode: "readwrite" })) !== "granted" &&
+        (await root.handle.requestPermission({ mode: "readwrite" })) !== "granted") {
       alert("The browser didn't allow saving into this folder."); return;
     }
     // the list can be out of date: if the file turned up since, still warn before replacing it
@@ -5277,8 +5338,9 @@ async function saveToFolder(node, kind) {
     if (kind === "proj" || !projectOnly()) saved = true;
     const path = node.path + "/" + fname;
     FX.thumbs.delete(path);
-    FX.tree = await fxScanHandle(FX.handle, FX.handle.name);   // show the new file in the list
-    FX.current = path; renderFiles();
+    FX.current = path;
+    root.tree = await fxScanHandle(root.handle, root.path); root.tree.root = root; root.tree.name = root.path;   // show the new file in the list
+    fxRebuild();
     changed();
   } catch (e) { alert("Couldn't save there: " + e.message); }
 }

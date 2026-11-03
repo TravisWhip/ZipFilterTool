@@ -8,7 +8,7 @@ Browser-based tools for Janome `.JEF` embroidery files. No install needed: open 
   (the biggest, or click another; or right-click one → **Align to this**), and clicking a left/center/right or bottom/middle/top dot moves the others.
   **Text** (X) writes with Embrilliance-style `.bx` embroidery fonts: load them with Open…, drop them on the canvas, or click
   one in the Files panel (they're remembered in the browser), click where the text goes and type; letter size, letter and
-  line spacing, line alignment and font stay editable, and the text keeps its stitches even where the font isn't loaded. **Save** writes a `.jefproj` project (JSON) that keeps live shapes, groups,
+  line spacing, line alignment and font stay editable, and the text keeps its stitches even where the font isn't loaded. The **Files** panel lists any number of folders from anywhere on your PC (**Add folder…**, or right-click its empty space; right-click a folder to remove it from the list). **Save** writes a `.jefproj` project (JSON) that keeps live shapes, groups,
   measurements, sew order, hoop and photo alignment; reopen it with **Open…** and keep editing, then **Export JEF**.
   Upload a photo of your hooped fabric and line it up: mark the hoop's inside edge and press Apply to straighten and size
   it automatically, or move, rotate, resize and stretch it by hand onto the ghost hoop, to design directly on it.

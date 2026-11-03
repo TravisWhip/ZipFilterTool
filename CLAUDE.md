@@ -104,8 +104,13 @@ design saved when there's no project-only data (`projectOnly()`). A JEF → proj
 **Photo alignment modes:** "Mark hoop edge" (drag a dotted box onto the hoop's inside edge, Apply = `homog(markBox, hoopInnerQuad())`
 applied to `photo.q`) or "Move photo" (manual). Hoops can carry real frame sizes (`iw/ih/band/rad`, SQ14 = 171.5 mm inside).
 
-**Files panel (left):** `FX` state; folder via `showDirectoryPicker` (handle kept in IndexedDB `jefEditor/kv/folder`) or a
-`webkitdirectory` upload fallback. Nested folders are CSS-grid columns with spanning rows (`renderFiles`); thumbnails via
+**Files panel (left):** `FX` state. Several folders from anywhere on the PC (`FX.roots`: `{path, handle | upload, tree, lost, scanning}`),
+added with **Add folder…** or right-clicking the empty space (`fxAddFolder` → `showDirectoryPicker`, or the `webkitdirectory`
+upload fallback), always at the top level; right-click an added folder → “Remove folder from list” (`fxRemoveRoot`, files untouched).
+`fxRebuild()` puts them under an invisible root `FX.tree` (`virtual: true`) so filters/counts/`fxFileByPath` span all of them;
+top-level paths are unique (`fxRootPath`: "Designs (2)") and `fxRootOf(node)` finds a node's root (its handle is used for saving).
+Handles are kept in IndexedDB `jefEditor/kv/folders` (migrated from the old single `folder` key); a root the browser needs
+permission for again shows as a stub row ("Click to reconnect" → `fxScanRoot(r, true)`). Nested folders are CSS-grid columns with spanning rows (`renderFiles`); thumbnails via
 `fileStitches` + `drawThumb`, lazy with IntersectionObserver. Lists `.JEF`, `.jefproj` and `.bx` fonts; filter bar `#fxFilter` (All / Projects / JEF incl. JEF+ / Fonts, with counts; `FX.filter`, `FX_KINDS`, localStorage `jefFilesFilter`) renders `fxFiltered(FX.tree)` — a copy whose folders keep `orig` (the real node, used for the save-here menu); folders stay even when empty, and with a filter on, a folder with nothing matching (incl. subfolders) folds to one row (`none(n)`: "No fonts here (3 other files)", not clickable, right-click still saves). Layouts (`FX.mode`, `FX_MODES`, localStorage `jefFilesLayout`): horizontal / rows / small (CSS-only variants of the grid) and tree (`fxTreeList`: IntelliJ-style 24 px rows, folders first, 20 px thumbnail + size via `th.short`, hover → `#fxPeek` big preview beside the panel). Thumbnails are always drawn at 124 px and scaled by `fxPaint`; tiles and rows share `fxWire` (click, Shift+hover, drag).
 
 **Tabs (bottom of canvas):** active design lives in the globals; others are parked as `docs[i].d` (`captureDoc`/`applyDoc`).
@@ -132,7 +137,7 @@ The popup is the generic `askName(o)` (also used by Save as; supports a live `wa
 **Save as into a folder:** right-click a folder (or its file row) in the Files panel → `#fxMenu` → `saveToFolder(node, "proj"|"jef")`.
 Folder nodes from `fxScanHandle` carry `handle`; write access is requested on the root handle at save time. Warns in the
 dialog if the name exists in the scanned list, and re-checks on disk (confirm) in case the list is stale. Empty subfolders
-are kept (as "right-click to save here" rows). Upload-fallback folders have no handle → items disabled.
+are kept (as "right-click to save here" rows). Upload-fallback folders have no handle → items disabled. Each root is rescanned on its own after a save.
 
 **Fit:** `fit(mode)` with "hoop" (whole frame + any design outside it) or "design" (true bbox). Toolbar switch `#fitHoop`
 picks the Fit button's mode (`jefFitMode`); side panel "On open" `#openFit` (`jefOpenFit`, default hoop) is used by `load`/`loadProject`.
