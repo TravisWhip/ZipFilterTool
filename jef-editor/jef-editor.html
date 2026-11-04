@@ -2054,8 +2054,17 @@ function restore(from, to) {
 // ---------- View ----------
 const toS = (x, y) => [view.ox + x * view.s, view.oy - y * view.s];
 const toW = (sx, sy) => [(sx - view.ox) / view.s, (view.oy - sy) / view.s];
+// The design stays put on screen when the canvas's left edge moves (left panels opened, closed or resized),
+// just as it does when the right-hand panel changes the canvas's right edge.
+let cvLeft = null;
 function resize() {
   const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  if (cvLeft !== null && r.left !== cvLeft) {
+    const d = r.left - cvLeft;
+    view.ox -= d;
+    for (const t of docs) if (t.d && t.d.view && t !== docs[activeDoc]) t.d.view.ox -= d;   // parked tabs too
+  }
+  cvLeft = r.left;
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   draw();
 }
@@ -4637,6 +4646,7 @@ function setOrderMode(m) {
   $("orderBtn").classList.toggle("active", m !== "hidden");
   try { localStorage.setItem("jefOrderMode", m); } catch (e) {}
   renderOrder();
+  resize();   // keeps the design in place now (not a frame later)
 }
 // ⇔ toggles: full width, or back to the normal open width if it's already full
 document.querySelectorAll("[data-omode]").forEach(b => b.onclick = () =>
@@ -4916,7 +4926,7 @@ function renderFiles() {
       fc.oncontextmenu = e => { e.preventDefault(); showFxMenu(n.orig, e.clientX, e.clientY); };   // (right-click a file = its folder)
       for (const f of n.files) {
         const t = document.createElement("div"); t.className = "fx-tile" + (f.path === FX.current ? " cur" : "");
-        t.dataset.path = f.path; t.title = f.path;
+        t.dataset.path = f.path;   // (no tooltip: it would cover the previews)
         const c = document.createElement("canvas"); c.width = c.height = 124;
         const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = f.name;
         t.append(c, nm);
@@ -4999,7 +5009,7 @@ function fxTreeList(tree, box, tiles, shut, none) {
     for (const f of n.files) {
       const t = document.createElement("div");
       t.className = "fxt-row fxt-file" + (f.path === FX.current ? " cur" : "");
-      t.dataset.path = f.path; t.title = f.path;
+      t.dataset.path = f.path;   // (no tooltip: it would cover the previews)
       t.style.paddingLeft = 4 + (d + 1) * 14 + 16 + "px";
       const c = document.createElement("canvas"); c.width = c.height = 40;
       const nm = document.createElement("span"); nm.className = "fxt-nm"; nm.textContent = f.name;
@@ -5010,7 +5020,7 @@ function fxTreeList(tree, box, tiles, shut, none) {
       t.append(meta);
       t.oncontextmenu = row.oncontextmenu;   // (right-click a file = its folder)
       fxWire(t, f);
-      t.addEventListener("mouseenter", () => fxPeekSoon(f, t));
+      t.addEventListener("mouseenter", e => fxPeekSoon(f, t, e));
       t.addEventListener("mouseleave", fxPeekHide);
       list.appendChild(t); tiles.push([f, c, t]);
     }
@@ -5018,16 +5028,24 @@ function fxTreeList(tree, box, tiles, shut, none) {
   for (const c of tree.virtual ? tree.dirs : [tree]) walk(c, 0);
   box.appendChild(list);
 }
-// the bigger preview for a tree row (after a short rest, so sweeping down the list doesn't flash it)
+// the bigger preview for a tree row: after a very short rest (so a quick sweep down the list doesn't flash it), and
+// straight away when moving on from a row whose preview was just showing
 let fxPeekTimer = 0;
-function fxPeekSoon(f, row) {
+// Shift held = previewing (a design in the preview tab, a font on the selected text), so no peek popup then
+let shiftHeld = false;
+document.addEventListener("keydown", e => { if (e.key === "Shift") { shiftHeld = true; fxPeekHide(); } }, true);
+document.addEventListener("keyup", e => { if (e.key === "Shift") shiftHeld = false; }, true);
+window.addEventListener("blur", () => shiftHeld = false);
+function fxPeekSoon(f, row, e) {
+  if (e) shiftHeld = e.shiftKey;
+  if (shiftHeld) return;
   clearTimeout(fxPeekTimer);
   fxPeekTimer = setTimeout(async () => {
     let th = FX.thumbs.get(f.path);
     if (!th) { await fxThumb(f, row.querySelector("canvas"), row); th = FX.thumbs.get(f.path); }
-    if (!th || !row.isConnected || !row.matches(":hover")) return;
+    if (!th || !row.isConnected || !row.matches(":hover") || shiftHeld) return;   // (Shift: it's already showing)
     fxPeekShow(f, row, th);
-  }, 250);
+  }, performance.now() - fxPeekShownAt < 200 ? 0 : 60);
 }
 function fxPeekShow(f, row, th) {
   const p = $("fxPeek"), c = p.querySelector("canvas");
@@ -5038,11 +5056,12 @@ function fxPeekShow(f, row, th) {
   p.style.left = Math.min(panel.right + 6, innerWidth - p.offsetWidth - 4) + "px";
   p.style.top = Math.max(4, Math.min(r.top - 8, innerHeight - p.offsetHeight - 4)) + "px";
 }
-function fxPeekHide() { clearTimeout(fxPeekTimer); $("fxPeek").hidden = true; }
+let fxPeekShownAt = 0;
+function fxPeekHide() { clearTimeout(fxPeekTimer); if (!$("fxPeek").hidden) fxPeekShownAt = performance.now(); $("fxPeek").hidden = true; }
 function fxPaint(c, t, th) {
   if (th.err) { const g = c.getContext("2d"); g.fillStyle = "#ecebe6"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#999"; g.font = `bold ${Math.round(c.width * 0.32)}px system-ui`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("?", c.width / 2, c.height / 2); }
   else { const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height); g.drawImage(th.img, 0, 0, c.width, c.height); }
-  if (th.info) t.title = t.dataset.path + "\n" + th.info;
+  if (th.info) t.dataset.info = th.info;   // (not a tooltip: it would cover the previews)
   const m = t.querySelector(".fxt-meta"); if (m) m.textContent = th.short || "";
 }
 async function fxThumb(f, c, t) {
@@ -5129,6 +5148,7 @@ function setFiles(show) {
   edgeTab("fileTab", "Files", show, "left");
   $("filesBtn").classList.toggle("active", show);
   try { localStorage.setItem("jefFiles", show ? "shown" : "hidden"); } catch (e) {}
+  resize();
 }
 $("filesBtn").onclick = () => setFiles($("filePanel").hidden);
 $("fileTab").onclick = () => setFiles($("filePanel").hidden);
