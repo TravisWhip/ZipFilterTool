@@ -95,12 +95,12 @@
   .val { color:var(--muted); min-width:44px; }
   .align button { padding:3px 7px; font-size:12px; }
   .align button.active { background:#333; color:#fff; border-color:#333; }
-  #realBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 18px; padding:7px 12px;
+  #realBar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:7px 12px;
              background:#fbf8f1; border-bottom:1px solid var(--line); }
   #realBar .grp { display:flex; align-items:center; gap:6px; }
   #realBar .cap { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
   #realBar .end { font-size:11px; color:var(--muted); }
-  #realBar input[type=range] { width:130px; }
+  #realBar input[type=range] { width:110px; }
   #realBar.off .grp, #realBar.off #pullInfo { opacity:.45; }
   #realBar .swatches { display:flex; gap:3px; }
   #realBar .swatches button { width:18px; height:18px; padding:0; border:1px solid #999; border-radius:3px; }
@@ -372,7 +372,8 @@
     <span id="tightV" class="val"></span></div>
   <div class="grp">
     <label title="See-through copy of the stitches at 100% tightness, drawn underneath, so you can see how far they pulled in"><input type="checkbox" id="ghost" checked> Ghost of 100%</label>
-    <label title="Multiply the pull ×3 to make it easier to see"><input type="checkbox" id="exag"> Exaggerate ×3</label></div>
+    <label title="Multiply the pull ×3 to make it easier to see"><input type="checkbox" id="exag"> Exaggerate ×3</label>
+    <label title="Hide the stop / thread-change badges on the canvas while the realistic preview is on"><input type="checkbox" id="hideStops"> Hide stops</label></div>
   <span id="pullInfo" class="val"></span>
 </div>
 
@@ -2056,9 +2057,10 @@ const toS = (x, y) => [view.ox + x * view.s, view.oy - y * view.s];
 const toW = (sx, sy) => [(sx - view.ox) / view.s, (view.oy - sy) / view.s];
 // The design stays put on screen when the canvas's left edge moves (left panels opened, closed or resized),
 // just as it does when the right-hand panel changes the canvas's right edge.
-let cvLeft = null;
+let cvLeft = null, cvRect = null;   // (cvRect: the canvas box as of the last resize, so draw() needn't ask for it: asking right after
+                                    // the panels changed makes the browser lay the whole page out there and then)
 function resize() {
-  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  const r = cvRect = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
   if (cvLeft !== null && r.left !== cvLeft) {
     const d = r.left - cvLeft;
     view.ox -= d;
@@ -2804,16 +2806,24 @@ function placeHint() {
 // ---- Drawing the stitches (with a layer cache, so slow PCs stay responsive) ----
 // drawStitches paints stitches from..to-1 of `all` into g (screen coordinates); `inc(i)` (optional) picks which ones.
 // Normal view: one stroke per color block. Realistic: each stitch at true thread width (dark edge, body, highlight).
+// To keep big designs quick: `clip` ([x0, y0, x1, y1], screen) leaves out stitches that are entirely off one side of it;
+// the normal view merges points closer than half a pixel; and when the realistic thread is under 1.6 px on screen
+// (so its edge and shine can't be told apart anyway) each color goes in two strokes instead of 2–3 per stitch.
+// Paths are stroked every CHUNK segments: one huge self-crossing path is much slower for the browser to fill in.
+const CHUNK = 64;
 function drawStitches(g, all, th, from, to, o) {
-  const { real, inc, alphaAt, P } = o;
+  const { real, inc, alphaAt, P, clip } = o;
   let ci = 0;
   for (let i = 0; i < from; i++) if (all[i].t === "c") ci++;
+  const s = view.s, ox = view.ox, oy = view.oy;
+  const X0 = clip ? clip[0] : -Infinity, Y0 = clip ? clip[1] : -Infinity, X1 = clip ? clip[2] : Infinity, Y1 = clip ? clip[3] : Infinity;
+  const side = (x, y) => (x < X0 ? 1 : x > X1 ? 2 : 0) | (y < Y0 ? 4 : y > Y1 ? 8 : 0);   // segments with a side in common are off screen
   let px = from ? all[from - 1].x : 0, py = from ? all[from - 1].y : 0;
   g.lineCap = "round"; g.lineJoin = "round";
   if (real) {
-    const tpx = Math.max(0.6, +$("tw").value * 10 * view.s);
+    const tpx = Math.max(0.6, +$("tw").value * 10 * s), fast = tpx < 1.6;
     const hl = Math.max(0.4, tpx * 0.18), off = tpx * 0.14;
-    let qx = from ? P[from - 1][0] : 0, qy = from ? P[from - 1][1] : 0, cols = null;
+    let cols = null;
     const setColor = k => {
       const [r0, g0, b0] = threadRGB(th[k] || { idx: -1 }, k), mix = (f, t) => `rgb(${[r0, g0, b0].map(v => Math.round(v + (t - v) * f)).join(",")})`;
       cols = [mix(0.45, 0), `rgb(${r0},${g0},${b0})`, mix(0.55, 255)];
@@ -2822,43 +2832,66 @@ function drawStitches(g, all, th, from, to, o) {
       // Ghost: the unpulled (100% tightness) stitches, see-through and underneath, so the pulled-in
       // difference shows as a faint rim around the real stitching.
       g.save(); g.globalAlpha = 0.32; g.lineWidth = tpx;
-      let gx = px, gy = py, gc = ci;
+      let gx = px, gy = py, gc = ci, path = fast ? new Path2D() : null, ex = NaN, ey = NaN, gn = 0;
+      const gflush = () => { if (path && gn) { g.stroke(path); path = new Path2D(); ex = NaN; gn = 0; } };
       g.strokeStyle = threadCSS(th[gc] || { idx: -1 }, gc);
       for (let i = from; i < to; i++) {
         const c = all[i];
-        if (c.t === "c") { gc++; g.strokeStyle = threadCSS(th[gc] || { idx: -1 }, gc); }
+        if (c.t === "c") { gflush(); gc++; g.strokeStyle = threadCSS(th[gc] || { idx: -1 }, gc); }
         else if (c.t === "s" && (c.x !== gx || c.y !== gy) && (!inc || inc(i))) {
-          g.beginPath(); g.moveTo(...toS(gx, gy)); g.lineTo(...toS(c.x, c.y)); g.stroke();
+          const ax = ox + gx * s, ay = oy - gy * s, bx = ox + c.x * s, by = oy - c.y * s;
+          if (!(side(ax, ay) & side(bx, by))) {
+            if (fast) { if (ax !== ex || ay !== ey) path.moveTo(ax, ay); path.lineTo(bx, by); ex = bx; ey = by; if (++gn >= CHUNK) gflush(); }
+            else { g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); }
+          }
         }
         gx = c.x; gy = c.y;
       }
-      g.restore();
+      gflush(); g.restore();
     }
     setColor(ci);
+    let qx = from ? ox + P[from - 1][0] * s : 0, qy = from ? oy - P[from - 1][1] * s : 0;
+    let pe = null, pb = null, ea = 1, ex = NaN, ey = NaN, pn = 0;   // fast: this color's edge and body paths (CHUNK segments at a time)
+    const fflush = () => {
+      if (!pe) return;
+      g.globalAlpha = ea;
+      g.strokeStyle = cols[0]; g.lineWidth = tpx * 1.5; g.stroke(pe);   // (wider: drawn one by one, the thin edges overlapped and built up darker)
+      g.strokeStyle = cols[1]; g.lineWidth = tpx * 0.72; g.stroke(pb);
+      pe = pb = null; pn = 0;
+    };
     for (let i = from; i < to; i++) {
-      const c = all[i];
-      if (c.t === "c") setColor(++ci);
-      else if (c.t === "s" && (c.x !== px || c.y !== py) && (!inc || inc(i))) {
-        const [ax, ay] = toS(qx, qy), [bx, by] = toS(P[i][0], P[i][1]);
-        const L = Math.hypot(bx - ax, by - ay) || 1, nx = -(by - ay) / L * off, ny = (bx - ax) / L * off;
-        g.globalAlpha = alphaAt(i);
-        g.strokeStyle = cols[0]; g.lineWidth = tpx;
-        g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
-        g.strokeStyle = cols[1]; g.lineWidth = tpx * 0.72;
-        g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
-        if (tpx > 2.5) {
-          g.strokeStyle = cols[2]; g.lineWidth = hl;
-          g.beginPath(); g.moveTo(ax - nx, ay - ny); g.lineTo(bx - nx, by - ny); g.stroke();
+      const c = all[i], bx = ox + P[i][0] * s, by = oy - P[i][1] * s;
+      if (c.t === "c") { fflush(); setColor(++ci); }
+      else if (c.t === "s" && (c.x !== px || c.y !== py) && (!inc || inc(i)) && !(side(qx, qy) & side(bx, by))) {
+        const a = alphaAt(i);
+        if (fast) {
+          if (pe && a !== ea) fflush();
+          if (!pe) { pe = new Path2D(); pb = new Path2D(); ea = a; ex = NaN; }
+          if (qx !== ex || qy !== ey) { pe.moveTo(qx, qy); pb.moveTo(qx, qy); }
+          pe.lineTo(bx, by); pb.lineTo(bx, by); ex = bx; ey = by;
+          if (++pn >= CHUNK) fflush();
+        } else {
+          const L = Math.hypot(bx - qx, by - qy) || 1, nx = -(by - qy) / L * off, ny = (bx - qx) / L * off;
+          g.globalAlpha = a;
+          g.strokeStyle = cols[0]; g.lineWidth = tpx;
+          g.beginPath(); g.moveTo(qx, qy); g.lineTo(bx, by); g.stroke();
+          g.strokeStyle = cols[1]; g.lineWidth = tpx * 0.72;
+          g.beginPath(); g.moveTo(qx, qy); g.lineTo(bx, by); g.stroke();
+          if (tpx > 2.5) {
+            g.strokeStyle = cols[2]; g.lineWidth = hl;
+            g.beginPath(); g.moveTo(qx - nx, qy - ny); g.lineTo(bx - nx, by - ny); g.stroke();
+          }
         }
       }
-      px = c.x; py = c.y; qx = P[i][0]; qy = P[i][1];
+      px = c.x; py = c.y; qx = bx; qy = by;
     }
+    fflush();
     g.globalAlpha = 1;
     return;
   }
   const lw = +$("lw").value, showJ = $("showJumps").checked;
-  let open = false, openAlpha = 1;
-  const flush = () => { if (open) { g.stroke(); open = false; } };
+  let open = false, openAlpha = 1, lx = 0, ly = 0, ls = 0, pend = false, qx = 0, qy = 0, n = 0;   // l: the last point in the path; q: one held back
+  const flush = () => { if (open) { if (pend) g.lineTo(qx, qy); g.stroke(); open = false; pend = false; } };
   for (let i = from; i < to; i++) {
     const c = all[i];
     if (c.t === "c") { flush(); ci++; }
@@ -2872,12 +2905,20 @@ function drawStitches(g, all, th, from, to, o) {
     } else {
       const a = alphaAt(i);
       if (open && a !== openAlpha) flush();   // faded and normal stitches go in separate strokes
+      const sx = ox + c.x * s, sy = oy - c.y * s;
       if (!open) {
         g.globalAlpha = openAlpha = a;
         g.strokeStyle = threadCSS(th[ci] || { idx: -1 }, ci); g.lineWidth = lw;
-        g.beginPath(); g.moveTo(...toS(px, py)); open = true;
+        lx = ox + px * s; ly = oy - py * s; ls = side(lx, ly);
+        g.beginPath(); g.moveTo(lx, ly); open = true; n = 0;
       }
-      g.lineTo(...toS(c.x, c.y));
+      if (Math.abs(sx - lx) < 0.5 && Math.abs(sy - ly) < 0.5) { pend = true; qx = sx; qy = sy; }   // too close to see: wait for the next
+      else {
+        const ss = side(sx, sy);
+        if (ls & ss) g.moveTo(sx, sy); else g.lineTo(sx, sy);
+        lx = sx; ly = sy; ls = ss; pend = false;
+        if (++n >= CHUNK) { g.stroke(); g.beginPath(); g.moveTo(sx, sy); n = 0; }   // (same color and alpha: carry on from here)
+      }
     }
     px = c.x; py = c.y;
   }
@@ -2911,6 +2952,7 @@ function pulled(all, hash) {   // the realistic preview's pulled stitch position
   return SL.P;
 }
 function drawStitchLayer(all, th, marks, limit, real, spot, w, h) {
+  if (!cv.width || !cv.height) return;   // (canvas hidden, e.g. the Sew order list at full width: nothing to draw into)
   const dpr = devicePixelRatio || 1, alphaAt = spot ? i => [0.15, 0.5, 1][spot[i]] : () => 1;
   // moving / resizing / turning things: everything else goes in the layer, the moving items are drawn on top every frame
   let mov = null;
@@ -2933,13 +2975,15 @@ function drawStitchLayer(all, th, marks, limit, real, spot, w, h) {
   const L = SL.cv, g = L.getContext("2d");
   const blit = () => ctx.drawImage(L, 0, 0, w, h);
   const lim = sewAll ? Infinity : limit;   // (showing everything: the same however many stitches that is)
+  const M = Math.max(w, h) * 0.25, clip = [-M, -M, w + M, h + M];   // (a margin, so a little panning has something to show)
   if (same && sameView && SL.limit === lim) blit();
   else if (same && sameView && lim > SL.limit && !SL.ghost) {   // sewing on: add just the new stitches
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawStitches(g, all, th, SL.limit, limit, { real, inc, alphaAt, P: getP() });
+    drawStitches(g, all, th, SL.limit, limit, { real, inc, alphaAt, P: getP(), clip });
     SL.limit = lim; blit();
-  } else if (same && !sameView && SL.limit === lim && SL.ms > 12 && performance.now() < viewBusyUntil) {
+  } else if (same && !sameView && SL.limit === lim && (SL.ms > 12 || all.length > 15000) && performance.now() < viewBusyUntil) {
     // slow to draw and the view is moving: shift / scale the last picture, and draw it sharp once things settle
+    // (a big design counts as slow even when the script is quick: with a graphics card the cost is in painting the lines)
     const k = view.s / SL.view.s;
     ctx.drawImage(L, view.ox - SL.view.ox * k, view.oy - SL.view.oy * k, w * k, h * k);
     clearTimeout(SL.timer); SL.timer = setTimeout(draw, 200);
@@ -2948,26 +2992,97 @@ function drawStitchLayer(all, th, marks, limit, real, spot, w, h) {
     if (L.width !== cv.width || L.height !== cv.height) { L.width = cv.width; L.height = cv.height; }
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, L.width, L.height);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawStitches(g, all, th, 0, limit, { real, inc, alphaAt, P, ghost });
+    drawStitches(g, all, th, 0, limit, { real, inc, alphaAt, P, ghost, clip });
     clearTimeout(SL.timer);
     blit();   // (timed up to here: the drawing itself mostly happens when the layer is first used)
     Object.assign(SL, { key: settings, hash, limit: lim, ghost, view: { ...view }, ms: performance.now() - t0 });
   }
-  if (mov) {   // the moving items, on top (realistic: their pull worked out on their own, which is quick)
-    let Pm = null;
-    if (real) {
-      const idx = [], keep = lastPull;
-      for (let i = 0; i < all.length; i++) if (mov[i]) idx.push(i);
-      const ps = pullField(idx.map(i => all[i]));
-      lastPull = keep;
-      Pm = all.map(c => [c.x, c.y]); idx.forEach((i, k) => Pm[i] = ps[k]);
-    }
-    drawStitches(ctx, all, th, 0, limit, { real, inc: i => mov[i] === 1, alphaAt, P: Pm, ghost: SL.ghost });
+  if (mov && !movingSprite(all, th, mov, limit, real, alphaAt, dpr, spot)) {   // (save/restore: the line caps it sets mustn't leak into what's drawn on top)
+    ctx.save(); drawStitches(ctx, all, th, 0, limit, { real, inc: i => mov[i] === 1, alphaAt, P: movingPull(all, mov, real), ghost: SL.ghost, clip }); ctx.restore();
   }
+}
+// realistic: the moving items' pull, worked out on their own (which is quick)
+function movingPull(all, mov, real) {
+  if (!real) return null;
+  const idx = [], keep = lastPull;
+  for (let i = 0; i < all.length; i++) if (mov[i]) idx.push(i);
+  const ps = pullField(idx.map(i => all[i]));
+  lastPull = keep;
+  const Pm = all.map(c => [c.x, c.y]); idx.forEach((i, k) => Pm[i] = ps[k]);
+  return Pm;
+}
+// While moving, turning or resizing, the moving items are drawn into an image once, and each frame just places that
+// image, shifted / turned / stretched to where they are now (worked out from a few of their stitches, and checked on
+// the rest of those samples). When it doesn't fit (a live shape whose stitches are regenerated as it's resized), it's
+// redrawn; if that keeps happening, this returns false and they're drawn directly. Letting go draws them sharp again.
+function movingSprite(all, th, mov, limit, real, alphaAt, dpr, spot) {
+  const idx = [];
+  let fade = 0;   // (the centering spotlight fades items by how they line up, which changes as they move: part of the picture)
+  for (let i = 0; i < limit; i++) if (mov[i] && all[i].t !== "c") { idx.push(i); if (spot) fade = (Math.imul(fade, 31) + spot[i]) | 0; }
+  if (!idx.length) return true;
+  let sp = SL.mv;
+  if (!sp || sp.drag !== drag) {
+    sp = SL.mv = { drag, misses: 0, off: false, cv: (SL.mv && SL.mv.cv) || document.createElement("canvas") };
+    // resizing / turning a live shape makes new stitches (a satin column keeps its width as the shape grows), which a
+    // stretched picture would get wrong even where a few sample stitches happen to fit; texts are just scaled
+    if (drag.mode !== "move" && [...shapeSel].some(id => { const s = byId(id); return s && s.kind !== "text"; })) sp.off = true;
+  }
+  if (sp.off) return false;
+  const scr = i => toS(all[i].x, all[i].y);
+  if (sp.S0 && sp.n === idx.length && sp.s === view.s && sp.fade === fade) {
+    const S = sp.samples.map(k => scr(idx[k])), A = fitAffine3(sp.S0, S, sp.abc);
+    const tol = 0.35 + 1.5 * view.s;   // (turned / resized runs are rounded to the 0.1 mm grid: each stitch can be off by up to ~1.4 of it)
+    if (A && S.every((q, j) => { const p = sp.S0[j]; return Math.abs(A[0] * p[0] + A[2] * p[1] + A[4] - q[0]) < tol && Math.abs(A[1] * p[0] + A[3] * p[1] + A[5] - q[1]) < tol; })) {
+      sp.misses = 0;
+      // just shifted: to whole device pixels, so thin lines stay crisp (at most half a pixel off while moving)
+      const shift = Math.abs(A[0] - 1) < 1e-6 && Math.abs(A[3] - 1) < 1e-6 && Math.abs(A[1]) < 1e-6 && Math.abs(A[2]) < 1e-6;
+      const ex = shift ? Math.round(dpr * A[4]) : dpr * A[4], fy = shift ? Math.round(dpr * A[5]) : dpr * A[5];
+      ctx.save(); ctx.setTransform(dpr * A[0], dpr * A[1], dpr * A[2], dpr * A[3], ex, fy);
+      ctx.drawImage(sp.cv, sp.x0, sp.y0, sp.w, sp.h); ctx.restore();
+      return true;
+    }
+    if (++sp.misses >= 2) { sp.off = true; return false; }
+  }
+  sp.fade = fade;
+  // (re)draw the image: the moving stitches' box on screen, plus room for the thread
+  const box = ptBox(idx.map(i => { const [x, y] = scr(i); return { x, y }; }));
+  const pad = (real ? +$("tw").value * 10 * view.s * 1.5 + MAX_PULL * 3 * view.s : +$("lw").value) + 4;
+  const x0 = Math.floor(box.minX - pad), y0 = Math.floor(box.minY - pad), bw = Math.ceil(box.maxX + pad) - x0, bh = Math.ceil(box.maxY + pad) - y0;
+  if (bw * bh * dpr * dpr > 16e6) { sp.off = true; return false; }   // (zoomed far in: too big to keep as an image)
+  const c = sp.cv;
+  c.width = Math.ceil(bw * dpr); c.height = Math.ceil(bh * dpr);
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, -x0 * dpr, -y0 * dpr);
+  drawStitches(g, all, th, 0, limit, { real, inc: i => mov[i] === 1, alphaAt, P: movingPull(all, mov, real), ghost: SL.ghost });
+  // samples: up to 16 of the moving stitches, spread out; three far apart ones fix the transform
+  const step = Math.max(1, Math.floor(idx.length / 16)), samples = [];
+  for (let k = 0; k < idx.length; k += step) samples.push(k);
+  samples.push(idx.length - 1);
+  const S0 = samples.map(k => scr(idx[k]));
+  let b = 0, cc = 0, best = -1;
+  S0.forEach((p, j) => { const d = (p[0] - S0[0][0]) ** 2 + (p[1] - S0[0][1]) ** 2; if (d > best) { best = d; b = j; } });
+  best = -1;
+  S0.forEach((p, j) => { const d = Math.abs((S0[b][0] - S0[0][0]) * (p[1] - S0[0][1]) - (S0[b][1] - S0[0][1]) * (p[0] - S0[0][0])); if (d > best) { best = d; cc = j; } });
+  Object.assign(sp, { x0, y0, w: bw, h: bh, n: idx.length, s: view.s, samples, S0, abc: best > 4 ? [0, b, cc] : [0] });
+  ctx.drawImage(c, x0, y0, bw, bh);
+  return true;
+}
+// the 2D affine transform taking three points p (picked by abc) to q; one point = just a shift. [a, b, c, d, e, f] as in setTransform
+function fitAffine3(P, Q, abc) {
+  const [i, j, k] = abc;
+  if (abc.length === 1) return [1, 0, 0, 1, Q[i][0] - P[i][0], Q[i][1] - P[i][1]];
+  const ux = P[j][0] - P[i][0], uy = P[j][1] - P[i][1], vx = P[k][0] - P[i][0], vy = P[k][1] - P[i][1];
+  const det = ux * vy - vx * uy;
+  if (Math.abs(det) < 1e-9) return null;
+  const Ux = Q[j][0] - Q[i][0], Uy = Q[j][1] - Q[i][1], Vx = Q[k][0] - Q[i][0], Vy = Q[k][1] - Q[i][1];
+  // [a c; b d] · [u v] = [U V]  →  [a c; b d] = [U V] · [u v]⁻¹
+  const a = (Ux * vy - Vx * uy) / det, c = (Vx * ux - Ux * vx) / det;
+  const b = (Uy * vy - Vy * uy) / det, d = (Vy * ux - Uy * vx) / det;
+  return [a, b, c, d, Q[i][0] - a * P[i][0] - c * P[i][1], Q[i][1] - b * P[i][0] - d * P[i][1]];
 }
 function draw() {
   placeHint();
-  const dpr = devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  const dpr = devicePixelRatio || 1, r = cvRect || cv.getBoundingClientRect();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const real = $("real").checked;
   ctx.fillStyle = real ? fabricPattern() : "#fff"; ctx.fillRect(0, 0, r.width, r.height);
@@ -3019,9 +3134,10 @@ function draw() {
   }
 
   // stops: a pause badge where sewing resumes after each color change, with the next thread's color
+  // (the realistic preview can hide them: "Hide stops")
   let stopNo = 0;
   ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-  for (let i = 0; i < limit; i++) {
+  if (!(real && $("hideStops").checked)) for (let i = 0; i < limit; i++) {
     if (all[i].t !== "c") continue;
     stopNo++;
     let j = i + 1; while (j < all.length - 1 && all[j].t !== "s") j++;
@@ -3217,12 +3333,17 @@ function changed() {
 }
 
 function renderThreads(th) {
-  const box = $("threads"); box.innerHTML = "";
+  const box = $("threads");
+  // rebuilt only when the threads change (each row has a ~80-color list, slow to rebuild on every click)
+  const editable = cmds.some(c => c.t !== "c");
+  const sig = threads.length + "|" + editable + "|" + th.map((t, k) => threadCSS(t, k) + "/" + t.idx + "/" + (t.name || "")).join(",");
+  if (box._sig === sig) return;
+  box._sig = sig; box.innerHTML = "";
   th.forEach((t, k) => {
     const row = document.createElement("div"); row.className = "thread";
     const sw = document.createElement("span"); sw.className = "sw"; sw.style.background = threadCSS(t, k);
     row.append(`${k + 1}.`, sw);
-    if (k < threads.length && cmds.some(c => c.t !== "c")) {   // threads of the loaded design are editable here
+    if (k < threads.length && editable) {   // threads of the loaded design are editable here
       const s = document.createElement("select");
       PALETTE.forEach((p, i) => { if (i) s.add(new Option(`${i} · ${p[0]}`, i)); });
       if (!PALETTE[t.idx]) s.add(new Option(`${t.idx} · (unknown)`, t.idx));
@@ -3402,18 +3523,37 @@ function orderThumb(all, th, m, cAt) {
   }
   return c;
 }
+// what the Sew order list shows, apart from the selection: the stitches and threads, each item (for shapes also which
+// object it is: undo puts in new shape objects, which the cards' handlers must point to), groups and folded groups
+const objIds = new WeakMap();
+let nextObjId = 1;
+const objId = o => { let k = objIds.get(o); if (!k) objIds.set(o, k = nextObjId++); return k; };
+function orderSig(all, th, marks) {
+  const items = marks.map(m => (m.type === "run" ? "r" + m.r.start + "-" + m.r.end + ":" + runGroupOf(m.r)
+    : "s" + objId(m.s) + ":" + m.s.group + ":" + m.s.kind + ":" + !!m.s.applique + ":" + (m.s.text || "")) + ":" + m.from + "-" + m.to);
+  return stitchHash(all, th) + "|" + items.join(",") + "|" + [...collapsedGroups].join(",");
+}
 function renderOrder() {
   const box = $("orderList");
   if ($("orderPanel").hidden) return;
   const { all, th, marks } = compose();
-  box.innerHTML = "";
-  if (!marks.length) { box.innerHTML = '<div class="help">Nothing to sew yet. Draw a shape or open a JEF file.</div>'; return; }
+  if (!marks.length) { box._sig = null; box.innerHTML = '<div class="help">Nothing to sew yet. Draw a shape or open a JEF file.</div>'; return; }
   // number of color changes before index i (= which thread is in use)
   const cAt = new Int32Array(all.length + 1);
   for (let i = 0; i < all.length; i++) cAt[i + 1] = cAt[i] + (all[i].t === "c" ? 1 : 0);
   const firstS = m => { for (let i = m.from; i <= m.to; i++) if (all[i].t === "s") return i; return m.from; };
   const gOf = m => m.type === "run" ? runGroupOf(m.r) : (m.s.group ?? null);
   const isSelMark = m => m.type === "run" ? runSel.has(m.r.start) : shapeSel.has(m.s.id);
+  // Same list as last time (only the selection changed, the usual case for a click)? Then just re-mark the selected
+  // cards: rebuilding a few hundred cards with their thumbnails is slow on a big design.
+  const sig = orderSig(all, th, marks);
+  if (box._sig === sig) {
+    for (const row of box.querySelectorAll(".oi")) row.classList.toggle("sel", isSelMark(row._m));
+    for (const grp of box.querySelectorAll(".ogrp")) grp.classList.toggle("sel", grp._members.every(([x]) => isSelMark(x)));
+    return;
+  }
+  box._sig = sig;
+  box.innerHTML = "";
   const clearDropMarks = () => box.querySelectorAll(".drop-before,.drop-after,.dragging").forEach(el => el.classList.remove("drop-before", "drop-after", "dragging"));
   // "after" half of a drop target: right half for cards in a (horizontal) group, bottom half otherwise
   const below = (el, e) => {
@@ -3461,6 +3601,7 @@ function renderOrder() {
         const members = marks.map((x, j) => [x, j]).filter(([x]) => gOf(x) === g);
         const grp = document.createElement("div");
         grp.className = "ogrp" + (collapsedGroups.has(g) ? " collapsed" : "") + (members.every(([x]) => isSelMark(x)) ? " sel" : "");
+        grp._members = members;
         const head = document.createElement("div"); head.className = "ogrp-h"; head.draggable = true;
         const caret = document.createElement("span"); caret.className = "caret"; caret.textContent = collapsedGroups.has(g) ? "▸" : "▾";
         caret.onclick = e => { e.stopPropagation(); collapsedGroups.has(g) ? collapsedGroups.delete(g) : collapsedGroups.add(g); renderOrder(); };
@@ -3496,6 +3637,7 @@ function renderOrder() {
     const row = document.createElement("div");
     const selected = isSelMark(m);
     row.className = "oi" + (selected ? " sel" : "");
+    row._m = m;
     row.draggable = true;
     const num = document.createElement("span"); num.className = "num"; num.textContent = i + 1;
     const cvs = document.createElement("canvas"); cvs.width = 128; cvs.height = 88;
@@ -5240,6 +5382,11 @@ $("tight").addEventListener("input", () => {
 });
 $("fabricType").addEventListener("input", () => { if ($("fabricType").value) $("tight").value = $("fabricType").value; realInput(); });
 ["tw", "fabric", "ghost", "exag"].forEach(id => $(id).addEventListener("input", realInput));
+try { $("hideStops").checked = localStorage.getItem("jefHideStops") === "1"; } catch (e) {}
+$("hideStops").addEventListener("input", () => {
+  try { localStorage.setItem("jefHideStops", $("hideStops").checked ? "1" : "0"); } catch (e) {}
+  realInput();
+});
 document.querySelectorAll("[data-fabric]").forEach(b => b.onclick = () => { $("fabric").value = b.dataset.fabric; realInput(); });
 syncRealBar();
 $("sew").addEventListener("input", () => { sewN = +$("sew").value; sewAll = sewN >= +$("sew").max; syncPlayUI(); draw(); });   // (only the view changes)

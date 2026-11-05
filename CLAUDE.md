@@ -59,7 +59,7 @@ covers it.) Local-only, not committed: `SavedDesigns/`, `HoopImage.jpeg`, `SQ14b
 Shape drawing with satin/running/triple stitches (rounded satin corners with sharp↔round slider, compressed inner side);
 draw.io-style handles, snapping and guides (edges, centers, stitched inner/outer edges, group centers); inch/mm grid with
 rulers and opacity; metric/imperial units (internally always 0.1 mm); hoop overlay with standard Janome hoops;
-realistic thread preview with fabric tightness/pull simulation and a 100% ghost; editable stitch runs; stops/pauses;
+realistic thread preview with fabric tightness/pull simulation, a 100% ghost and "Hide stops" (`#hideStops`, hides the stop badges); editable stitch runs; stops/pauses;
 KSP-style **Sew order** panel (thumbnails, drag reorder, pauses, horizontal groups, resizable, edge tabs to reopen);
 groups (right-click, Ctrl+G); "Center on contents" with a 3-level spotlight; measure tool (M); sew-out player with
 stops; appliqué (placement → pause → tack-down → pause → satin); points tool for single stitches.
@@ -156,6 +156,20 @@ picks the Fit button's mode (`jefFitMode`); side panel "On open" `#openFit` (`je
   redraw follows 200 ms later. While moving/resizing/rotating, the layer holds everything except the selected items (hashed
   in order, not by index), which are drawn on top each frame (realistic: their pull from `pullField` on just them).
   Anything new that changes how stitches look must go into that key or the hash.
+- **Moving items are baked** (`movingSprite`): at the start of a move/rotate/resize they're drawn once into an image, and each
+  frame places it with an affine transform fitted on ~16 sample stitches (`fitAffine3`, checked with a tolerance that allows
+  for the 0.1 mm grid rounding; plain shifts snap to whole device pixels). Remade when the spotlight fade changes; off (drawn
+  directly) after 2 misses, when too big, or when resizing/rotating live non-text shapes (their stitches are regenerated).
+- `drawStitches`: `clip` culls segments off one side of the view (layer margin 25%); the normal view merges points < 0.5 px
+  apart; realistic with thread < 1.6 px on screen uses two batched strokes per color (edge ×1.5 wide, body) instead of 2–3
+  strokes per stitch; paths are stroked every `CHUNK` (64) segments — one huge self-crossing path is 2–4× slower to fill.
+  Code that strokes on the main `ctx` must `save`/`restore` around it (line caps leak into the overlays otherwise).
+- Panning/zooming reuses the scaled layer when `SL.ms > 12` **or** the design has > 15000 commands (with a GPU the cost is
+  in rasterizing, which `SL.ms` doesn't see). `draw()` uses `cvRect` (set in `resize()`), not `getBoundingClientRect()`
+  (that forced a page layout right after the panels changed). `renderOrder` / `renderThreads` only rebuild when their
+  content signature changes (`orderSig`, `box._sig`); a selection change just toggles the cards' `sel` class.
+- Profiling: CPU profiles via the DevTools protocol (headless Edge `--remote-debugging-port`, `Profiler.start/stop`) on
+  10 pasted copies of the 3-inch patch (52k stitches) at `--force-device-scale-factor=2` (Retina), with and without GPU.
 - `getRuns()` is memoized per event (cleared by a microtask, keyed on the `cmds` array and length); code that changes
   `cmds` in place without changing its length (e.g. toggling `t`, `regenRun`) must call `runsDirty()`.
 - `changed()` during a drag only redraws; the side panels catch up every 150 ms and on pointerup. The sew slider only
